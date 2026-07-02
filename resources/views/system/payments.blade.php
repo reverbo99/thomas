@@ -85,18 +85,27 @@
                         </div>
                     </div>
                     <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                    <div class="overflow-x-auto">
-                        <table id="serviceTable" class="display stripe w-full table-auto border-collapse text-sm" style="min-width: 560px;">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="serviceTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="serviceTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="serviceTable" data-column="2" placeholder="Booking code">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="serviceTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="serviceTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="serviceTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
                             <thead>
-                                <tr class="bg-gray-100 text-gray-700 uppercase text-xs tracking-wide">
-                                    <th class="py-3 px-4 text-left font-semibold w-16"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="No."></th>
-                                    <th class="py-3 px-4 text-left font-semibold"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Company"></th>
-                                    <th class="py-3 px-4 text-left font-semibold"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Booking"></th>
-                                    <th class="py-3 px-4 text-right font-semibold whitespace-nowrap"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Amount"></th>
-                                    <th class="py-3 px-4 text-left font-semibold whitespace-nowrap"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Date"></th>
-                                </tr>
                                 <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
-                                    <th class="py-2.5 px-4 text-left font-semibold w-16">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
                                     <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
                                     <th class="py-2.5 px-4 text-left font-semibold">Booking code</th>
                                     <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
@@ -116,7 +125,11 @@
                                         </tr>
                                     @endforeach
                                 @else
-                                    <tr><td colspan="5" class="py-8 px-4 text-center text-gray-500 text-sm">{{ __('system.pages.no_data_found') }}</td></tr>
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
                                 @endif
                             </tbody>
                         </table>
@@ -159,18 +172,27 @@
                         </div>
                     </div>
                     <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                    <div class="overflow-x-auto">
-                        <table id="commissionTable" class="display stripe w-full table-auto border-collapse text-sm" style="min-width: 560px;">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="commissionTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="commissionTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="commissionTable" data-column="2" placeholder="Booking code">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="commissionTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="commissionTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="commissionTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
                             <thead>
-                                <tr class="bg-gray-100 text-gray-700 uppercase text-xs tracking-wide">
-                                    <th class="py-3 px-4 text-left font-semibold w-16"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="No."></th>
-                                    <th class="py-3 px-4 text-left font-semibold"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Company"></th>
-                                    <th class="py-3 px-4 text-left font-semibold"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Booking"></th>
-                                    <th class="py-3 px-4 text-right font-semibold whitespace-nowrap"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Amount"></th>
-                                    <th class="py-3 px-4 text-left font-semibold whitespace-nowrap"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Date"></th>
-                                </tr>
                                 <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
-                                    <th class="py-2.5 px-4 text-left font-semibold w-16">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
                                     <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
                                     <th class="py-2.5 px-4 text-left font-semibold">Booking code</th>
                                     <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
@@ -190,7 +212,11 @@
                                         </tr>
                                     @endforeach
                                 @else
-                                    <tr><td colspan="5" class="py-8 px-4 text-center text-gray-500 text-sm">{{ __('system.pages.no_data_found') }}</td></tr>
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
                                 @endif
                             </tbody>
                         </table>
@@ -233,18 +259,27 @@
                         </div>
                     </div>
                     <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                    <div class="overflow-x-auto">
-                        <table id="levyTable" class="display stripe w-full table-auto border-collapse text-sm" style="min-width: 560px;">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="2" placeholder="Booking code">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="levyTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="levyTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
                             <thead>
-                                <tr class="bg-gray-100 text-gray-700 uppercase text-xs tracking-wide">
-                                    <th class="py-3 px-4 text-left font-semibold w-16"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="No."></th>
-                                    <th class="py-3 px-4 text-left font-semibold"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Company"></th>
-                                    <th class="py-3 px-4 text-left font-semibold"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Booking"></th>
-                                    <th class="py-3 px-4 text-right font-semibold whitespace-nowrap"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Amount"></th>
-                                    <th class="py-3 px-4 text-left font-semibold whitespace-nowrap"><input type="text" class="w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs search-input" placeholder="Date"></th>
-                                </tr>
                                 <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
-                                    <th class="py-2.5 px-4 text-left font-semibold w-16">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
                                     <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
                                     <th class="py-2.5 px-4 text-left font-semibold">Booking code</th>
                                     <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
@@ -264,7 +299,11 @@
                                         </tr>
                                     @endforeach
                                 @else
-                                    <tr><td colspan="5" class="py-8 px-4 text-center text-gray-500 text-sm">{{ __('system.pages.no_data_found') }}</td></tr>
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
                                 @endif
                             </tbody>
                         </table>
@@ -287,6 +326,59 @@
     <script>
         window.paymentsCurrency = @json(session('currency', 'Tzs'));
         window.paymentsUsdToTzs = {{ app('usdToTzs') ?? 2500 }};
+
+        function formatPaymentsTotal(total) {
+            const isUsd = String(window.paymentsCurrency || '').toLowerCase() === 'usd';
+            const display = isUsd ? (total / (window.paymentsUsdToTzs || 2500)) : total;
+            return display.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function sumFilteredAmounts(api) {
+            let total = 0;
+            api.rows({ search: 'applied' }).every(function() {
+                const amount = $(this.node()).find('.amount').data('amount') || 0;
+                total += parseFloat(amount) || 0;
+            });
+            return total;
+        }
+
+        function initPaymentsTable(selector, totalSelector) {
+            const $table = $(selector);
+            if (!$table.length || $table.find('tbody tr.payments-empty-row').length) {
+                return null;
+            }
+
+            return $table.DataTable({
+                responsive: false,
+                scrollX: false,
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+                dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600'l><'text-sm'f>>rtip",
+                paging: true,
+                searching: true,
+                ordering: true,
+                autoWidth: false,
+                language: {
+                    emptyTable: "No data found"
+                },
+                footerCallback: function() {
+                    $(totalSelector).text(formatPaymentsTotal(sumFilteredAmounts(this.api())));
+                }
+            });
+        }
+
+        function wireColumnFilters(tableMap) {
+            $('.system-payments-filters__input').on('keyup change', function() {
+                const tableId = $(this).data('table');
+                const column = $(this).data('column');
+                const table = tableMap[tableId];
+                if (!table) {
+                    return;
+                }
+                table.column(column).search(this.value).draw();
+            });
+        }
+
         $(document).ready(function () {
             // Create date inputs for Service Fees Table
             var serviceMinDate = new DateTime($('#serviceMinDate'), {
@@ -366,110 +458,16 @@
                 }
             });
 
-            // Initialize Service Fees Table
-            const serviceTable = $('#serviceTable').DataTable({
-                responsive: true,
-                scrollX: true,
-                pageLength: 25,
-                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
-                dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600'l><'text-sm'f>>rtip",
-                paging: true,
-                searching: true,
-                ordering: true,
-                language: {
-                    emptyTable: "No data found"
-                },
-                footerCallback: function(row, data, start, end, display) {
-                    let api = this.api();
-                    let total = api
-                        .rows({ page: 'current' })
-                        .nodes()
-                        .toArray()
-                        .reduce((sum, row) => {
-                            let amount = $(row).find('.amount').data('amount') || 0;
-                            return sum + parseFloat(amount);
-                        }, 0);
-                    let displayTotal = window.paymentsCurrency === 'Usd' ? (total / (window.paymentsUsdToTzs || 2500)).toLocaleString('en-US', { minimumFractionDigits: 2 }) : total.toLocaleString('en-US', { minimumFractionDigits: 2 });
-                    $('#serviceTotal').text(displayTotal);
-                }
-            });
-
-            // Initialize Commission Fees Table
-            const commissionTable = $('#commissionTable').DataTable({
-                responsive: true,
-                scrollX: true,
-                pageLength: 25,
-                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
-                dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600'l><'text-sm'f>>rtip",
-                paging: true,
-                searching: true,
-                ordering: true,
-                language: {
-                    emptyTable: "No data found"
-                },
-                footerCallback: function(row, data, start, end, display) {
-                    let api = this.api();
-                    let total = api
-                        .rows({ page: 'current' })
-                        .nodes()
-                        .toArray()
-                        .reduce((sum, row) => {
-                            let amount = $(row).find('.amount').data('amount') || 0;
-                            return sum + parseFloat(amount);
-                        }, 0);
-                    let displayTotal = window.paymentsCurrency === 'Usd' ? (total / (window.paymentsUsdToTzs || 2500)).toLocaleString('en-US', { minimumFractionDigits: 2 }) : total.toLocaleString('en-US', { minimumFractionDigits: 2 });
-                    $('#commissionTotal').text(displayTotal);
-                }
-            });
-
-            // Initialize Government Levy Table
-            const levyTable = $('#levyTable').DataTable({
-                responsive: true,
-                scrollX: true,
-                pageLength: 25,
-                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
-                dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600'l><'text-sm'f>>rtip",
-                paging: true,
-                searching: true,
-                ordering: true,
-                language: {
-                    emptyTable: "No data found"
-                },
-                footerCallback: function(row, data, start, end, display) {
-                    let api = this.api();
-                    let total = api
-                        .rows({ page: 'current' })
-                        .nodes()
-                        .toArray()
-                        .reduce((sum, row) => {
-                            let amount = $(row).find('.amount').data('amount') || 0;
-                            return sum + parseFloat(amount);
-                        }, 0);
-                    let displayTotal = window.paymentsCurrency === 'Usd' ? (total / (window.paymentsUsdToTzs || 2500)).toLocaleString('en-US', { minimumFractionDigits: 2 }) : total.toLocaleString('en-US', { minimumFractionDigits: 2 });
-                    $('#levyTotal').text(displayTotal);
-                }
-            });
-
-            // Apply search to each column in Service Fees Table
-            $('#serviceTable thead tr:first-child th').each(function(index) {
-                $(this).find('input').on('keyup change', function() {
-                    serviceTable.column(index).search(this.value).draw();
-                });
-            });
-
-            // Apply search to each column in Commission Fees Table
-            $('#commissionTable thead tr:first-child th').each(function(index) {
-                $(this).find('input').on('keyup change', function() {
-                    commissionTable.column(index).search(this.value).draw();
-                });
-            });
-
-            // Apply search to each column in Government Levy Table
-            $('#levyTable thead tr:first-child th').each(function(index) {
-                $(this).find('input').on('keyup change', function() {
-                    levyTable.column(index).search(this.value).draw();
-                });
-            });
+            // Initialize tables
+            const serviceTable = initPaymentsTable('#serviceTable', '#serviceTotal');
+            const commissionTable = initPaymentsTable('#commissionTable', '#commissionTotal');
+            const levyTable = initPaymentsTable('#levyTable', '#levyTotal');
+            const tableMap = {
+                serviceTable: serviceTable,
+                commissionTable: commissionTable,
+                levyTable: levyTable,
+            };
+            wireColumnFilters(tableMap);
 
             // Apply time filter for Service Fees Table
             $('#serviceTimeFilter').on('change', function() {
@@ -477,7 +475,7 @@
                     $('#serviceDateRangeGroup').removeClass('hidden');
                 } else {
                     $('#serviceDateRangeGroup').addClass('hidden');
-                    serviceTable.draw();
+                    serviceTable?.draw();
                 }
             });
 
@@ -487,21 +485,21 @@
                     $('#commissionDateRangeGroup').removeClass('hidden');
                 } else {
                     $('#commissionDateRangeGroup').addClass('hidden');
-                    commissionTable.draw();
+                    commissionTable?.draw();
                 }
             });
 
             // Redraw the Service Fees Table when the custom date inputs change
             $('#serviceMinDate, #serviceMaxDate').on('change', function() {
                 if ($('#serviceTimeFilter').val() === 'custom') {
-                    serviceTable.draw();
+                    serviceTable?.draw();
                 }
             });
 
             // Redraw the Commission Fees Table when the custom date inputs change
             $('#commissionMinDate, #commissionMaxDate').on('change', function() {
                 if ($('#commissionTimeFilter').val() === 'custom') {
-                    commissionTable.draw();
+                    commissionTable?.draw();
                 }
             });
 
@@ -511,26 +509,54 @@
                     $('#levyDateRangeGroup').removeClass('hidden');
                 } else {
                     $('#levyDateRangeGroup').addClass('hidden');
-                    levyTable.draw();
+                    levyTable?.draw();
                 }
             });
 
             // Redraw the Government Levy Table when the custom date inputs change
             $('#levyMinDate, #levyMaxDate').on('change', function() {
                 if ($('#levyTimeFilter').val() === 'custom') {
-                    levyTable.draw();
+                    levyTable?.draw();
                 }
             });
         });
     </script>
 
     <style>
+        .system-payments-filters__grid {
+            display: grid;
+            grid-template-columns: 4rem minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(6rem, 9rem) minmax(6rem, 9rem);
+            gap: 0.5rem;
+            min-width: 560px;
+        }
+
+        .system-payments-filters__input,
         .search-input {
             width: 100%;
-            padding: 4px;
+            padding: 0.375rem 0.5rem;
             font-size: 12px;
-            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background: #fff;
         }
+
+        .system-payments-table {
+            min-width: 560px;
+        }
+
+        .system-payments-col-no { width: 4rem; }
+        .system-payments-col-company { width: 32%; }
+        .system-payments-col-booking { width: 24%; }
+        .system-payments-col-amount { width: 18%; }
+        .system-payments-col-date { width: 18%; }
+
+        @media (max-width: 768px) {
+            .system-payments-filters__grid,
+            .system-payments-table {
+                min-width: 640px;
+            }
+        }
+
         .dataTables_wrapper .dataTables_length,
         .dataTables_wrapper .dataTables_filter {
             margin-bottom: 0.5rem;
