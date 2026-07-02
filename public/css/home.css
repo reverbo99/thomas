@@ -1847,13 +1847,15 @@ body {
     font-size: 0.875rem;
 }
 
-.payment-result-row dt {
+.payment-result-row dt,
+.payment-result-row__label {
     color: var(--home-muted);
     margin: 0;
     flex-shrink: 0;
 }
 
-.payment-result-row dd {
+.payment-result-row dd,
+.payment-result-row__value {
     color: var(--home-text);
     font-weight: 600;
     text-align: right;
@@ -1867,12 +1869,15 @@ body {
 }
 
 .payment-result-row--total dt,
-.payment-result-row--total dd {
+.payment-result-row--total .payment-result-row__label,
+.payment-result-row--total dd,
+.payment-result-row--total .payment-result-row__value {
     font-weight: 700;
     color: var(--home-text);
 }
 
-.payment-result-row--total dd {
+.payment-result-row--total dd,
+.payment-result-row--total .payment-result-row__value {
     color: #15803d;
 }
 

@@ -15,28 +15,28 @@
                         <i class="fas fa-arrow-right" aria-hidden="true"></i>
                         {{ __('all.outbound') }}
                     </p>
-                    <dl class="payment-result-rows">
+                    <div class="payment-result-rows">
                         <div class="payment-result-row">
-                            <dt>{{ __('all.booking_code') }}</dt>
-                            <dd>{{ $booking1->booking_code }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.booking_code') }}</span>
+                            <span class="payment-result-row__value">{{ $booking1->booking_code }}</span>
                         </div>
                         <div class="payment-result-row">
-                            <dt>{{ __('all.route') }}</dt>
-                            <dd>{{ $booking1->pickup_point }} → {{ $booking1->dropping_point }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.route') }}</span>
+                            <span class="payment-result-row__value">{{ $booking1->pickup_point }} → {{ $booking1->dropping_point }}</span>
                         </div>
                         <div class="payment-result-row">
-                            <dt>{{ __('all.travel_date') }}</dt>
-                            <dd>{{ $booking1->travel_date }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.travel_date') }}</span>
+                            <span class="payment-result-row__value">{{ $booking1->travel_date }}</span>
                         </div>
                         <div class="payment-result-row">
-                            <dt>{{ __('all.seats') }}</dt>
-                            <dd>{{ $booking1->seat }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.seats') }}</span>
+                            <span class="payment-result-row__value">{{ $booking1->seat }}</span>
                         </div>
                         <div class="payment-result-row payment-result-row--total">
-                            <dt>{{ __('all.amount') }}</dt>
-                            <dd>{{ $currency }} {{ convert_money($booking1->amount) }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.amount') }}</span>
+                            <span class="payment-result-row__value">{{ $currency }} {{ convert_money($booking1->busFee ?? $booking1->amount) }}</span>
                         </div>
-                    </dl>
+                    </div>
                 </div>
             @endif
 
@@ -56,28 +56,28 @@
                         <i class="fas fa-arrow-left" aria-hidden="true"></i>
                         {{ __('all.return_leg') }}
                     </p>
-                    <dl class="payment-result-rows">
+                    <div class="payment-result-rows">
                         <div class="payment-result-row">
-                            <dt>{{ __('all.booking_code') }}</dt>
-                            <dd>{{ $booking2->booking_code }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.booking_code') }}</span>
+                            <span class="payment-result-row__value">{{ $booking2->booking_code }}</span>
                         </div>
                         <div class="payment-result-row">
-                            <dt>{{ __('all.route') }}</dt>
-                            <dd>{{ $secondFrom }} → {{ $secondTo }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.route') }}</span>
+                            <span class="payment-result-row__value">{{ $secondFrom }} → {{ $secondTo }}</span>
                         </div>
                         <div class="payment-result-row">
-                            <dt>{{ __('all.travel_date') }}</dt>
-                            <dd>{{ $booking2->travel_date }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.travel_date') }}</span>
+                            <span class="payment-result-row__value">{{ $booking2->travel_date }}</span>
                         </div>
                         <div class="payment-result-row">
-                            <dt>{{ __('all.seats') }}</dt>
-                            <dd>{{ $booking2->seat }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.seats') }}</span>
+                            <span class="payment-result-row__value">{{ $booking2->seat }}</span>
                         </div>
                         <div class="payment-result-row payment-result-row--total">
-                            <dt>{{ __('all.amount') }}</dt>
-                            <dd>{{ $currency }} {{ convert_money($booking2->amount) }}</dd>
+                            <span class="payment-result-row__label">{{ __('all.amount') }}</span>
+                            <span class="payment-result-row__value">{{ $currency }} {{ convert_money($booking2->busFee ?? $booking2->amount) }}</span>
                         </div>
-                    </dl>
+                    </div>
                 </div>
             @endif
         </div>

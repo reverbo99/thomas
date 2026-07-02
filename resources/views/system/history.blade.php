@@ -185,8 +185,10 @@
                                     </tr>
                                 @endforeach
                             @else
-                                <tr>
-                                    <td colspan="9" class="py-2 px-4 text-center text-gray-500">{{ __('system.pages.no_bookings_history') }}</td>
+                                <tr class="history-empty-row">
+                                    @for ($col = 0; $col < 9; $col++)
+                                        <td class="py-2 px-4 text-center text-gray-500">{{ $col === 0 ? __('system.pages.no_bookings_history') : '' }}</td>
+                                    @endfor
                                 </tr>
                             @endif
                         </tbody>
@@ -248,14 +250,21 @@
         }
 
         $(document).ready(function() {
+            const $table = $('#busTable');
+            const hasBookingRows = $table.find('tbody tr').not('.history-empty-row').length > 0;
+            if (!hasBookingRows) {
+                return;
+            }
+
             // Initialize DataTable
             DataTable.ext.errMode = 'none';
-            const table = $('#busTable').DataTable({
+            let currentDateRange = null;
+            const table = $table.DataTable({
                 responsive: true,
                 paging: true,
                 searching: true,
                 ordering: true,
-                orderCellsTop: true, // Enable searching in header cells
+                orderCellsTop: false,
                 language: {
                     emptyTable: "No bookings found."
                 },
@@ -266,12 +275,11 @@
                     let grandTotal = 0;
 
                     this.api()
-                        .rows({ page: 'current' })
-                        .nodes()
-                        .toArray()
-                        .forEach(row => {
-                            const paymentEl = $(row).find('.payment-amount');
-                            const totalEl = $(row).find('.total-amount');
+                        .rows({ search: 'applied' })
+                        .every(function() {
+                            const rowNode = this.node();
+                            const paymentEl = $(rowNode).find('.payment-amount');
+                            const totalEl = $(rowNode).find('.total-amount');
                             const amount = parseFloat(paymentEl.data('amount')) || 0;
                             const vat = parseFloat(paymentEl.data('vat')) || 0;
                             const discount = parseFloat(paymentEl.data('discount')) || 0;
@@ -288,6 +296,31 @@
                     $('#totalVAT').text(formatAmount(totalVAT));
                     $('#grandTotal').text(formatAmount(grandTotal));
                 }
+            });
+
+            $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                if (settings.nTable?.id !== 'busTable') {
+                    return true;
+                }
+                if (!currentDateRange) {
+                    return true;
+                }
+
+                const api = $(settings.nTable).DataTable();
+                const rowNode = api.row(dataIndex).node();
+                if (!rowNode) {
+                    return false;
+                }
+
+                const createdDateStr = $(rowNode).find('[data-created-at]').data('created-at');
+                if (!createdDateStr) {
+                    return false;
+                }
+
+                const createdDate = moment(createdDateStr, 'YYYY-MM-DD');
+                return createdDate.isValid()
+                    && !createdDate.isBefore(currentDateRange.start, 'day')
+                    && !createdDate.isAfter(currentDateRange.end, 'day');
             });
 
             // Initialize date range picker
@@ -311,32 +344,23 @@
             // Apply date range filter
             $('#dateRangeFilter').on('apply.daterangepicker', function(ev, picker) {
                 $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-
-                $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-                    // Get the row element to access data-created-at attribute
-                    const row = table.row(dataIndex).node();
-                    const createdDateStr = $(row).find('[data-created-at]').data('created-at');
-                    if (!createdDateStr) return false;
-
-                    const createdDate = moment(createdDateStr, 'YYYY-MM-DD');
-                    const startDate = picker.startDate;
-                    const endDate = picker.endDate;
-
-                    return createdDate.isValid() && createdDate.isBetween(startDate, endDate, null, '[]'); // Inclusive
-                });
-
+                currentDateRange = {
+                    start: picker.startDate,
+                    end: picker.endDate,
+                };
                 table.draw();
-                $.fn.dataTable.ext.search.pop(); // Remove filter after applying
             });
 
             // Clear date filter
             $('#dateRangeFilter').on('cancel.daterangepicker', function() {
                 $(this).val('');
+                currentDateRange = null;
                 table.draw();
             });
 
             $('#clearDateFilter').on('click', function() {
                 $('#dateRangeFilter').val('');
+                currentDateRange = null;
                 table.draw();
             });
 
