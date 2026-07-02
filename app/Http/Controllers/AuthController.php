@@ -8,6 +8,7 @@ use App\Mail\SendEmail;
 use App\Mail\EmailVerification;
 use App\Models\balance;
 use App\Models\Campany;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\VenderBalance;
 use Illuminate\Http\Request;
@@ -84,21 +85,38 @@ class AuthController extends Controller
                 $user->failed_attempts = 0;
                 $user->locked_until = null;
                 
-                // Reset 2FA verification status on login (force re-verification)
-                if (in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+                // Reset 2FA verification status on login (force re-verification when enabled)
+                if (\App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
                     $user->two_factor_confirmed_at = null;
                 }
                 
                 $user->save();
 
-                // Check for MFA setup for specific roles (customers skip email verification and MFA)
-                if (in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+                if (\App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
                     if ($user->two_factor_secret == null) {
                         return redirect()->route('two-factor.setup')->with('status', 'Please enable Two-Factor Authentication for your account.');
                     } else {
                         // Force 2FA verification - user must verify before accessing any page
                         return redirect()->route('two-factor.login')->with('status', 'Please complete Two-Factor Authentication to continue.');
                     }
+                }
+
+                if ($user->role === 'customer'
+                    && Setting::requiresCustomerEmailVerification()
+                    && !$user->hasVerifiedEmail()) {
+                    Auth::logout();
+                    $verificationCode = $user->generateVerificationCode();
+                    try {
+                        Mail::to($user->email)->send(new EmailVerification($user, $verificationCode));
+                    } catch (\Exception $e) {
+                        Log::error('Failed to send verification email on login: ' . $e->getMessage());
+                    }
+                    $request->session()->put('verification_user_id', $user->id);
+                    $request->session()->put('verification_email', $user->email);
+
+                    return redirect()->route('email.verification.show')
+                        ->with('email', $user->email)
+                        ->with('status', 'Please verify your email before continuing. We sent a 6-digit code to your inbox.');
                 }
 
                 // Redirect based on user role with success message
@@ -212,6 +230,33 @@ class AuthController extends Controller
 
             DB::commit();
 
+            if ($user->role === 'customer' && Setting::requiresCustomerEmailVerification()) {
+                $verificationCode = $user->generateVerificationCode();
+                try {
+                    Mail::to($user->email)->send(new EmailVerification($user, $verificationCode));
+                } catch (\Exception $e) {
+                    Log::error('Failed to send verification email: ' . $e->getMessage());
+
+                    $request->session()->put('verification_user_id', $user->id);
+                    $request->session()->put('verification_email', $user->email);
+
+                    return redirect()->route('email.verification.show')
+                        ->with('email', $user->email)
+                        ->with('status', 'Account created. Verification email could not be sent — use resend on the next screen.');
+                }
+
+                $request->session()->put('verification_user_id', $user->id);
+                $request->session()->put('verification_email', $user->email);
+
+                return redirect()->route('email.verification.show')
+                    ->with('email', $user->email)
+                    ->with('status', 'Please verify your email. We sent a 6-digit code to your inbox.');
+            }
+
+            if ($user->role === 'customer' && !Setting::requiresCustomerEmailVerification()) {
+                $user->markEmailAsVerified();
+            }
+
             Auth::login($user);
 
             if ($user->role === 'bus_campany') {
@@ -251,10 +296,10 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        // Check if user is logged in and has specific roles before resetting two_factor_confirmed_at
+        // Reset 2FA session confirmation when global 2FA is enabled.
         if (Auth::check()) {
             $user = Auth::user();
-            if (in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+            if (\App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
                 $user->two_factor_confirmed_at = null;
                 $user->save();
             }
@@ -280,13 +325,12 @@ class AuthController extends Controller
         if (Auth::check()) {
             $user = Auth::user();
             
-            // Check if user is vendor, admin, or bus owner
-            if (in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+            if (\App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
                 // Reset two_factor_confirmed_at to null
                 $user->two_factor_confirmed_at = null;
                 $user->save();
                 
-                Log::info('Session timeout: Reset two_factor_confirmed_at for user ID: ' . $user->id . ' (Role: ' . $user->role . ')');
+                Log::info('Session timeout: Reset two_factor_confirmed_at for user ID: ' . $user->id . ' (2FA globally enabled)');
             }
         }
 

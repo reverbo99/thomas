@@ -34,7 +34,7 @@
                 <p class="booking-card__subtitle">{{ __('all.choose_pickup_dropping_locations') }}</p>
             </div>
             <div class="booking-card__body">
-                <form id="busSearchForm" method="POST" action="{{ route('round.trip.booking_form.store') }}" class="booking-form">
+                <form id="busSearchForm" method="POST" action="{{ route(round_trip_routes()['store']) }}" class="booking-form">
                     @csrf
 
                     <!-- Bus Operator -->
@@ -120,7 +120,7 @@
                         </label>
                         <input type="text" id="routeDistanceDisplay" readonly
                                class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-800 focus:outline-none"
-                               name="route_distance" placeholder="{{ __('customer/busroot.distance_will_be_calculated') }}">
+                               placeholder="{{ __('customer/busroot.distance_will_be_calculated') }}">
                     </div>
 
                     <!-- Map Section -->
@@ -493,6 +493,13 @@
         if (toValue) {
             document.getElementById('end').value = toValue;
             geocodePlace(toValue, 'end');
+        }
+    });
+
+    document.getElementById('busSearchForm').addEventListener('submit', function () {
+        if (!document.getElementById('routeDistance').value) {
+            document.getElementById('routeDistance').value = '0';
+            document.getElementById('routeDistanceDisplay').value = '0';
         }
     });
 </script>

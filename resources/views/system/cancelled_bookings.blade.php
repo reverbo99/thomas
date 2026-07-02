@@ -66,7 +66,7 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Today Cancelled</dt>
+                            <dt class="text-sm font-medium text-gray-500 truncate">{{ __('system.pages.today_cancelled') }}</dt>
                             <dd class="text-lg font-medium text-gray-900">{{ $todayCancelled }}</dd>
                         </dl>
                     </div>
@@ -84,7 +84,7 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Today Amount</dt>
+                            <dt class="text-sm font-medium text-gray-500 truncate">{{ __('system.pages.today_amount') }}</dt>
                             <dd class="text-lg font-medium text-gray-900">{{ $currency }} {{ convert_money($todayAmount) }}</dd>
                         </dl>
                     </div>
@@ -181,7 +181,7 @@
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                                    {{ $currency }} {{ convert_money($cancelled->amount) }}
+                                    {{ $currency }} {{ convert_money(abs((float) $cancelled->amount)) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {{ \Carbon\Carbon::parse($cancelled->created_at)->format('M d, Y H:i') }}

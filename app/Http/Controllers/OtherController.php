@@ -14,8 +14,15 @@ use App\Models\Booking;
 
 class OtherController extends Controller
 {
+    private function requireLocalAdminAccess(): void
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->isActive() && $user->hasAccess(Access::LINKS['LOCAL_ADMINS']), 403);
+    }
+
     public function local_admin()
     {
+        $this->requireLocalAdminAccess();
         $users = User::where('role', 'admin')
             ->orderBy('id', 'asc')
             ->skip(1)
@@ -26,16 +33,18 @@ class OtherController extends Controller
 
     public function local_admin_form()
     {
+        $this->requireLocalAdminAccess();
         return view('system.local_admin_create');
     }
 
     public function local_admin_store(Request $request)
     {
+        $this->requireLocalAdminAccess();
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => ['required', 'in:bus_company,admin,vendor,local_admin'], // Fixed typo from 'vender' to 'vendor'
+            'role' => ['nullable', 'in:admin,local_admin,bus_campany,vender,customer,special_hire,local_bus_owner'],
         ]);
 
         try {
@@ -43,7 +52,7 @@ class OtherController extends Controller
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
-                'role' => $request->role,
+                'role' => $request->input('role', 'admin'),
                 'contact' => $request->contact,
                 'status' => 'accept', // Assuming you want to set the status to active
             ]);
@@ -64,18 +73,20 @@ class OtherController extends Controller
 
     public function local_admin_edit($id)
     {
+        $this->requireLocalAdminAccess();
         $user = User::findOrFail($id);
         return view('system.local_admin_edit', compact('user'));
     }
     public function local_admin_update(Request $request, $id)
     {
+        $this->requireLocalAdminAccess();
         $user = User::findOrFail($id);
 
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
-            'role' => ['required', 'in:bus_company,admin,vendor,local_admin'], // Fixed typo from 'vender' to 'vendor'
+            'role' => ['nullable', 'in:admin,local_admin,bus_campany,vender,customer,special_hire,local_bus_owner'],
         ]);
 
         try {
@@ -84,12 +95,14 @@ class OtherController extends Controller
             if ($request->filled('password')) {
                 $user->password = Hash::make($request->password);
             }
-            $user->role = $request->role;
+            if ($request->filled('role')) {
+                $user->role = $request->role;
+            }
             $user->contact = $request->contact;
             $user->status = 'accept'; // Assuming you want to set the status to active
             $user->save();
 
-            return redirect()->route('local_admin.index')
+            return redirect()->route('system.local_admin')
                 ->with('success', __('system.messages.local_admin_updated'));
         } catch (\Throwable $th) {
             // Log the error for debugging
@@ -101,6 +114,7 @@ class OtherController extends Controller
     }
     public function local_admin_destroy($id)
     {
+        $this->requireLocalAdminAccess();
         $user = User::findOrFail($id);
         try {
             $user->delete();
@@ -116,6 +130,7 @@ class OtherController extends Controller
 
     public function update_role(Request $request)
     {
+        $this->requireLocalAdminAccess();
         $request->validate([
             'id' => ['required', 'integer', 'exists:users,id'],
             'link' => ['required', 'string', Rule::in(array_values(Access::LINKS))],

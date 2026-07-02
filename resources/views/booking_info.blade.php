@@ -48,8 +48,7 @@
                             $routeLabel = ($book->pickup_point ?? $book->route_name->from ?? '—')
                                 . ' → '
                                 . ($book->dropping_point ?? $book->route_name->to ?? '—');
-                            $travelDate = $book->travel_date ? \Carbon\Carbon::parse($book->travel_date)->startOfDay() : null;
-                            $isFutureTicket = $travelDate && $travelDate->gte(\Carbon\Carbon::today()->startOfDay());
+                            $canCancel = is_cancel_allowed($book);
                         @endphp
                         <tr>
                             <td>{{ $loop->iteration }}</td>
@@ -76,7 +75,7 @@
                             <td>
                                 <div class="flex flex-wrap gap-2">
                                     @if ($book->payment_status == 'Paid')
-                                        @if ($isFutureTicket)
+                                        @if ($canCancel)
                                             <div x-data="{ openCancelModal: false }">
                                                 <button @click="openCancelModal = true" type="button" class="page-btn text-xs py-2 px-3" style="background:#dc2626" title="{{ __('all.cancel_title') }}">
                                                     <i class="fas fa-times"></i>
@@ -100,6 +99,10 @@
                                                     </div>
                                                 </div>
                                             </div>
+                                        @else
+                                            <span class="page-btn text-xs py-2 px-3 opacity-60 cursor-not-allowed" style="background:#9ca3af" title="{{ __('all.cancel_not_allowed') }}">
+                                                <i class="fas fa-clock"></i>
+                                            </span>
                                         @endif
 
                                         <form action="{{ route('booking.edit', ['id' => $book->id]) }}" method="get">

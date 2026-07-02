@@ -120,12 +120,12 @@
                                             class="w-full text-left px-4 py-3 rounded-lg bg-white hover:bg-gray-100 text-blue-700" id="tab7-btn"
                                             data-bs-toggle="tab" data-bs-target="#tab7" role="tab" aria-controls="tab7">
                                             <i class="fas fa-wallet mr-2"></i>
-                                            Wallet
+                                            {{ __('all.wallet') }}
                                         </button>
                                         <button type="button"
                                             class="w-full text-left px-4 py-3 rounded-lg bg-white hover:bg-gray-100 text-blue-700" id="tab6-btn"
                                             data-bs-toggle="tab" data-bs-target="#tab6" role="tab" aria-controls="tab6">
-                                            <i class="fas fa-sim-card mr-2"></i> Airtel Money
+                                            <i class="fas fa-sim-card mr-2"></i> {{ __('all.airtel_money') }}
                                         </button>
                                         <button type="button"
                                             class="w-full text-left px-4 py-3 rounded-lg bg-white hover:bg-gray-100 text-blue-700" id="tab4-btn"
@@ -453,7 +453,7 @@
                                                         class="text-black w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 onlydigits"
                                                         placeholder="e.g. 0780000000">
                                                 </div>
-                                                <p class="text-sm text-gray-600">{{ __('all.total_to_pay_label') }} <strong id="cust_airtel_total_display">TZS {{ convert_money($price + $fees) }}</strong></p>
+                                                <p class="text-sm text-gray-600">{{ __('all.total_to_pay_label') }} <strong id="cust_airtel_total_display">{{ $currency }} {{ convert_money($price + $fees) }}</strong></p>
                                                 <button type="button" id="cust_airtel_pay_btn"
                                                     class="w-full mt-2 py-3 px-6 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white font-medium rounded-lg shadow-md transition-all duration-300 flex items-center justify-center">
                                                     <i class="fas fa-lock mr-2"></i> {{ __('all.pay_with_airtel_money') }}
@@ -475,7 +475,7 @@
                                                         </p>
                                                     <p class="text-lg font-bold text-yellow-800">
                                                         {{ __('customer/busroot.total_to_resave') }}
-                                                        {{ $currency }}. {{ convert_money($price + $fees) }}
+                                                        {{ $currency }} {{ convert_money($price + $fees) }}
                                                     </p>
                                                     </div>
                                                     <p class="text-gray-700">
@@ -657,12 +657,12 @@
                                                 <div class="space-y-4">
                                                     <div class="p-4 bg-blue-50 rounded-lg">
                                                         <p class="text-sm text-gray-700 mb-1">
-                                                            Wallet balance:
+                                                            {{ __('all.wallet_balance') }}:
                                                             <strong>{{ $currency }}
                                                                 {{ convert_money(auth()->user()->temp_wallets->amount ?? 0) }}</strong>
                                                         </p>
                                                         <p class="text-sm text-gray-700 mb-1">
-                                                            Amount to pay:
+                                                            {{ __('all.amount_to_pay') }}:
                                                             <strong>{{ $currency }} {{ convert_money($price + $fees) }}</strong>
                                                         </p>
                                                     </div>
@@ -682,7 +682,7 @@
                                                     <button type="submit"
                                                         class="w-full mt-4 py-3 px-6 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white font-medium rounded-lg shadow-md transition-all duration-300 flex items-center justify-center">
                                                         <i class="fas fa-lock mr-2"></i>
-                                                        Pay with Wallet
+                                                        {{ __('all.pay_with_wallet') }}
                                                     </button>
                                                 </div>
                                             </form>

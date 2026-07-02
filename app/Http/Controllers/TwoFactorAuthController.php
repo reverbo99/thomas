@@ -52,8 +52,7 @@ class TwoFactorAuthController extends Controller
         
         $user = Auth::user();
         
-        // Check if user requires 2FA
-        if (!in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+        if (!\App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
             return $this->redirectByRole($user);
         }
         
@@ -145,8 +144,7 @@ class TwoFactorAuthController extends Controller
             return redirect()->route('login')->withErrors(['email' => 'Session expired. Please sign in again.']);
         }
 
-        // Ensure user requires 2FA
-        if (!in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+        if (!\App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
             return $this->redirectByRole($user);
         }
 

@@ -318,6 +318,15 @@
                 language: { emptyTable: "{{ __('vender/history.no_bookings_found') }}" },
                 footerCallback: function () {
                     let totalPayment = 0, totalDiscount = 0, totalVAT = 0, grandTotal = 0;
+                    const isUsdDisplay = @json(session('currency') == 'Usd');
+                    const usdRate = {{ app('usdToTzs') ?? 2500 }};
+                    const formatKpi = function (amount) {
+                        const display = isUsdDisplay && usdRate > 0 ? (amount / usdRate) : amount;
+                        return display.toLocaleString('en-US', {
+                            minimumFractionDigits: isUsdDisplay ? 2 : 0,
+                            maximumFractionDigits: isUsdDisplay ? 2 : 0
+                        });
+                    };
                     const api = this.api();
                     api.rows({ search: 'applied' }).every(function () {
                         const rowNode = this.node();
@@ -328,10 +337,10 @@
                         totalVAT += parseFloat(paymentEl.data('vat')) || 0;
                         grandTotal += parseFloat(totalEl.data('total')) || 0;
                     });
-                    $('#totalPayment').text(totalPayment.toLocaleString('en-US', { minimumFractionDigits: 0 }));
-                    $('#totalDiscount').text(totalDiscount.toLocaleString('en-US', { minimumFractionDigits: 0 }));
-                    $('#totalVAT').text(totalVAT.toLocaleString('en-US', { minimumFractionDigits: 0 }));
-                    $('#grandTotal').text(grandTotal.toLocaleString('en-US', { minimumFractionDigits: 0 }));
+                    $('#totalPayment').text(formatKpi(totalPayment));
+                    $('#totalDiscount').text(formatKpi(totalDiscount));
+                    $('#totalVAT').text(formatKpi(totalVAT));
+                    $('#grandTotal').text(formatKpi(grandTotal));
                 }
             });
 

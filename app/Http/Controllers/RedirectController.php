@@ -26,6 +26,16 @@ class RedirectController extends Controller
     }
     public function _redirect($transactionRefId)
     {
+        $sessionB1 = session('booking1');
+        $sessionB2 = session('booking2');
+        if ($sessionB1 && $sessionB2) {
+            $b1 = $sessionB1 instanceof Booking ? Booking::find($sessionB1->id) : Booking::find($sessionB1);
+            $b2 = $sessionB2 instanceof Booking ? Booking::find($sessionB2->id) : Booking::find($sessionB2);
+            if ($b1 && $b2 && $b1->payment_status === 'Paid' && $b2->payment_status === 'Paid') {
+                return $this->showRoundTripBookingStatus($b1, $b2);
+            }
+        }
+
         $data = Booking::with('bus.route', 'schedule', 'campany.busOwnerAccount', 'campany.user')
             ->where('transaction_ref_id', $transactionRefId)
             ->orWhere('id', $transactionRefId)

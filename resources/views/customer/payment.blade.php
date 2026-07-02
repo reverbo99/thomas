@@ -314,13 +314,16 @@
         const excessLuggageCheckbox = document.getElementById('excess_luggage');
         const totalPayableElement = document.getElementById('total_payable_amount');
         let currentTotal = parseFloat("{{ ($price ?? 0) + ($fees ?? 0) }}");
-        const excessLuggageFee = 2500; // Defined in the controller later
+        const excessLuggageFee = 2500;
+        const isUsdDisplay = @json(session('currency') == 'Usd');
+        const usdRate = {{ app('usdToTzs') ?? 2500 }};
 
         if (excessLuggageCheckbox.checked) {
             currentTotal += excessLuggageFee;
         }
 
-        totalPayableElement.innerHTML = "{{ $currency }} " + formatMoney(currentTotal);
+        const displayTotal = isUsdDisplay && usdRate > 0 ? (currentTotal / usdRate) : currentTotal;
+        totalPayableElement.innerHTML = "{{ $currency }} " + formatMoney(displayTotal);
     }
 
     function formatMoney(amount) {

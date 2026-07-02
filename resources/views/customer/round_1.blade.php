@@ -103,8 +103,7 @@
 
             <!-- One Way Form -->
             {{-- <form action="{{ route('vender.route.by_route_search') }}" method="GET" class="search-form" id="one-way-form"> --}}
-            <form action="{{ route('round.trip.by.routesearch') }}" method="GET" class="search-form" id="one-way-form">
-                @csrf
+            <form action="{{ route('customer.round.trip.by.routesearch') }}" method="GET" class="search-form" id="one-way-form">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-gray-600 text-sm mb-1">{{ __('customer/busroot.from') }}</label>
@@ -159,7 +158,7 @@
                         </div>
                     </div>
                 </div>
-                <button
+                <button type="submit"
                     class="mt-4 w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium transition-colors duration-200">
                     <i class="fas fa-search mr-2"></i> {{ __('customer/busroot.find_buses') }}
                 </button>
@@ -168,7 +167,6 @@
             <!-- Bus Name Form -->
             {{-- <form action="{{ route('vender.route') }}" method="GET" class="search-form hidden" id="bus-name-form"> --}}
             <form action="{{ route('round.trip.by.bus') }}" method="GET" class="search-form hidden" id="bus-name-form">
-                @csrf
                 <div class="grid grid-cols-1 gap-4">
                     <div>
                         <label class="block text-gray-600 text-sm mb-1">{{ __('customer/busroot.bus_name') }}</label>
@@ -188,7 +186,7 @@
                         </div>
                     </div>
                 </div>
-                <button
+                <button type="submit"
                     class="mt-4 w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-lg font-medium transition-colors duration-200">
                     <i class="fas fa-search mr-2"></i> {{ __('customer/busroot.find_buses') }}
                 </button>

@@ -1418,21 +1418,31 @@ $q->where('id', auth()->user()->campany->id);
             return redirect()->back()->with('error', __('vender/earning.no_company_account'));
         }
 
+        $booking_id = $booking_id ?? request('booking_id');
+
         $bookings = Booking::whereHas('bus', function ($query) use ($companyId) {
             $query->where('campany_id', $companyId);
-        })->with('bus.busname', 'route_name')->get();
+        })
+            ->whereIn('payment_status', ['Paid', 'Reserved', 'resaved'])
+            ->with('bus.busname', 'route_name')
+            ->orderByDesc('travel_date')
+            ->get();
 
         $buses = Bus::where('campany_id', $companyId)->with('busname', 'route')->get();
-        $schedules = Schedule::whereHas('bus', function ($query) use ($companyId) {
-            $query->where('campany_id', $companyId);
-        })->get();
+        $schedules = collect();
 
         $selectedBooking = null;
         if ($booking_id) {
             $selectedBooking = Booking::with('bus.busname', 'route_name', 'route.schedule')->find($booking_id);
             if (!$selectedBooking || $selectedBooking->bus->campany_id !== $companyId) {
                 $selectedBooking = null;
-                toastr()->error('Selected booking not found or does not belong to your company.');
+                return redirect()->route('booking.transfer.form')
+                    ->with('error', __('vender/transfer.booking_not_found_or_unauthorized'));
+            }
+            if (!in_array($selectedBooking->payment_status, ['Paid', 'Reserved', 'resaved'], true)) {
+                $selectedBooking = null;
+                return redirect()->route('booking.transfer.form')
+                    ->with('error', __('vender/transfer.booking_not_transferable'));
             }
         }
 
@@ -1487,7 +1497,10 @@ $q->where('id', auth()->user()->campany->id);
 
         $schedules = Schedule::where('bus_id', $busId)
                              ->whereDate('schedule_date', $travelDate)
-                             ->get();
+                             ->orderBy('start')
+                             ->get()
+                             ->unique('id')
+                             ->values();
 
         return response()->json($schedules);
     }
@@ -1510,43 +1523,43 @@ $q->where('id', auth()->user()->campany->id);
         if (!$originalBooking || !$newBus || !$newSchedule) {
             return response()->json(['error' => 'Invalid data provided'], 400);
         }
+        if ((int) $newSchedule->bus_id !== (int) $newBus->id || (string) $newSchedule->schedule_date !== (string) $request->travel_date) {
+            return response()->json(['error' => __('vender/transfer.invalid_schedule_for_bus_date')], 422);
+        }
+        if ((int) $originalBooking->campany_id !== (int) ($newBus->campany->id ?? 0)) {
+            return response()->json(['error' => __('vender/transfer.new_bus_company_mismatch')], 422);
+        }
 
-        // Get the base price from the new bus's route
-        $basePrice = $newBus->route->price ?? 0;
+        $formulaService = app(FareFormulaService::class);
+        $numberOfSeats = $formulaService->seatCountFromSeatString($originalBooking->seat);
+        $basePrice = max(0, (float) ($newBus->route->price ?? 0) * $numberOfSeats);
+        $newAmount = $basePrice;
+        $newDiscountAmount = min(max((float) ($originalBooking->discount_amount ?? 0), 0), $newAmount);
+        $discountedFare = max(0, $newAmount - $newDiscountAmount);
 
-        // Assuming number of seats remains the same as original booking
-        $numberOfSeats = count(explode(',', $originalBooking->seat));
-
-        $newAmount = $basePrice * $numberOfSeats;
-
-        // Retrieve settings for fees
         $setting = Setting::first();
-        $fees = app(FareFormulaService::class)->calculateTravellerServiceFee((float) $newAmount, $setting, $numberOfSeats);
+        $fees = $formulaService->calculateTravellerServiceFee((float) $discountedFare, $setting, $numberOfSeats);
+        $distance = \App\Services\RouteDistanceService::resolveForBooking(
+            null,
+            (string) $request->pickup_point,
+            (string) $request->dropping_point,
+            (float) ($newBus->route->distance ?? 0)
+        );
 
-        // Calculate VAT (0.5% as seen in BookingController::handleCallback)
+        // Keep legacy VAT baseline aligned with transfer commit logic.
         $newVat = $newAmount * (0.5 / 100);
-
-        // Placeholder for other amounts - these would need detailed business logic
-        $newBusFee = $newAmount; // Assuming busFee is the base amount
-        $newDiscountAmount = $originalBooking->discount_amount ?? 0; // Retain original discount for now
-        $newDistance = $originalBooking->distance ?? 0; // Retain original distance for now
-        $newBimaAmount = $originalBooking->bima_amount ?? 0; // Retain original bima amount for now
-        $newFee = $fees; // System fee
-        $newService = 0; // Service fee (if different from fee, needs specific logic)
-        $newVenderFee = $originalBooking->vender_fee ?? 0; // Retain original vender fee for now
-        $newVenderService = $originalBooking->vender_service ?? 0; // Retain original vender service for now
 
         return response()->json([
             'new_amount' => round($newAmount, 2),
-            'new_busFee' => round($newBusFee, 2),
+            'new_busFee' => round($newAmount, 2),
             'new_discount_amount' => round($newDiscountAmount, 2),
-            'new_distance' => round($newDistance, 2),
-            'new_bima_amount' => round($newBimaAmount, 2),
+            'new_distance' => round($distance, 2),
+            'new_bima_amount' => round((float) ($originalBooking->bima_amount ?? 0), 2),
             'new_vat' => round($newVat, 2),
-            'new_fee' => round($newFee, 2),
-            'new_service' => round($newService, 2),
-            'new_vender_fee' => round($newVenderFee, 2),
-            'new_vender_service' => round($newVenderService, 2),
+            'new_fee' => round($fees, 2),
+            'new_service' => round((float) ($originalBooking->service ?? 0), 2),
+            'new_vender_fee' => round((float) ($originalBooking->vender_fee ?? 0), 2),
+            'new_vender_service' => round((float) ($originalBooking->vender_service ?? 0), 2),
             'new_campany_id' => $newBus->campany->id,
             'new_route_id' => $newBus->route->id,
         ]);

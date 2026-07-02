@@ -294,6 +294,40 @@
             </table>
         </div>
 
+        @if(!empty($data->tra_status) || !empty($data->tra_rct_num) || !empty($data->tra_vnum) || !empty($data->tra_qr_url))
+            <div class="divider"></div>
+            <div class="details">
+                <h3>TRA Verification</h3>
+                <table>
+                    <tr>
+                        <td>TRA Status:</td>
+                        <td>{{ $data->tra_status ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td>TRA Receipt No:</td>
+                        <td>{{ $data->tra_rct_num ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td>TRA VNUM:</td>
+                        <td>{{ $data->tra_vnum ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td>TRA Z Number:</td>
+                        <td>{{ $data->tra_z_num ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td>TRA QR URL:</td>
+                        <td>{{ $data->tra_qr_url ?? 'N/A' }}</td>
+                    </tr>
+                </table>
+                @if (!empty($data->tra_qr_url))
+                    <div style="margin-top: 12px; text-align: center;">
+                        {!! DNS2D::getBarcodeHTML($data->tra_qr_url, 'QRCODE', 4, 4) !!}
+                    </div>
+                @endif
+            </div>
+        @endif
+
         <div class="divider"></div>
 
         <div class="qr-code-container">

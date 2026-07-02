@@ -25,12 +25,11 @@ class CheckInactivity
             if ($lastActivity && Carbon::now()->diffInMinutes(Carbon::parse($lastActivity)) >= $inactivityLimit) {
                 $user = Auth::user();
                 
-                // Check if user is vendor, admin, or bus owner before resetting two_factor_confirmed_at
-                if (in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner'])) {
+                if (EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
                     $user->two_factor_confirmed_at = null;
                     $user->save();
                     
-                    \Log::info('Session timeout: Reset two_factor_confirmed_at for user ID: ' . $user->id . ' (Role: ' . $user->role . ')');
+                    \Log::info('Session timeout: Reset two_factor_confirmed_at for user ID: ' . $user->id . ' (2FA globally enabled)');
                 }
                 
                 Auth::logout();

@@ -18,6 +18,7 @@ return [
     'profile' => 'Profile',
     'logout' => 'Logout',
     'resaved_tickets' => 'Reserved Tickets',
+    'transfer_booking' => 'Transfer Booking',
     'local_bus_owners' => 'Bus Owner Assistance',
     'bus_owner_panel' => 'Bus Owner Panel',
 ];

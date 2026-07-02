@@ -18,6 +18,7 @@ return [
     'profile' => 'Wasifu',
     'logout' => 'Ondoka',
     'resaved_tickets' => 'Tiketi Zilizohifadhiwa',
+    'transfer_booking' => 'Hamisha Uhifadhi',
     'local_bus_owners' => 'Msaidizi',
     'bus_owner_panel' => 'Jopo la Mmiliki wa Basi',
 ];

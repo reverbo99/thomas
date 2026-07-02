@@ -1,0 +1,36 @@
+---
+description: Always delegate UI, translation, currency, and role-specific account tasks to the matching specialized subagent.
+alwaysApply: true
+---
+
+# Mandatory specialized subagent delegation
+
+For every conversation and task, apply these defaults whenever relevant work appears.
+
+## Global task delegation (any feature or change)
+
+- Use `newuiagent` for UI/UX design, layout, styling, Blade view structure, and visual consistency work.
+- Use `translateragent` for translating hardcoded text, i18n keys, locale parity, and language-string fixes.
+- Use `multcurrencyagent` for currency conversion logic, amount display, exchange-rate behavior, and TZS/USD handling.
+- Use `traagent` for TRA VFD fiscalization, receipt posting, certificate/endpoint config, ticket TRA print fields, and `TraVfdService` integration bugs.
+
+## User account delegation by role
+
+- Use `venderagent` for vendor user account tasks.
+- Use `busowneragent` for bus owner account tasks.
+- Use `adminagent` for system admin account tasks.
+- Use `guestagent` for guest/public user tasks.
+- Use `customeragent` for customer account tasks.
+
+## Enforcement behavior
+
+1. When a task clearly matches one of the categories above, delegate to that subagent immediately.
+2. If a task spans multiple categories, delegate to multiple matching subagents (parallel when possible) and then synthesize results.
+3. Do not skip delegation for these categories unless the user explicitly instructs not to delegate.
+
+## Task summary reporting requirement
+
+For each completed task response, include a short `Agents used` line in the summary.
+
+- If one or more subagents were used, list each by name (for example: `adminagent`, `translateragent`).
+- If no subagent was used, explicitly say `Agents used: none`.

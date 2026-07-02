@@ -30,7 +30,7 @@
             <!-- Seat Layout Column -->
             <div class="lg:col-span-2">
                 <div class="bg-white w-4/6 rounded-xl shadow-lg p-6">
-                    <form id="seatSelectionForm" action="{{ route('round.trip.seats.post') }}" method="POST">
+                    <form id="seatSelectionForm" action="{{ route(round_trip_routes()['seats_post']) }}" method="POST">
                         @csrf
                         <input type="hidden" name="selected_seats" id="hiddenSelectedSeats" value="">
                         <input type="hidden" name="total_amount" id="hiddenTotalAmount" value="0">

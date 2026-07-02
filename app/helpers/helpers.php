@@ -1,23 +1,45 @@
 <?php
 
-if (!function_exists('convert_to_usd')) {
+if (!function_exists('convert_money')) {
     function convert_money($tzs)
     {
         $currency = session('currency');
         $usd = app('usdToTzs') ?? 2500;
 
-        if($currency == 'Usd'){
-             return  number_format($tzs / $usd, 2);
-        }else{
-            return number_format($tzs, 2);
+        if (strtolower((string) $currency) === 'usd') {
+            return number_format($tzs / $usd, 2);
         }
-    } 
 
+        return number_format($tzs, 2);
+    }
+}
+
+if (!function_exists('convert_to_usd')) {
+    function convert_to_usd($tzs)
+    {
+        $usd = app('usdToTzs') ?? 2500;
+
+        return number_format($tzs / $usd, 2);
+    }
+}
+
+if (!function_exists('convert_to_tzs')) {
     function convert_to_tzs($money)
     {
         $usd = app('usdToTzs') ?? 2500;
 
-        return  number_format($money * $usd, 2);
+        return number_format($money * $usd, 2);
+    }
+}
+
+if (!function_exists('is_cancel_allowed')) {
+    function is_cancel_allowed($booking): bool
+    {
+        if (!$booking instanceof \App\Models\Booking) {
+            return false;
+        }
+
+        return app(\App\Http\Controllers\ConstData::class)->isCancelAllowed($booking);
     }
 }
 
@@ -203,6 +225,32 @@ if (!function_exists('booking_channel')) {
         }
 
         return 'guest';
+    }
+}
+
+if (!function_exists('sales_channel_for_booking')) {
+    function sales_channel_for_booking(?int $venderId = null, ?string $paymentMethod = null): string
+    {
+        if ($venderId) {
+            return 'in_person';
+        }
+
+        if ($paymentMethod && in_array(strtolower($paymentMethod), ['phone', 'call'], true)) {
+            return 'phone';
+        }
+
+        return 'online';
+    }
+}
+
+if (!function_exists('sales_channel_label')) {
+    function sales_channel_label(?string $channel): string
+    {
+        return match ($channel) {
+            'in_person' => __('all.sales_channel_in_person'),
+            'phone' => __('all.sales_channel_phone'),
+            default => __('all.sales_channel_online'),
+        };
     }
 }
 

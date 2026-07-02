@@ -24,6 +24,7 @@ class Booking extends Model
         'amount',
         'customer_paid_total',
         'payment_method',
+        'booking_channel',
         'payment_status',
         'resaved_until',
         'trans_status',
@@ -61,6 +62,13 @@ class Booking extends Model
         'discount_amount',
         'distance',
         'busFee',
+        'tra_status',
+        'tra_rct_num',
+        'tra_z_num',
+        'tra_vnum',
+        'tra_qr_url',
+        'tra_response',
+        'tra_error',
     ];
 
     public function bus()
@@ -110,5 +118,29 @@ class Booking extends Model
     public function governmentLeviesOnService(): HasMany
     {
         return $this->hasMany(GovernmentLevy::class, 'booking_id', 'booking_code');
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (Booking $booking) {
+            if (empty($booking->booking_channel)) {
+                $booking->booking_channel = sales_channel_for_booking(
+                    $booking->vender_id ? (int) $booking->vender_id : null,
+                    $booking->payment_method
+                );
+            }
+        });
+    }
+
+    public function getSalesChannelAttribute(): string
+    {
+        if (!empty($this->attributes['booking_channel'])) {
+            return $this->attributes['booking_channel'];
+        }
+
+        return sales_channel_for_booking(
+            $this->vender_id ? (int) $this->vender_id : null,
+            $this->payment_method
+        );
     }
 }

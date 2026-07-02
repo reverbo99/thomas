@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\ConstData;
 use App\Models\AdminWallet;
 use App\Models\Booking;
-use App\Models\Cancel;
 use App\Models\CancelledBookings;
 use App\Models\Schedule;
 use App\Models\TempWallet;
@@ -16,17 +15,7 @@ class CancelController extends Controller
 {
     public function index(Request $request)
     {
-        Cancel::create(
-            [
-                'booking_id' => $request->booking_id,
-                'cancel_reason' => 'none',
-                'used' => 'false',
-            ]
-        );
-
-        Booking::find($request->booking_id)
-            ->update(['payment_status' => 'Cancel']);
-        return redirect()->back();
+        return redirect()->route('info');
     }
 
     public function cancel(Request $request)
@@ -34,17 +23,26 @@ class CancelController extends Controller
         // return $request->all();
 
 
-        $now = Carbon::parse(now())->format('Y-m-d');
         $booking = Booking::find($request->booking_id);
 
-        if (!(new ConstData())->isCancelAllowed($booking)) {
-            return back()->with('error', 'Your rebooking is out of date. You can\'t cancel this booking.');
+        if (!$booking) {
+            return back()->with('error', __('all.booking_not_found'));
         }
 
-        $booking->update(['payment_status' => 'Cancel']);
+        if ($booking->payment_status === 'Cancel') {
+            return back()->with('error', __('all.booking_already_cancelled'));
+        }
+
+        if (!in_array($booking->payment_status, ['Paid', 'Reserved'], true)) {
+            return back()->with('error', __('all.booking_not_cancellable'));
+        }
+
+        if (!(new ConstData())->isCancelAllowed($booking)) {
+            return back()->with('error', __('all.cancel_not_allowed'));
+        }
 
         $amount = (new ConstData())->cancel_logic($booking->id);
-        $cancel = $booking->amount - $amount;
+        $cancel = max(0, (float) $booking->amount - $amount);
 
         ////////////////cancel percent//////////////
 
@@ -63,10 +61,7 @@ class CancelController extends Controller
 
         
 
-        $booking->update([
-            'payment_status' => 'Cancel',
-            //'refund_id' => $data->id,
-        ]);
+        $booking->update(['payment_status' => 'Cancel']);
 
         if (auth()->check()) {
             $wallet = TempWallet::firstOrNew(['user_id' => auth()->id()]);
@@ -84,7 +79,7 @@ class CancelController extends Controller
             ]);
         }
 
-        return redirect()->back()->with('success', 'Your cancel has been completed successfully. Check your wallet!');
+        return redirect()->back()->with('success', __('all.cancel_completed_success'));
     }
 
     public function generateRandomString()

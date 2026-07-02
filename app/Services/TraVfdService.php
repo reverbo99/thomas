@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +14,7 @@ use Exception;
 class TraVfdService
 {
     protected $env;
-    protected $baseUrl;
+    protected $urls;
     protected $tin;
     protected $certSerial;
     protected $password;
@@ -28,10 +29,17 @@ class TraVfdService
         $this->certSerial = config('tra.cert_serial');
         $this->password = config('tra.password');
         $this->certPath = config('tra.cert_path');
+        $this->urls = config('tra.urls.' . $this->env, config('tra.urls.test', []));
+    }
 
-        $this->baseUrl = $this->env === 'production'
-            ? 'https://vfd.tra.go.tz/api'
-            : 'https://virtual.tra.go.tz/efdmsRctApi/api';
+    protected function url(string $key): string
+    {
+        $url = $this->urls[$key] ?? '';
+        if ($url === '') {
+            throw new Exception("TRA URL not configured for env={$this->env} key={$key}");
+        }
+
+        return $url;
     }
 
     /**
@@ -41,11 +49,18 @@ class TraVfdService
     {
         try {
             if (!config('tra.enabled', true)) {
-                return true; // TRA fiscalization disabled
+                if ($this->shouldMockFiscalization()) {
+                    return $this->applyMockFiscalization($booking);
+                }
+                return true;
             }
 
             if ($booking->tra_status === 'success') {
-                return true; // Already fiscalized
+                return true;
+            }
+
+            if ($this->shouldMockFiscalization()) {
+                return $this->applyMockFiscalization($booking);
             }
 
             // 1. Ensure we have valid token and config
@@ -70,9 +85,60 @@ class TraVfdService
 
         } catch (Exception $e) {
             Log::error("TRA Fiscalization Error (Booking {$booking->id}): " . $e->getMessage());
+            if ($this->shouldMockFiscalization()) {
+                return $this->applyMockFiscalization($booking);
+            }
             $booking->update(['tra_status' => 'failed', 'tra_error' => $e->getMessage()]);
             return false;
         }
+    }
+
+    protected function shouldMockFiscalization(): bool
+    {
+        $settings = Setting::first();
+        if (!($settings->test_mode ?? false)) {
+            return false;
+        }
+
+        if (!config('tra.enabled', true)) {
+            return true;
+        }
+
+        if (empty($this->certPath) || !is_file($this->certPath)) {
+            return true;
+        }
+
+        if (empty($this->tin) || empty($this->certSerial) || empty($this->password)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    protected function applyMockFiscalization(Booking $booking): bool
+    {
+        if ($booking->tra_status === 'success') {
+            return true;
+        }
+
+        $rctNum = (string) ((int) (Setting::first()->id ?? 1) * 100000 + (int) $booking->id);
+        $vnum = 'T' . $rctNum;
+        $verifyBase = $this->url('verify');
+        $qrUrl = $verifyBase . '/' . $vnum . '_' . date('His');
+
+        $booking->update([
+            'tra_status' => 'success',
+            'tra_rct_num' => $rctNum,
+            'tra_z_num' => date('Ymd'),
+            'tra_vnum' => $vnum,
+            'tra_qr_url' => $qrUrl,
+            'tra_response' => 'test_mode_mock',
+            'tra_error' => null,
+        ]);
+
+        Log::info("TRA mock fiscalization applied (test mode) for booking {$booking->id}");
+
+        return true;
     }
 
     // --- Authentication & State Management ---
@@ -100,6 +166,19 @@ class TraVfdService
         }
     }
 
+    protected function httpClient()
+    {
+        $options = [
+            'timeout' => (int) config('tra.timeout', 60),
+            'connect_timeout' => (int) config('tra.connect_timeout', 20),
+        ];
+        if (!config('tra.verify_ssl', true)) {
+            $options['verify'] = false;
+        }
+
+        return Http::withOptions($options);
+    }
+
     protected function register()
     {
         if ($this->tin === null || $this->tin === '' || $this->certSerial === null || $this->certSerial === '') {
@@ -108,31 +187,39 @@ class TraVfdService
             );
         }
 
-        $payload = "<REGDATA><TIN>{$this->tin}</TIN><CERTKEY>{$this->certSerial}</CERTKEY></REGDATA>";
+        $payload = '<REGDATA><TIN>' . $this->tin . '</TIN><CERTKEY>' . $this->certSerial . '</CERTKEY></REGDATA>';
         $signature = $this->signData($payload);
 
-        $xml = "<?xml version='1.0' encoding='UTF-8'?><EFDMS><REGDATA><TIN>{$this->tin}</TIN><CERTKEY>{$this->certSerial}</CERTKEY></REGDATA><EFDMSSIGNATURE>{$signature}</EFDMSSIGNATURE></EFDMS>";
+        $xml = '<?xml version="1.0"?><EFDMS><REGDATA><TIN>' . $this->tin . '</TIN><CERTKEY>' . $this->certSerial . '</CERTKEY></REGDATA><EFDMSSIGNATURE>' . $signature . '</EFDMSSIGNATURE></EFDMS>';
 
-        $url = $this->env === 'production' ? 'https://vfd.tra.go.tz/api/vfdRegReq' : 'https://virtual.tra.go.tz/efdmsRctApi/api/vfdRegReq';
+        $url = $this->url('register');
 
-        Log::info("TRA Registration Request to $url");
+        Log::info("TRA Registration Request to $url", [
+            'tin' => $this->tin,
+            'certkey' => $this->certSerial,
+            'cert_serial_header_len' => strlen($certSerialHeader = $this->buildCertSerialHeader()),
+        ]);
 
-        $certSerialHeader = $this->buildCertSerialHeader();
-
-        $response = Http::withHeaders([
+        $response = $this->httpClient()->withHeaders([
             'Content-Type' => 'application/xml',
             'Cert-Serial' => $certSerialHeader,
-            'Client' => 'WEBAPI',
+            'Client' => config('tra.client', 'webapi'),
         ])->send('POST', $url, ['body' => $xml]);
 
         if ($response->failed()) {
+            Log::error('TRA Registration HTTP failed', ['body' => $response->body(), 'status' => $response->status()]);
             $this->throwRegistrationFailure(
                 'Registration HTTP Failed: ' . $response->body(),
                 $certSerialHeader
             );
         }
 
+        Log::info('TRA Registration response', ['body' => $response->body()]);
+
         $xmlResp = simplexml_load_string($response->body());
+        if (!$xmlResp || !isset($xmlResp->EFDMSRESP)) {
+            throw new Exception('Registration response is not valid XML: ' . $response->body());
+        }
         if ((string) $xmlResp->EFDMSRESP->ACKCODE !== '0') {
             $this->throwRegistrationFailure(
                 'Registration API Failed: ' . (string) $xmlResp->EFDMSRESP->ACKMSG,
@@ -159,9 +246,9 @@ class TraVfdService
 
     protected function requestToken($state)
     {
-        $url = $this->env === 'production' ? 'https://vfd.tra.go.tz/vfdtoken' : 'https://virtual.tra.go.tz/efdmsRctApi/vfdtoken';
+        $url = $this->url('token');
 
-        $response = Http::asForm()->post($url, [
+        $response = $this->httpClient()->asForm()->post($url, [
             'username' => $state['username'],
             'password' => $state['password'],
             'grant_type' => 'password'
@@ -190,8 +277,8 @@ class TraVfdService
         $time = date('H:i:s');
         $znum = date('Ymd');
 
-        $custIdType = '1'; // TIN
-        $custId = $booking->customer_phone ?? '000000000'; // Fallback
+        $custIdType = '6'; // NIL — bus passengers rarely provide TIN at booking
+        $custId = '';
         $custName = htmlspecialchars($booking->customer_name ?? 'Costumer');
         $mobile = $this->normalizePhone($booking->customer_phone);
 
@@ -211,14 +298,14 @@ class TraVfdService
 
     protected function sendReceiptRequest($signedXml, $state)
     {
-        $url = "{$this->baseUrl}/efdmsRctInfo";
+        $url = $this->url('receipt');
 
-        $response = Http::withHeaders([
+        $response = $this->httpClient()->withHeaders([
             'Content-Type' => 'application/xml',
             'Routing-Key' => $state['routing_key'],
             'Cert-Serial' => $this->buildCertSerialHeader(),
-            'Client' => 'WEBAPI',
-            'Authorization' => 'Bearer ' . $state['token']
+            'Client' => config('tra.client', 'webapi'),
+            'Authorization' => 'bearer ' . $state['token'],
         ])->send('POST', $url, ['body' => $signedXml]);
 
         return $response;
@@ -244,7 +331,7 @@ class TraVfdService
             $rctVNum = $state['receipt_code'] . $rctNum;
 
             // Build QR Link
-            $verifyBase = config('tra.verify_url.' . $this->env);
+            $verifyBase = $this->url('verify');
             $timeStr = date('His');
             $qrUrl = "$verifyBase/{$rctVNum}_{$timeStr}";
 
@@ -315,8 +402,9 @@ class TraVfdService
     }
 
     /**
-     * HTTP Cert-Serial header: base64 of certificate serial octets (TRA VFD).
-     * Set TRA_CERT_SERIAL_HEADER_BASE64 if TRA gave a fixed value or auto-extract fails.
+     * HTTP Cert-Serial header per TRA VFD API:
+     * base64-encode the certificate serial hex string (see tra-docs + golang tra-vfd).
+     * Set TRA_CERT_SERIAL_HEADER_BASE64 if TRA supplied a fixed override value.
      */
     protected function buildCertSerialHeader(): string
     {
@@ -326,16 +414,18 @@ class TraVfdService
         }
 
         $hex = $this->normalizeCertSerialHex($this->extractSerialHexFromPfx());
-        $binary = hex2bin($hex);
-        if ($binary === false || $binary === '') {
-            throw new Exception(
-                'Could not encode TRA Cert-Serial from certificate. ' .
-                'Confirm TRA_CERT_PATH / TRA_PASSWORD, or set TRA_CERT_SERIAL_HEADER_BASE64 (see TRA integration guide). ' .
-                'You can set TRA_ENABLED=false until the certificate is registered with TRA.'
-            );
+        $mode = config('tra.cert_serial_header_mode', 'hex_string');
+
+        if ($mode === 'hex_bytes') {
+            $binary = hex2bin($hex);
+            if ($binary === false || $binary === '') {
+                throw new Exception('Could not encode TRA Cert-Serial from certificate hex bytes.');
+            }
+
+            return base64_encode($binary);
         }
 
-        return base64_encode($binary);
+        return base64_encode($hex);
     }
 
     protected function normalizeCertSerialHex(string $hex): string

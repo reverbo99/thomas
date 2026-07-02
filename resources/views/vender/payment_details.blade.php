@@ -407,7 +407,7 @@
                                                     class="text-black w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 onlydigits"
                                                     placeholder="e.g. 0780000000">
                                             </div>
-                                            <p class="text-sm text-gray-600">{{ __('all.total_to_pay_label') }} <strong id="vend_airtel_total_display">TZS {{ convert_money($price + $fees) }}</strong></p>
+                                            <p class="text-sm text-gray-600">{{ __('all.total_to_pay_label') }} <strong id="vend_airtel_total_display">{{ $currency }} {{ convert_money($price + $fees) }}</strong></p>
                                             <button type="button" id="vend_airtel_pay_btn"
                                                 class="w-full mt-2 py-3 px-6 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white font-medium rounded-lg shadow-md">
                                                 <i class="fas fa-lock mr-2"></i> {{ __('all.pay_with_airtel_money') }}

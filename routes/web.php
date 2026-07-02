@@ -218,7 +218,7 @@ Route::get('/', function () {
     // Check if user is authenticated and requires 2FA
     if (Auth::check()) {
         $user = Auth::user();
-        $requires2FA = in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner']);
+        $requires2FA = \App\Http\Middleware\EnsureTwoFactorEnabled::requiresTwoFactor($user);
         
         if ($requires2FA && is_null($user->two_factor_confirmed_at)) {
             return redirect()->route('two-factor.login')
@@ -588,7 +588,7 @@ Route::middleware('auth')->group(function () {
         });
     });
 
-    Route::prefix('customer')->middleware('role:customer')->group(function () {
+    Route::prefix('customer')->middleware(['role:customer', '2fa'])->group(function () {
         Route::get('/home', [CustomerController::class, 'dashboard'])->name('customer.dashboard');
         Route::get('/', [CustomerController::class, 'index'])->name('customer.index');
         Route::get('/mybooking', [CustomerController::class, 'mybooking'])->name('customer.mybooking');
@@ -636,7 +636,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // Special Hire Routes
-    Route::prefix('special-hire')->middleware('role:special_hire')->group(function () {
+    Route::prefix('special-hire')->middleware(['role:special_hire', '2fa'])->group(function () {
         // Dashboard
         Route::get('/', [SpecialHireController::class, 'index'])->name('special_hire.index');
 

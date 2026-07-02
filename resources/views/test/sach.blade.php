@@ -122,6 +122,16 @@
                 </div>
             </div>
 
+            <div class="home-search__field home-search__field--date">
+                <label class="home-search__label" for="rt_return_date">
+                    <span class="home-search__label-icon" aria-hidden="true"><i class="fas fa-calendar"></i></span>
+                    <span class="home-search__label-text">{{ __('all.return_date') }}</span>
+                </label>
+                <div class="home-search__control">
+                    <input type="date" name="return_date" id="rt_return_date" value="{{ request('return_date', old('return_date')) }}" class="home-search__input">
+                </div>
+            </div>
+
             <div class="home-search__field home-search__field--class">
                 <label class="home-search__label" for="rt_bus_class">
                     <span class="home-search__label-icon" aria-hidden="true"><i class="fas fa-bus"></i></span>

@@ -23,6 +23,14 @@
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row items-center gap-2">
+                    <form method="GET" action="{{ route('system.history') }}" class="flex items-center gap-2">
+                        <select name="channel" class="px-3 py-2 border rounded-lg text-sm" onchange="this.form.submit()">
+                            <option value="">{{ __('all.sales_channel_all') }}</option>
+                            <option value="online" @selected(($channelFilter ?? '') === 'online')>{{ __('all.sales_channel_online') }}</option>
+                            <option value="in_person" @selected(($channelFilter ?? '') === 'in_person')>{{ __('all.sales_channel_in_person') }}</option>
+                            <option value="phone" @selected(($channelFilter ?? '') === 'phone')>{{ __('all.sales_channel_phone') }}</option>
+                        </select>
+                    </form>
                     <div class="flex items-center gap-2 w-full sm:w-auto">
                         <input type="text" class="px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm w-full sm:w-48" id="dateRangeFilter" placeholder="{{ __('system.pages.select_date_range') }}">
                         <button class="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition" id="clearDateFilter">
@@ -31,6 +39,12 @@
                             </svg>
                         </button>
                     </div>
+                    <button type="submit" form="manifestForm" class="px-3 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-sm">
+                        {{ __('vender/history.print_manifest') }}
+                    </button>
+                    <button type="submit" form="incomeForm" class="px-3 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-sm">
+                        {{ __('system.pages.print_service') }}
+                    </button>
                 </div>
             </div>
 
@@ -80,6 +94,7 @@
                                         <td class="py-2 px-4">
                                             <div class="flex flex-col">
                                                 <p class="font-medium mb-0">{{ $booking->booking_code ?? 'N/A' }}</p>
+                                                <p class="text-gray-500 mb-0">{{ sales_channel_label($booking->sales_channel) }}</p>
                                                 <p class="text-gray-500 mb-0">{{ __('system.pages.confirmed') }}</p>
                                                 <p class="text-gray-500 mb-0">Pay Time: {{ $booking->created_at->format('d M Y H:i') }}</p>
                                             </div>
@@ -180,6 +195,15 @@
             </div>
         </div>
     </div>
+
+    <form id="manifestForm" action="{{ route('system.print.manifest') }}" method="POST" class="hidden">
+        @csrf
+        <input type="hidden" name="data" value="">
+    </form>
+    <form id="incomeForm" action="{{ route('system.print') }}" method="POST" class="hidden">
+        @csrf
+        <input type="hidden" name="data" value="">
+    </form>
 
     <!-- View Booking Modal -->
     <div id="viewBookingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

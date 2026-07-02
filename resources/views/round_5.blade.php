@@ -29,7 +29,7 @@
                     </div>
                 </div>
                 <div class="booking-card__body">
-                        <form action="{{ route('round.trip.payment.pay') }}" method="POST">
+                        <form action="{{ route(round_trip_routes()['payment_pay']) }}" method="POST">
                             @csrf
                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <!-- Trip and Passenger Details -->
@@ -134,7 +134,7 @@
                                                         onchange="toggleExcessLuggageDescription()">
                                                     <label for="excess_luggage_roundtrip"
                                                         class="ml-2 block text-sm font-medium text-gray-700">
-                                                        {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => 'TSh. 2,500']) }}
+                                                        {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money(2500))]) }}
                                                     </label>
                                                 </div>
                                                 <div id="excessLuggageDescriptionField" class="hidden mt-2">
@@ -197,7 +197,7 @@
                                                         @endphp
                                                         <div>
                                                             <label for="Insurance"
-                                                                class="block text-sm font-semibold text-gray-800">{{ __('customer/busroot.insurance', ['amount' => 'TSh.3700']) }}</label>
+                                                                class="block text-sm font-semibold text-gray-800">{{ __('customer/busroot.insurance', ['amount' => ($currency . ' ' . convert_money(3700))]) }}</label>
                                                             <div class="mt-1">
                                                                 <input type="checkbox" id="Insurance" name="Insurance"
                                                                     value="1" class="mr-2"
@@ -239,23 +239,23 @@
                                         <div class="space-y-2">
                                             <div class="flex justify-between text-sm">
                                                 <span class="text-gray-600">{{ __('customer/busroot.discount') }}</span>
-                                                <span class="text-gray-800">{{ $currency }}. 0.00</span>
+                                                <span class="text-gray-800">{{ $currency }} 0.00</span>
                                             </div>
                                             <div class="flex justify-between text-sm">
                                                 <span
                                                     class="text-gray-600">{{ __('customer/busroot.system_charge') }}</span>
-                                                <span class="text-gray-800">{{ $currency }}.
+                                                <span class="text-gray-800">{{ $currency }}
                                                     {{ convert_money($fees) }}</span>
                                             </div>
                                             <div class="flex justify-between text-sm">
                                                 <span class="text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
-                                                <span class="text-gray-800">{{ $currency }}.
+                                                <span class="text-gray-800">{{ $currency }}
                                                     {{ convert_money($price) }}</span>
                                             </div>
                                             <div class="flex justify-between text-sm font-bold">
                                                 <span
                                                     class="text-gray-600">{{ __('customer/busroot.total_payable') }}</span>
-                                                <span class="text-gray-800" id="total_payable_amount_roundtrip">{{ $currency }}.
+                                                <span class="text-gray-800" id="total_payable_amount_roundtrip">{{ $currency }}
                                                     {{ convert_money($fees + $price) }}</span>
                                             </div>
                                         </div>

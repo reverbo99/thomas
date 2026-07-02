@@ -23,10 +23,7 @@ class RedirectIfAuthenticated
             if (Auth::guard($guard)->check()) {
                 $user = Auth::guard($guard)->user();
                 
-                // Check if user requires 2FA and if it's verified
-                $requires2FA = in_array($user->role, ['admin', 'bus_campany', 'vender', 'local_bus_owner']);
-                
-                if ($requires2FA) {
+                if (EnsureTwoFactorEnabled::requiresTwoFactor($user)) {
                     // If 2FA is not verified, redirect to 2FA login
                     if (is_null($user->two_factor_confirmed_at)) {
                         return redirect()->route('two-factor.login')

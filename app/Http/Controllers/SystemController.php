@@ -39,6 +39,12 @@ use Illuminate\Support\Facades\Schema;
 
 class SystemController extends Controller
 {
+    private function requireAccess(string $link): void
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->isActive() && $user->hasAccess($link), 403);
+    }
+
     public function index()
     {
         // All dashboard figures from PAID bookings only
@@ -128,7 +134,7 @@ class SystemController extends Controller
         $service = SystemBalance::sum('balance');
         $fees = PaymentFees::sum('amount');
         $balance = AdminWallet::sum('balance');
-        $cancelledAmount = CancelledBookings::sum('amount');
+        $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
 
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
@@ -139,6 +145,7 @@ class SystemController extends Controller
 
     public function buses()
     {
+        $this->requireAccess(Access::LINKS['BUSES']);
         $buses = bus::with('busname', 'route')->paginate(10);
         return view('system.buses', compact('buses'));
     }
@@ -330,6 +337,7 @@ class SystemController extends Controller
 
     public function pay_request(Request $request)
     {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
         // Fetch pending transactions
         $pendingTransactions = Transaction::whereIn('status', ['Pending'])
             ->with(['campany', 'user'])
@@ -344,6 +352,7 @@ class SystemController extends Controller
 
     public function filter(Request $request)
     {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
         // Validate request
         $request->validate([
             'filter' => 'required|in:today,week,month,year,custom',
@@ -388,6 +397,7 @@ class SystemController extends Controller
 
     public function completes(Request $request, $transaction, $campany = null)
     {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
         $transaction = Transaction::findOrFail($transaction);
         $transaction->status = 'Completed';
         $transaction->save();
@@ -397,6 +407,7 @@ class SystemController extends Controller
 
     public function cancels(Request $request, $transaction, $campany = null)
     {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
         $transaction = Transaction::findOrFail($transaction);
         $transaction->status = 'Cancelled';
         $transaction->save();
@@ -406,6 +417,7 @@ class SystemController extends Controller
 
     public function complete(Request $request, $transaction, $campany = null, $vender = null, $reference_number = null)
     {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
         $transaction = Transaction::findOrFail($transaction);
 
         // Validate company only when this is a company (not vender) transaction
@@ -440,6 +452,7 @@ class SystemController extends Controller
 
     public function cancel($transaction, $campany = null, $vender = null)
     {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
         $transaction = Transaction::findOrFail($transaction);
 
         if ($campany != 0 && (int) $transaction->campany_id !== (int) $campany) {
@@ -463,6 +476,7 @@ class SystemController extends Controller
 
     public function campany()
     {
+        $this->requireAccess(Access::LINKS['BUS_OPERATORS']);
 
         $campanies = Campany::all();
         return view('system.campany', compact('campanies'));
@@ -470,6 +484,7 @@ class SystemController extends Controller
 
     public function campany_status(Request $request)
     {
+        $this->requireAccess(Access::LINKS['BUS_OPERATORS']);
         $percent = $request->percentage ?? 0;
         $amount = $request->commission_amount ?? 0;
         $status = $request->status;
@@ -487,6 +502,7 @@ class SystemController extends Controller
 
     public function campanyShow($id)
     {
+        $this->requireAccess(Access::LINKS['BUS_OPERATORS']);
         $campany = Campany::with(['user', 'balance', 'busOwnerAccount', 'bus' => function ($q) {
             $q->withCount('routes');
         }])->findOrFail($id);
@@ -531,6 +547,7 @@ class SystemController extends Controller
 
     public function system_payments()
     {
+        $this->requireAccess(Access::LINKS['SYSTEM_INCOME']);
         $balances = SystemBalance::with('campany')->orderByDesc('created_at')->get();
         $pays = PaymentFees::with('campany')->orderByDesc('created_at')->get();
         $levies = \App\Models\GovernmentLevy::with('campany')->orderByDesc('created_at')->get();
@@ -600,6 +617,7 @@ class SystemController extends Controller
 
     public function history(Request $request)
     {
+        $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
         $query = Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService']);
         // Apply period filter from sidebar dropdown
         if ($request->has('period')) {
@@ -619,6 +637,22 @@ class SystemController extends Controller
             }
         }
 
+        if ($request->filled('channel') && in_array($request->channel, ['online', 'in_person', 'phone'], true)) {
+            $channel = $request->channel;
+            $query->where(function ($q) use ($channel) {
+                $q->where('booking_channel', $channel);
+                if ($channel === 'in_person') {
+                    $q->orWhere(function ($sub) {
+                        $sub->whereNull('booking_channel')->whereNotNull('vender_id');
+                    });
+                } elseif ($channel === 'online') {
+                    $q->orWhere(function ($sub) {
+                        $sub->whereNull('booking_channel')->whereNull('vender_id');
+                    });
+                }
+            });
+        }
+
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();
 
         $totalPayment = $bookings->sum(fn ($b) => ($b->amount ?? 0) + ($b->vat ?? 0));
@@ -626,11 +660,13 @@ class SystemController extends Controller
         $totalVAT = $bookings->sum('vat');
         $grandTotal = $bookings->sum(fn ($b) => round(($b->fee ?? 0) + ($b->vender_fee ?? 0) + ($b->amount ?? 0) + ($b->vat ?? 0) + ($b->fee_vat ?? 0)));
 
-        return view('system.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal'));
+        return view('system.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal'))
+            ->with('channelFilter', $request->get('channel'));
     }
 
     public function print(Request $request)
     {
+        $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
         $data = $request->data;
         
         // Validate that data exists
@@ -667,12 +703,14 @@ class SystemController extends Controller
 
     public function vender()
     {
+        $this->requireAccess(Access::LINKS['VENDORS']);
         $venders = User::where('role', 'vender')->get();
         return view('system.vender', compact('venders'));
     }
 
     public function vender_status(Request $request)
     {
+        $this->requireAccess(Access::LINKS['VENDORS']);
         $vender_id = $request->vender_id;
         $status = $request->status;
 
@@ -685,6 +723,7 @@ class SystemController extends Controller
     
     public function vender_percent(Request $request)
     {
+        $this->requireAccess(Access::LINKS['VENDORS']);
         $request->validate([
             'percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'vender_id' => ['required', 'exists:users,id'],
@@ -814,6 +853,7 @@ class SystemController extends Controller
 
     public function bus_route()
     {
+        $this->requireAccess(Access::LINKS['BUS_SCHEDULE']);
         // Show only upcoming schedules from now (same logic as admin Bus Schedule)
         $today = Carbon::now()->format('Y-m-d');
         $currentTime = Carbon::now()->format('H:i:s');
@@ -985,6 +1025,8 @@ class SystemController extends Controller
                 'enable_conductor_sms_notifications' => true,
                 'enable_conductor_email_notifications' => true,
                 'test_mode' => false,
+                'enforce_2fa' => true,
+                'enforce_customer_email_verification' => true,
             ]);
         }
 
@@ -1002,6 +1044,8 @@ class SystemController extends Controller
                 'service' => 0,
                 'service_percentage' => 0,
                 'test_mode' => false,
+                'enforce_2fa' => true,
+                'enforce_customer_email_verification' => true,
             ]);
         }
 
@@ -1018,6 +1062,8 @@ class SystemController extends Controller
             'enable_conductor_sms_notifications' => $request->boolean('enable_conductor_sms_notifications'),
             'enable_conductor_email_notifications' => $request->boolean('enable_conductor_email_notifications'),
             'test_mode' => $request->boolean('test_mode'),
+            'enforce_2fa' => $request->boolean('enforce_2fa'),
+            'enforce_customer_email_verification' => $request->boolean('enforce_customer_email_verification'),
         ]);
 
         return back()->with('success', __('system.messages.settings_updated'));
@@ -1025,12 +1071,14 @@ class SystemController extends Controller
 
     public function refunds()
     {
+        $this->requireAccess(Access::LINKS['REFUNDS']);
         $refunds = Refund::all();
         return view('system.refunds', compact('refunds'));
     }
 
     public function approveRefund($id)
     {
+        $this->requireAccess(Access::LINKS['REFUNDS']);
         $refund = Refund::findOrFail($id);
         $refund->status = 'Approved';
         $refund->save();
@@ -1058,6 +1106,7 @@ class SystemController extends Controller
 
     public function rejectRefund($id)
     {
+        $this->requireAccess(Access::LINKS['REFUNDS']);
         $refund = Refund::findOrFail($id);
         $refund->status = 'Rejected';
         $refund->save();
@@ -1077,6 +1126,7 @@ class SystemController extends Controller
 
     public function cancelled_bookings(Request $request)
     {
+        $this->requireAccess(Access::LINKS['INSURANCE']);
         // Get cancelled bookings with related data
         $cancelledBookings = CancelledBookings::with([
             'booking' => function($query) {
@@ -1108,9 +1158,11 @@ class SystemController extends Controller
 
         // Calculate summary statistics
         $totalCancelled = CancelledBookings::count();
-        $totalAmount = CancelledBookings::sum('amount');
+        $totalAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
         $todayCancelled = CancelledBookings::whereDate('created_at', Carbon::today())->count();
-        $todayAmount = CancelledBookings::whereDate('created_at', Carbon::today())->sum('amount');
+        $todayAmount = CancelledBookings::whereDate('created_at', Carbon::today())
+            ->get()
+            ->sum(fn ($row) => abs((float) $row->amount));
 
         return view('system.cancelled_bookings', compact(
             'cancelledBookings', 

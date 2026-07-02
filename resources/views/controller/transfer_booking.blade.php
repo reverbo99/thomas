@@ -30,7 +30,8 @@
                         </div>
                     @endif
 
-                    <form action="{{ route('booking.transfer') }}" method="POST">
+                    <form action="{{ route('booking.transfer') }}" method="POST"
+                        onsubmit="return confirm(@json(__('vender/transfer.confirm_transfer_warning')))">
                         @csrf
 
                         <div class="mb-4">
@@ -38,8 +39,7 @@
                             <select class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="booking_id" name="booking_id" required onchange="
                                 const selectedBookingId = this.value;
                                 if (selectedBookingId) {
-                                    const url = '{{ route('booking.transfer.form') }}?booking_id=' + selectedBookingId;
-                                    window.location.href = url;
+                                    window.location.href = '{{ url('/bus-company/booking/transfer') }}/' + selectedBookingId;
                                 }
                             ">
                                 <option value="">{{ __('vender/transfer.select_booking_option') }}</option>
@@ -102,65 +102,60 @@
 
                             <div class="mb-4">
                                 <label for="new_amount" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_amount') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_amount" name="new_amount" required value="{{ $selectedBooking->amount }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_amount" name="new_amount" required readonly value="{{ $selectedBooking->amount }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_busFee" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_bus_fee') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_busFee" name="new_busFee" required value="{{ $selectedBooking->busFee }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_busFee" name="new_busFee" required readonly value="{{ $selectedBooking->busFee }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_discount_amount" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_discount_amount') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_discount_amount" name="new_discount_amount" required value="{{ $selectedBooking->discount_amount }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_discount_amount" name="new_discount_amount" required readonly value="{{ $selectedBooking->discount_amount }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_distance" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_distance') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_distance" name="new_distance" required value="{{ $selectedBooking->distance }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_distance" name="new_distance" required readonly value="{{ $selectedBooking->distance }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_bima_amount" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_bima_amount') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_bima_amount" name="new_bima_amount" required value="{{ $selectedBooking->bima_amount }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_bima_amount" name="new_bima_amount" required readonly value="{{ $selectedBooking->bima_amount }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_vat" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_vat') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_vat" name="new_vat" required value="{{ $selectedBooking->vat }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_vat" name="new_vat" required readonly value="{{ $selectedBooking->vat }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_fee" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_fee') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_fee" name="new_fee" required value="{{ $selectedBooking->fee }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_fee" name="new_fee" required readonly value="{{ $selectedBooking->fee }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_service" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_service') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_service" name="new_service" required value="{{ $selectedBooking->service }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_service" name="new_service" required readonly value="{{ $selectedBooking->service }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_vender_fee" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_vender_fee') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_vender_fee" name="new_vender_fee" required value="{{ $selectedBooking->vender_fee }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_vender_fee" name="new_vender_fee" required readonly value="{{ $selectedBooking->vender_fee }}">
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_vender_service" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_vender_service') }}</label>
-                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_vender_service" name="new_vender_service" required value="{{ $selectedBooking->vender_service }}">
+                                <input type="number" step="0.01" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_vender_service" name="new_vender_service" required readonly value="{{ $selectedBooking->vender_service }}">
                             </div>
 
-                            <div class="mb-4">
-                                <label for="new_campany_id" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_company_id') }}</label>
-                                <input type="number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_campany_id" name="new_campany_id" required value="{{ $selectedBooking->campany_id }}">
+                            <input type="hidden" id="new_campany_id" name="new_campany_id" value="{{ $selectedBooking->campany_id }}">
+                            <input type="hidden" id="new_route_id" name="new_route_id" value="{{ $selectedBooking->route_id }}">
+                            <div class="mb-4 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+                                {{ __('vender/transfer.transfer_warning_note') }}
                             </div>
-
-                            <div class="mb-4">
-                                <label for="new_route_id" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_route_id') }}</label>
-                                <input type="number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_route_id" name="new_route_id" required value="{{ $selectedBooking->route_id }}">
-                            </div>
-
-                            <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">{{ __('vender/transfer.transfer_booking') }}</button>
+                            <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">{{ __('vender/transfer.confirm_transfer') }}</button>
                         @else
                             <p class="text-gray-700">{{ __('vender/transfer.select_booking_hint') }}</p>
                         @endif

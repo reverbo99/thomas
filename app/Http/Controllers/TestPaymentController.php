@@ -82,6 +82,16 @@ class TestPaymentController extends Controller
 
             DB::commit();
 
+            try {
+                $tra = new \App\Services\TraVfdService();
+                $tra->fiscalize($booking->refresh());
+            } catch (\Exception $e) {
+                Log::warning('TestPayment: TRA fiscalization failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             Log::info('TestPayment: Payment processed successfully', [
                 'booking_id' => $booking->id,
                 'booking_code' => $booking->booking_code,

@@ -201,6 +201,25 @@ class ClickPesaController extends Controller
                         'transaction_id' => $transactionId
                     ]);
                 }
+
+                $sessionB1 = session('booking1');
+                $sessionB2 = session('booking2');
+                if ($sessionB1 && $sessionB2) {
+                    $update = [
+                        'transaction_ref_id' => $orderRef,
+                        'external_ref_id' => $transactionId,
+                    ];
+                    if (isset($sessionB1->booking_code)) {
+                        Booking::where('booking_code', $sessionB1->booking_code)->update($update);
+                    }
+                    if (isset($sessionB2->booking_code)) {
+                        Booking::where('booking_code', $sessionB2->booking_code)->update($update);
+                    }
+                    Log::info('ClickPesa: Stored order reference in round-trip bookings', [
+                        'order_reference' => $orderRef,
+                        'transaction_id' => $transactionId,
+                    ]);
+                }
             } catch (\Exception $e) {
                 Log::warning('ClickPesa: Could not store order reference in booking', [
                     'error' => $e->getMessage(),

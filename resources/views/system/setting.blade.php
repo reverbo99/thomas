@@ -174,6 +174,44 @@
                 </div>
 
                 <div class="px-6 pb-6 space-y-4">
+                    <div class="flex items-start justify-between border rounded-lg p-4 bg-blue-50 border-blue-200">
+                        <div>
+                            <p class="text-base font-medium text-gray-800 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c1.657 0 3-1.567 3-3.5S13.657 4 12 4s-3 1.567-3 3.5S10.343 11 12 11zm0 0v2m-7 7h14a2 2 0 002-2v-2a7 7 0 10-14 0v2a2 2 0 002 2z" />
+                                </svg>
+                                {{ __('system.settings.enforce_2fa') }}
+                            </p>
+                            <p class="text-sm text-gray-500 mt-1">{{ __('system.settings.enforce_2fa_desc') }}</p>
+                        </div>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="enforce_2fa" value="1"
+                                   class="sr-only toggle-input"
+                                   data-toggle-target="toggle-enforce-2fa"
+                                   {{ ($settings->enforce_2fa ?? true) ? 'checked' : '' }}>
+                            <div id="toggle-enforce-2fa" class="toggle-visual {{ ($settings->enforce_2fa ?? true) ? 'on' : '' }}"></div>
+                        </label>
+                    </div>
+
+                    <div class="flex items-start justify-between border rounded-lg p-4 bg-indigo-50 border-indigo-200">
+                        <div>
+                            <p class="text-base font-medium text-gray-800 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {{ __('system.settings.enforce_customer_email_verification') }}
+                            </p>
+                            <p class="text-sm text-gray-500 mt-1">{{ __('system.settings.enforce_customer_email_verification_desc') }}</p>
+                        </div>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="enforce_customer_email_verification" value="1"
+                                   class="sr-only toggle-input"
+                                   data-toggle-target="toggle-enforce-customer-email"
+                                   {{ ($settings->enforce_customer_email_verification ?? true) ? 'checked' : '' }}>
+                            <div id="toggle-enforce-customer-email" class="toggle-visual {{ ($settings->enforce_customer_email_verification ?? true) ? 'on' : '' }}"></div>
+                        </label>
+                    </div>
+
                     <div class="flex items-start justify-between border rounded-lg p-4 bg-amber-50 border-amber-200">
                         <div>
                             <p class="text-base font-medium text-gray-800 flex items-center">

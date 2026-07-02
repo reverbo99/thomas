@@ -1,12 +1,19 @@
 @if (in_array($book->payment_status, ['Paid', 'Refund Rejected']))
     <div class="ticket-actions">
-        <form action="{{ route('customer.cancel') }}" method="get">
-            @csrf
-            <input type="hidden" name="booking_id" value="{{ $book->id }}">
-            <button type="submit" class="ticket-action-btn ticket-action-btn--danger" title="{{ __('all.cancel_title') }}">
-                <i class="fas fa-times"></i>
-            </button>
-        </form>
+        @if (is_cancel_allowed($book))
+            <form action="{{ route('customer.cancel') }}" method="get"
+                onsubmit="return confirm(@json(__('all.confirm_cancel_ticket')))">
+                @csrf
+                <input type="hidden" name="booking_id" value="{{ $book->id }}">
+                <button type="submit" class="ticket-action-btn ticket-action-btn--danger" title="{{ __('all.cancel_ticket_title') }}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </form>
+        @else
+            <span class="ticket-action-btn ticket-action-btn--muted" title="{{ __('all.cancel_not_allowed') }}">
+                <i class="fas fa-clock"></i>
+            </span>
+        @endif
 
         <form action="{{ route('customer.rebook') }}" method="get"
             onsubmit="return confirm(@json(__('all.confirm_rebook_ticket')))">

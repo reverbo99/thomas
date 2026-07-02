@@ -25,14 +25,45 @@ return [
     // EFD serial string (CERTKEY in registration XML), e.g. 10TZ… — must match the .pfx file
     'cert_serial' => env('TRA_CERT_SERIAL', ''),
 
-    // Paste exact base64 Cert-Serial header from TRA integration docs if server still rejects
-    'cert_serial_header_base64' => env('TRA_CERT_SERIAL_HEADER_BASE64'),
+    // Cert-Serial header encoding: hex_string (TRA/golang default) or hex_bytes (legacy).
+    'cert_serial_header_mode' => env('TRA_CERT_SERIAL_HEADER_MODE', 'hex_string'),
+
+    // HTTP client header value per TRA API docs.
+    'client' => env('TRA_CLIENT', 'webapi'),
+
+    // Set false on local WAMP if cURL error 60 (missing CA bundle). Keep true in production.
+    'verify_ssl' => env('TRA_VERIFY_SSL', true),
+    'timeout' => env('TRA_TIMEOUT', 60),
+    'connect_timeout' => env('TRA_CONNECT_TIMEOUT', 20),
+
+    /*
+    | Test URLs from TRA integration email (vfdtest.tra.go.tz).
+    | Legacy virtual.tra.go.tz endpoints are NOT used for this TIN/cert.
+    */
+    'urls' => [
+        'test' => [
+            'register' => env('TRA_TEST_REGISTER_URL', 'https://vfdtest.tra.go.tz/api/vfdregreq'),
+            'token' => env('TRA_TEST_TOKEN_URL', 'https://vfdtest.tra.go.tz/vfdtoken'),
+            'receipt' => env('TRA_TEST_RECEIPT_URL', 'https://vfdtest.tra.go.tz/api/efdmsrctinfo'),
+            'zreport' => env('TRA_TEST_ZREPORT_URL', 'https://vfdtest.tra.go.tz/api/efdmszreport'),
+            'verify' => env('TRA_TEST_VERIFY_URL', 'https://virtual.tra.go.tz/efdmsrctverify'),
+        ],
+        'production' => [
+            'register' => env('TRA_PROD_REGISTER_URL', 'https://vfd.tra.go.tz/api/vfdRegReq'),
+            'token' => env('TRA_PROD_TOKEN_URL', 'https://vfd.tra.go.tz/vfdtoken'),
+            'receipt' => env('TRA_PROD_RECEIPT_URL', 'https://vfd.tra.go.tz/api/efdmsRctInfo'),
+            'zreport' => env('TRA_PROD_ZREPORT_URL', 'https://vfd.tra.go.tz/api/efdmszreport'),
+            'verify' => env('TRA_PROD_VERIFY_URL', 'https://verify.tra.go.tz'),
+        ],
+    ],
+
+    // Deprecated — use urls.* above
     'base_url' => [
-        'test' => 'https://virtual.tra.go.tz/efdmsRctApi/api',
+        'test' => 'https://vfdtest.tra.go.tz/api',
         'production' => 'https://vfd.tra.go.tz/api',
     ],
     'verify_url' => [
-        'test' => 'https://virtual.tra.go.tz/efdmsRctVerify',
+        'test' => 'https://virtual.tra.go.tz/efdmsrctverify',
         'production' => 'https://verify.tra.go.tz',
     ],
 ];

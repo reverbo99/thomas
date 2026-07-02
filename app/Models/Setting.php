@@ -23,5 +23,17 @@ class Setting extends Model
             'enable_conductor_sms_notifications',
             'enable_conductor_email_notifications',
             'test_mode',
+            'enforce_2fa',
+            'enforce_customer_email_verification',
         ];
+
+    public static function requiresCustomerEmailVerification(): bool
+    {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('settings')
+            || !\Illuminate\Support\Facades\Schema::hasColumn('settings', 'enforce_customer_email_verification')) {
+            return false;
+        }
+
+        return (bool) (static::query()->value('enforce_customer_email_verification') ?? false);
+    }
 }

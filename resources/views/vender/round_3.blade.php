@@ -22,7 +22,7 @@
             <div class="vendor-panel__body">
                 <h5 class="text-xl font-bold text-gray-800 text-center mb-6">{{ __('customer/busroot.select_your_journey_points') }}</h5>
 
-                <form id="busSearchForm" method="POST" action="{{ route('round.trip.booking_form.store') }}">
+                <form id="busSearchForm" method="POST" action="{{ route(round_trip_routes()['store']) }}">
                     @csrf
 
                     <!-- Bus Operator -->
@@ -108,7 +108,7 @@
                         </label>
                         <input type="text" id="routeDistanceDisplay" readonly
                                class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-800 focus:outline-none"
-                               name="route_distance" placeholder="{{ __('customer/busroot.distance_will_be_calculated') }}">
+                               placeholder="{{ __('customer/busroot.distance_will_be_calculated') }}">
                     </div>
 
                     <!-- Map Section -->

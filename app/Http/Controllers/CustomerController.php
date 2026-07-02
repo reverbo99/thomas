@@ -931,7 +931,7 @@ class CustomerController extends Controller
             $legs = sort_round_trip_resaved_legs([$booking, $partner]);
             app(RoundTripController::class)->loadResavedRoundTripCheckout($legs[0], $legs[1]);
 
-            return redirect()->round_trip_route('checkout');
+            return redirect()->to(round_trip_route('checkout'));
         }
 
         $setting = Setting::first();

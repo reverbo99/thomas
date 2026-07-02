@@ -99,6 +99,16 @@
             </div>
         </li>
         @endif
+        @if(auth()->user()->hasAccessTo(\App\Models\Access::BUS['BOOKING_HISTORY']))
+        <li>
+            <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->routeIs('booking.transfer.form') ? 'bg-teal-600' : '' }}" href="{{ route('booking.transfer.form') }}">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M7 7h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2zm-2 6h14V5H5v16z"/>
+                </svg>
+                {{ trans('vendor_sidebar.transfer_booking') }}
+            </a>
+        </li>
+        @endif
         @if(auth()->user()->hasAccessTo(\App\Models\Access::BUS['RESAVED_TICKETS']))
         <li>
             <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->routeIs(\App\Models\Access::BUS['RESAVED_TICKETS']) ? 'bg-teal-600' : '' }}" href="{{ route(\App\Models\Access::BUS['RESAVED_TICKETS']) }}">
@@ -175,7 +185,7 @@
         };
 
         // Ensure collapse is initialized based on active route
-        if ({{ request()->routeIs('history') ? 'true' : 'false' }}) {
+        if ({{ request()->routeIs('history', 'booking.transfer.form') ? 'true' : 'false' }}) {
             bookingHistoryToggle.setAttribute('aria-expanded', 'true');
             bookingHistoryCollapse.classList.remove('hidden');
             bookingHistoryChevron.classList.add('rotate-180');
