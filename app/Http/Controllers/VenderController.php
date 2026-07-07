@@ -461,14 +461,18 @@ class VenderController extends Controller
         $bus_info['category'] = $request->category;
         $bus_info['start'] = session()->get('time')['start'];
         $bus_info['end'] = session()->get('time')['end'];
-        $bus_info['bima'] = $request->Insurance ?? 0;
-        $bus_info['insuranceDate'] = $request->insuranceDate;
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? 0;
         $bus_info['cancel_key'] = $request->key ?? '';
         $bus_info['excess_luggage'] = $request->excess_luggage ?? 0; // Add excess luggage checkbox value
         $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
         session()->put('booking_form', $bus_info);
+
+        $insuranceError = process_booking_insurance_input($request, $bus_info);
+        session()->put('booking_form', $bus_info);
+        if ($insuranceError) {
+            return redirect()->route('vender.pay')->with('error', __($insuranceError));
+        }
 
         if (!empty($bus_info['discount'])) {
             $couponCheck = Discount::where('code', $bus_info['discount'])->first();
@@ -480,26 +484,9 @@ class VenderController extends Controller
             }
         }
 
-        $ins = 0;
+        $ins = (float) ($bus_info['bima_amount'] ?? 0);
         $dis = 0;
         $setting = Setting::first();
-        if (session()->get('booking_form')['bima'] == 1) {
-
-            if ($request->type == 'local') {
-                $ins = $setting->local;
-            } else {
-                $ins = $setting->international;
-            }
-            $insuranceDate = session()->get('booking_form')['insuranceDate'];
-            $today = \Carbon\Carbon::parse(session()->get('booking_form')['travel_date']);
-            //$today = session()->get('booking_form')['travel_date'];
-            $travelDate = \Carbon\Carbon::parse($insuranceDate);
-            $days = max(1, abs($today->diffInDays($insuranceDate, false)) + 1);
-            $ins *= $days;
-            $bus_info = session()->get('booking_form', []);
-            $bus_info['bima_amount'] = $ins;
-            session()->put('booking_form', $bus_info);
-        }
 
         $total_amount = session()->get('booking_form')['total_amount'];
         $excessLuggageFee = 0;
@@ -902,60 +889,150 @@ class VenderController extends Controller
 
     public function transaction(Request $request)
     {
-        // Initialize the query for transactions belonging to the authenticated vendor
-        $query = Transaction::where('vender_id', auth()->user()->id);
-
-        // Apply filter based on request parameter
-        $filter = $request->query('filter', 'today'); // Default to 'today' if no filter provided
-        switch ($filter) {
-            case 'today':
-                $query->whereBetween('created_at', [
-                    Carbon::today()->startOfDay(),
-                    Carbon::today()->endOfDay(),
-                ]);
-                break;
-            case 'week':
-                $query->whereBetween('created_at', [
-                    Carbon::now()->startOfWeek(),
-                    Carbon::now()->endOfWeek(),
-                ]);
-                break;
-            case 'month':
-                $query->whereBetween('created_at', [
-                    Carbon::now()->startOfMonth(),
-                    Carbon::now()->endOfMonth(),
-                ]);
-                break;
-            case 'year':
-                $query->whereYear('created_at', Carbon::now()->year)
-                    ->whereMonth('created_at', Carbon::now()->month);
-                break;
-            default:
-                // Default to today's transactions
-                $query->whereBetween('created_at', [
-                    Carbon::today()->startOfDay(),
-                    Carbon::today()->endOfDay(),
-                ]);
-                break;
-        }
-
-        // Execute the query to get the filtered transactions
-        $coll = $query->get();
+        $built = $this->buildVendorTransactionQuery($request);
+        $period = $built['period'];
+        $startDate = $built['startDate'];
+        $endDate = $built['endDate'];
+        $coll = $built['query']->orderByDesc('created_at')->get();
 
         // Calculate summary statistics
         $accept = Transaction::where('vender_id', auth()->user()->id)
             ->where('status', 'Completed')
             ->sum('amount');
         $pending = Transaction::where('vender_id', auth()->user()->id)
-            ->where('status', 'pending')
+            ->where('status', 'Pending')
             ->sum('amount');
         $cancel = Transaction::where('vender_id', auth()->user()->id)
             ->where('status', 'Cancelled')
             ->sum('amount');
 
-        // Return the view with the data
-        //return $coll;
-        return view('vender.transaction', compact('coll', 'accept', 'pending', 'cancel', 'filter'));
+        return view('vender.transaction', compact('coll', 'accept', 'pending', 'cancel', 'period', 'startDate', 'endDate'));
+    }
+
+    public function transactionExportPdf(Request $request)
+    {
+        $built = $this->buildVendorTransactionQuery($request);
+        $transactions = $built['query']->orderByDesc('created_at')->get();
+
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('vender.transaction', $request->only(['period', 'start_date', 'end_date']))
+                ->with('error', __('assistance/transaction.no_transactions_export'));
+        }
+
+        $rows = $transactions->map(fn (Transaction $transaction) => $this->mapVendorTransactionExportRow($transaction));
+
+        $pdf = Pdf::loadView('print.vendor_transactions', [
+            'title' => __('assistance/transaction.report_title'),
+            'filterLabel' => $this->vendorTransactionFilterLabel($built['period'], $built['startDate'], $built['endDate']),
+            'vendorName' => auth()->user()->name,
+            'rows' => $rows->values()->all(),
+            'totalAmount' => (float) $transactions->sum('amount'),
+        ]);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('vendor_transactions_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function transactionExportCsv(Request $request)
+    {
+        $built = $this->buildVendorTransactionQuery($request);
+        $transactions = $built['query']->orderByDesc('created_at')->get();
+
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('vender.transaction', $request->only(['period', 'start_date', 'end_date']))
+                ->with('error', __('assistance/transaction.no_transactions_export'));
+        }
+
+        $rows = $transactions->map(fn (Transaction $transaction) => $this->mapVendorTransactionExportRow($transaction));
+
+        return $this->streamVendorTransactionCsv(
+            'vendor_transactions_' . now()->format('Ymd_His') . '.csv',
+            array_values($this->vendorTransactionExportHeaders()),
+            $rows->map(fn (array $row) => array_values($row))
+        );
+    }
+
+    private function buildVendorTransactionQuery(Request $request): array
+    {
+        $query = Transaction::where('vender_id', auth()->id())
+            ->with(['user', 'user.VenderAccount']);
+
+        $dateFilter = apply_booking_history_date_filter($query, $request);
+        $period = $dateFilter['period'] ?? $request->get('period', 'today');
+        $startDate = $dateFilter['startDate'];
+        $endDate = $dateFilter['endDate'];
+
+        if (! $request->has('period') && ! $request->filled('start_date') && ! $request->filled('end_date')) {
+            $query->whereDate('created_at', today());
+            $period = $period ?? 'today';
+        }
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $period = 'custom';
+        }
+
+        return [
+            'query' => $query,
+            'period' => $period,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ];
+    }
+
+    private function vendorTransactionFilterLabel(?string $period, ?string $startDate = null, ?string $endDate = null): string
+    {
+        if ($period === 'custom' && $startDate && $endDate) {
+            return $startDate . ' – ' . $endDate;
+        }
+
+        return match ($period) {
+            'week' => __('assistance/transaction.this_week'),
+            'month' => __('assistance/transaction.this_month'),
+            'year' => __('assistance/transaction.this_year'),
+            default => __('assistance/transaction.today'),
+        };
+    }
+
+    private function mapVendorTransactionExportRow(Transaction $transaction): array
+    {
+        return [
+            'vendor' => $transaction->user?->name ?? __('system.common.unknown'),
+            'payment_method' => $transaction->payment_method ?? '—',
+            'payment_details' => transaction_payment_detail($transaction),
+            'date' => optional($transaction->created_at)->format('Y-m-d H:i') ?? '—',
+            'amount' => number_format((float) $transaction->amount, 2),
+            'reference_number' => $transaction->reference_number ?? '—',
+            'status' => $transaction->status ?? '—',
+        ];
+    }
+
+    private function vendorTransactionExportHeaders(): array
+    {
+        return [
+            'vendor' => __('assistance/transaction.vender'),
+            'payment_method' => __('assistance/transaction.payment_method'),
+            'payment_details' => __('assistance/transaction.payment_details'),
+            'date' => __('assistance/transaction.date'),
+            'amount' => __('assistance/transaction.amount'),
+            'reference_number' => __('assistance/transaction.reference_no'),
+            'status' => __('assistance/transaction.status'),
+        ];
+    }
+
+    private function streamVendorTransactionCsv(string $filename, array $headers, $rows)
+    {
+        return response()->streamDownload(function () use ($headers, $rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $headers);
+            foreach ($rows as $row) {
+                fputcsv($handle, array_values($row instanceof \Illuminate\Support\Collection ? $row->all() : (array) $row));
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     public function transaction_request(Request $request)
@@ -965,6 +1042,17 @@ class VenderController extends Controller
         if ($request->amount > $user->VenderBalances->amount) {
             return back()->with('error', __('assistance/transaction.insufficient_balance'));
         }
+
+        $paymentMethod = strtolower(trim((string) $request->payment_method));
+        if ($paymentMethod === 'bank') {
+            $paymentNumber = trim((string) optional($user->VenderAccount)->bank_number);
+            if ($paymentNumber === '') {
+                return back()->with('error', __('assistance/transaction.bank_account_required'));
+            }
+        } else {
+            $paymentNumber = trim((string) ($request->payment_number ?? optional($user->VenderBalances)->payment_number));
+        }
+
         // Create the transaction
         try {
             $transaction = Transaction::create([
@@ -972,8 +1060,8 @@ class VenderController extends Controller
                 'user_id' => $user->id,
                 'amount' => $request->amount,
                 'payment_method' => $request->payment_method,
-                'payment_number' => $request->payment_number ?? auth()->user()->VenderBalances->payment_number,
-                'status' => 'pending',
+                'payment_number' => $paymentNumber,
+                'status' => 'Pending',
             ]);
 
             return back()->with('success', __('assistance/transaction.transaction_request_sent'));
@@ -986,29 +1074,147 @@ class VenderController extends Controller
 
     public function history(Request $request)
     {
-        $query = Booking::with(['campany', 'schedule', 'user', 'bus.route', 'vender', 'governmentLeviesOnService'])->where('vender_id', auth()->user()->id);
+        $built = $this->buildVendorBookingHistoryQuery($request);
+        $bookings = $built['query']->where('payment_status', 'Paid')->latest()->paginate(20)->withQueryString();
 
-        if ($request->has('period')) {
-            switch ($request->period) {
-                case 'today':
-                    $query->whereDate('created_at', today());
-                    break;
-                case 'week':
-                    $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
-                    break;
-                case 'month':
-                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
-                    break;
-                case 'year':
-                    $query->whereYear('created_at', now()->year);
-                    break;
-            }
+        return view('vender.history', [
+            'bookings' => $bookings,
+            'period' => $built['period'],
+            'startDate' => $built['startDate'],
+            'endDate' => $built['endDate'],
+        ]);
+    }
+
+    public function historyExportPdf(Request $request)
+    {
+        $built = $this->buildVendorBookingHistoryQuery($request);
+        $bookings = $built['query']->where('payment_status', 'Paid')->latest()->get();
+
+        if ($bookings->isEmpty()) {
+            return redirect()
+                ->route('vender.history', $request->only(['period', 'start_date', 'end_date']))
+                ->with('error', __('vender/history.no_bookings_export'));
         }
 
-        $bookings = $query->where('payment_status', 'Paid')->latest()->paginate(20)->withQueryString();
-        $period = $request->get('period', 'today');
+        $rows = $bookings->map(fn (Booking $booking) => $this->mapVendorBookingHistoryExportRow($booking));
 
-        return view('vender.history', compact('bookings', 'period'));
+        $pdf = Pdf::loadView('print.vendor_booking_history', [
+            'title' => __('vender/history.report_title'),
+            'filterLabel' => $this->vendorHistoryFilterLabel($built['period'], $built['startDate'], $built['endDate']),
+            'vendorName' => auth()->user()->name,
+            'rows' => $rows->values()->all(),
+            'totalAmount' => $rows->sum(fn (array $row) => (float) ($row['total'] ?? 0)),
+            'bookingCount' => $rows->count(),
+        ]);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('vendor_booking_history_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function historyExportCsv(Request $request)
+    {
+        $built = $this->buildVendorBookingHistoryQuery($request);
+        $bookings = $built['query']->where('payment_status', 'Paid')->latest()->get();
+
+        if ($bookings->isEmpty()) {
+            return redirect()
+                ->route('vender.history', $request->only(['period', 'start_date', 'end_date']))
+                ->with('error', __('vender/history.no_bookings_export'));
+        }
+
+        $rows = $bookings->map(fn (Booking $booking) => $this->mapVendorBookingHistoryExportRow($booking));
+
+        return $this->streamVendorTransactionCsv(
+            'vendor_booking_history_' . now()->format('Ymd_His') . '.csv',
+            array_values($this->vendorBookingHistoryExportHeaders()),
+            $rows->map(fn (array $row) => collect($this->vendorBookingHistoryExportHeaders())->keys()->map(fn (string $key) => $row[$key] ?? '')->all())
+        );
+    }
+
+    private function buildVendorBookingHistoryQuery(Request $request): array
+    {
+        $query = Booking::with(['campany', 'schedule', 'user', 'bus.route', 'vender', 'governmentLeviesOnService'])
+            ->where('vender_id', auth()->id());
+
+        $dateFilter = apply_booking_history_date_filter($query, $request);
+        $period = $dateFilter['period'] ?? $request->get('period', 'today');
+        $startDate = $dateFilter['startDate'];
+        $endDate = $dateFilter['endDate'];
+
+        if (! $request->has('period') && ! $request->filled('start_date') && ! $request->filled('end_date')) {
+            $query->whereDate('created_at', today());
+            $period = $period ?? 'today';
+        }
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $period = 'custom';
+        }
+
+        return [
+            'query' => $query,
+            'period' => $period,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ];
+    }
+
+    private function vendorHistoryFilterLabel(?string $period, ?string $startDate = null, ?string $endDate = null): string
+    {
+        if ($period === 'custom' && $startDate && $endDate) {
+            return $startDate . ' – ' . $endDate;
+        }
+
+        return match ($period) {
+            'week' => __('assistance/dashboard.this_week'),
+            'month' => __('assistance/dashboard.this_month'),
+            'year' => __('assistance/dashboard.this_year'),
+            default => __('assistance/dashboard.today'),
+        };
+    }
+
+    private function mapVendorBookingHistoryExportRow(Booking $booking): array
+    {
+        $row = booking_to_report_row($booking);
+        $payment = (float) ($booking->amount ?? 0) + (float) ($booking->vat ?? 0);
+
+        return [
+            'booking_code' => $row['booking_code'],
+            'company_name' => $row['company_name'],
+            'route' => $row['route_from'] . ' → ' . $row['route_to'],
+            'bus_number' => $row['bus_number'],
+            'travel_date' => $row['travel_date'],
+            'seat' => $row['seat'],
+            'pickup_drop' => ($row['pickup_point'] ?? '—') . ' → ' . ($row['dropping_point'] ?? '—'),
+            'customer_name' => $row['customer_name'],
+            'customer_phone' => $row['customer_phone'],
+            'payment' => number_format($payment, 2),
+            'commission' => $row['commision'],
+            'discount' => $row['manifest_discount'],
+            'vat' => is_numeric($row['vat']) ? number_format((float) $row['vat'], 2) : (string) $row['vat'],
+            'total' => $row['total'],
+            'paid_at' => $row['issue_date'],
+        ];
+    }
+
+    private function vendorBookingHistoryExportHeaders(): array
+    {
+        return [
+            'booking_code' => __('vender/history.booking_id'),
+            'company_name' => __('vender/history.company'),
+            'route' => __('vender/history.bus_route'),
+            'bus_number' => __('vender/history.bus_number'),
+            'travel_date' => __('vender/history.travel_date'),
+            'seat' => __('vender/history.seat_label'),
+            'pickup_drop' => __('vender/history.pickup_drop'),
+            'customer_name' => __('vender/history.passenger'),
+            'customer_phone' => __('vender/history.phone'),
+            'payment' => __('vender/history.seats_payment'),
+            'commission' => __('vender/history.commission'),
+            'discount' => __('vender/history.discount_label'),
+            'vat' => __('vender/history.vat_label'),
+            'total' => __('vender/history.total'),
+            'paid_at' => __('vender/history.paid_time'),
+        ];
     }
 
     public function resavedTickets()
@@ -1161,35 +1367,7 @@ class VenderController extends Controller
     {
         $out = [];
         foreach ($bookings as $b) {
-            $rowTotal = round(($b->fee ?? 0) + ($b->vender_fee ?? 0) + ($b->amount ?? 0) + ($b->vat ?? 0) + ($b->fee_vat ?? 0));
-            $out[] = [
-                'booking_code' => $b->booking_code ?? 'N/A',
-                'company_name' => optional($b->campany)->name ?? 'N/A',
-                'route_from' => optional($b->schedule)->from ?? optional(optional($b->bus)->route)->from ?? 'N/A',
-                'route_to' => optional($b->schedule)->to ?? optional(optional($b->bus)->route)->to ?? 'N/A',
-                'bus_number' => optional($b->bus)->bus_number ?? 'N/A',
-                'travel_date' => $b->travel_date ? \Carbon\Carbon::parse($b->travel_date)->format('Y-m-d') : 'N/A',
-                'seat' => $b->seat ?? 'N/A',
-                'pickup_point' => $b->pickup_point ?? 'N/A',
-                'customer_name' => $b->customer_name ?? 'N/A',
-                'customer_phone' => $b->customer_phone ?? 'N/A',
-                'amount' => $b->amount ?? '0',
-                'commision' => (string) round(($b->fee ?? 0) + ($b->vender_fee ?? 0)),
-                'service' => $b->vender_fee ?? 'N/A',
-                'vendor_service' => $b->vender_service ?? 'N/A',
-                'discount' => $b->discount_amount ?? 'N/A',
-                'gov_levy' => (string) (float) (($b->government_levy ?? 0) + $b->governmentLeviesOnService->sum('amount')),
-                'gov_levy_service' => (string) (float) $b->governmentLeviesOnService->sum('amount'),
-                'vat' => $b->vat ?? 'N/A',
-                'total' => (string) $rowTotal,
-                'gender' => $b->gender ?? 'N/A',
-                'age' => $b->age ?? 'N/A',
-                'age_group' => $b->age_group ?? 'N/A',
-                'infant_child' => $b->infant_child ?? 0,
-                'excess_luggage' => $b->excess_luggage ?? 0,
-                'excess_luggage_description' => $b->excess_luggage_description ?? null,
-                'excess_luggage_fee' => $b->excess_luggage_fee ?? null,
-            ];
+            $out[] = booking_to_report_row($b);
         }
         return $out;
     }
@@ -1213,7 +1391,7 @@ class VenderController extends Controller
             if (empty($ids)) {
                 return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
             }
-            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService'])
+            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
                 ->where('vender_id', $venderId)
                 ->whereIn('id', $ids)
                 ->where('payment_status', 'Paid')
@@ -1246,6 +1424,7 @@ class VenderController extends Controller
         }
 
         $pdf = Pdf::loadView('print.manifest', ['bookings' => $data, 'bus' => $bus]);
+        $pdf->setPaper('a4', 'landscape');
 
         return $pdf->download('manifest-' . now() . '.pdf');
     }

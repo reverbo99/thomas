@@ -3,39 +3,45 @@
 @section('content')
     <!-- DataTables CSS -->
     <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
-    <!-- DataTables DateTime CSS -->
-    <link href="https://cdn.datatables.net/datetime/1.5.1/css/dataTables.dateTime.min.css" rel="stylesheet">
     <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 
     <div class="w-full max-w-full px-4 py-6">
+        @if (session('error'))
+            <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
+        @if (session('success'))
+            <div class="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+        @endif
+        <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6 px-4 py-4 border border-gray-100">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ __('system.pages.select_date_range') }}</p>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('pay.request.pdf', request()->only(['period', 'start_date', 'end_date'])) }}" target="_blank"
+                       class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm">
+                        {{ __('system.pages.export_pdf') }}
+                    </a>
+                    <a href="{{ route('pay.request.csv', request()->only(['period', 'start_date', 'end_date'])) }}"
+                       class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                        {{ __('system.pages.export_csv') }}
+                    </a>
+                </div>
+            </div>
+            @include('partials.booking_history_period_filter', [
+                'formAction' => route('pay.request'),
+                'resetUrl' => route('pay.request'),
+                'period' => $period ?? request('period', ''),
+                'startDate' => $startDate ?? request('start_date', ''),
+                'endDate' => $endDate ?? request('end_date', ''),
+            ])
+        </div>
+
         <!-- Requested Transactions Table -->
         <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6">
             <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h2 class="text-lg font-semibold">{{ __('system.transactions.requested_transactions') }}</h2>
             </div>
             <div class="p-4">
-                <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                    <div class="w-full sm:w-1/2">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">{{ __('system.common.filter_by') }}</label>
-                        <select id="pendingTimeFilter" class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                            <option value="all">{{ __('system.common.all_time') }}</option>
-                            <option value="day">{{ __('system.sidebar.today') }}</option>
-                            <option value="week">{{ __('system.common.this_week') }}</option>
-                            <option value="month">{{ __('system.common.this_month') }}</option>
-                            <option value="year">{{ __('system.common.this_year') }}</option>
-                            <option value="custom">{{ __('system.common.custom_range') }}</option>
-                        </select>
-                    </div>
-                    <div class="w-full sm:w-1/2 hidden" id="pendingDateRangeGroup">
-                        <label class="block text-xs font-medium text-gray-700 mb-1">{{ __('system.common.date_range') }}</label>
-                        <div class="flex flex-col sm:flex-row items-center gap-2">
-                            <input type="text" class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm" id="pendingMinDate" placeholder="{{ __('system.common.start_date') }}">
-                            <span class="text-gray-500 text-sm hidden sm:inline">{{ __('system.common.to') }}</span>
-                            <input type="text" class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm" id="pendingMaxDate" placeholder="{{ __('system.common.end_date') }}">
-                        </div>
-                    </div>
-                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full table-auto" id="pendingTransactionsTable">
                         <thead>
@@ -44,7 +50,7 @@
                                 <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_company') }}"></th>
                                 <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_user') }}"></th>
                                 <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_payment_method') }}"></th>
-                                <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_payment_number') }}"></th>
+                                <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_payment_details') }}"></th>
                                 <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_amount') }}"></th>
                                 <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_status') }}"></th>
                                 <th class="py-2 px-4 text-left font-medium"><input type="text" class="w-full px-2 py-1 border rounded text-xs search-input" placeholder="{{ __('system.transactions.search_date') }}"></th>
@@ -55,7 +61,7 @@
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.common.company') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.common.user') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.common.payment_method') }}</th>
-                                <th class="py-2 px-4 text-left font-medium">{{ __('system.common.payment_number') }}</th>
+                                <th class="py-2 px-4 text-left font-medium">{{ __('system.common.payment_details') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.common.amount') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.common.status') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.common.date') }}</th>
@@ -69,7 +75,7 @@
                                     <td class="py-2 px-4">{{ $transaction->campany ? $transaction->campany->name : __('system.common.vender_label') }}</td>
                                     <td class="py-2 px-4">{{ $transaction->user ? $transaction->user->name : __('system.common.unknown') }}</td>
                                     <td class="py-2 px-4">{{ $transaction->payment_method ?? __('system.common.unknown') }}</td>
-                                    <td class="py-2 px-4">{{ $transaction->payment_number ?? __('system.common.unknown') }}</td>
+                                    <td class="py-2 px-4">{{ transaction_payment_detail($transaction) }}</td>
                                     <td class="py-2 px-4 amount" data-amount="{{ $transaction->amount }}">{{ $currency }} {{ convert_money($transaction->amount) }}</td>
                                     <td class="py-2 px-4">
                                         <span class="inline-block px-2 py-1 text-xs font-semibold rounded {{ $transaction->status === 'Completed' ? 'bg-green-500 text-white' : ($transaction->status === 'Pending' ? 'bg-yellow-500 text-black' : 'bg-red-500 text-white') }}">
@@ -90,10 +96,6 @@
                                         @endif
                                     </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="9" class="py-4 px-4 text-center text-gray-500">{{ __('system.common.dt_empty_pending_tx') }}</td>
-                                </tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -105,30 +107,7 @@
         <div class="bg-white rounded-lg shadow-md overflow-hidden">
             <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h2 class="text-lg font-semibold">{{ __('system.transactions.all_transactions') }}</h2>
-                <div class="flex flex-col sm:flex-row items-center gap-4">
-                    <span class="text-sm font-medium">{{ __('system.common.total') }}: {{ $currency }} <span id="allTransactionsTotal">0</span></span>
-                    <div class="flex flex-col sm:flex-row gap-4">
-                        <div class="w-full sm:w-auto">
-                            <label class="block text-xs font-medium text-white mb-1">{{ __('system.common.filter_by') }}</label>
-                            <select id="allTimeFilter" class="w-full sm:w-48 px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm">
-                                <option value="all">{{ __('system.common.all_time') }}</option>
-                                <option value="day">{{ __('system.sidebar.today') }}</option>
-                                <option value="week">{{ __('system.common.this_week') }}</option>
-                                <option value="month">{{ __('system.common.this_month') }}</option>
-                                <option value="year">{{ __('system.common.this_year') }}</option>
-                                <option value="custom">{{ __('system.common.custom_range') }}</option>
-                            </select>
-                        </div>
-                        <div class="w-full sm:w-auto hidden" id="allDateRangeGroup">
-                            <label class="block text-xs font-medium text-white mb-1">{{ __('system.common.date_range') }}</label>
-                            <div class="flex flex-col sm:flex-row items-center gap-2">
-                                <input type="text" class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm" id="allMinDate" placeholder="{{ __('system.common.start_date') }}">
-                                <span class="text-gray-500 text-sm hidden sm:inline">{{ __('system.common.to') }}</span>
-                                <input type="text" class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm" id="allMaxDate" placeholder="{{ __('system.common.end_date') }}">
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <span class="text-sm font-medium">{{ __('system.common.total') }}: {{ $currency }} {{ convert_money($allTransactionsTotal ?? 0) }}</span>
             </div>
             <div class="p-4">
                 <div class="overflow-x-auto">
@@ -197,10 +176,6 @@
                                         @endif
                                     </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="8" class="py-4 px-4 text-center text-gray-500">{{ __('system.common.dt_empty_tx') }}</td>
-                                </tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -238,6 +213,9 @@
                             </form>
                             <form class="flex-1" id="cancelForm" action="" method="POST">
                                 @csrf
+                                <textarea name="cancel_reason" required maxlength="500" rows="3"
+                                    class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-red-500 focus:border-red-500 text-sm mb-2"
+                                    placeholder="{{ __('system.transactions.cancel_reason_placeholder') }}"></textarea>
                                 <button type="submit" class="w-full px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm">{{ __('system.common.cancel') }}</button>
                             </form>
                         </div>
@@ -254,200 +232,56 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <!-- Moment.js for date handling -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
-    <!-- DataTables DateTime plugin -->
-    <script src="https://cdn.datatables.net/datetime/1.5.1/js/dataTables.dateTime.min.js"></script>
 
     <script>
-        const CURRENT_CURRENCY = "{{ session('currency', 'Tsh') }}";
-        const USD_TO_TZS_RATE = {{ app('usdToTzs') ?? 2500 }};
         const txUpdateTemplate = @json(__('system.transactions.update_status_for', ['currency' => '__CUR__', 'amount' => '__AMT__']));
 
         $(document).ready(function() {
-            // Create date inputs for Pending Transactions Table
             $.fn.dataTable.ext.errMode = 'none';
-            var pendingMinDate = new DateTime($('#pendingMinDate'), {
-                format: 'DD MMM YYYY'
-            });
-            var pendingMaxDate = new DateTime($('#pendingMaxDate'), {
-                format: 'DD MMM YYYY'
-            });
 
-            // Create date inputs for All Transactions Table
-            var allMinDate = new DateTime($('#allMinDate'), {
-                format: 'DD MMM YYYY'
-            });
-            var allMaxDate = new DateTime($('#allMaxDate'), {
-                format: 'DD MMM YYYY'
-            });
-
-            // Custom date filtering function for both tables
-            $.fn.dataTableExt.afnFiltering.push(function(settings, data, dataIndex) {
-                let tableId = settings.sTableId;
-                let filterValue, minDate, maxDate, dateStr;
-
-                if (tableId === 'pendingTransactionsTable') {
-                    filterValue = $('#pendingTimeFilter').val();
-                    minDate = pendingMinDate.val();
-                    maxDate = pendingMaxDate.val();
-                    dateStr = data[7]; // Date column is index 7
-                } else {
-                    filterValue = $('#allTimeFilter').val();
-                    minDate = allMinDate.val();
-                    maxDate = allMaxDate.val();
-                    dateStr = data[6]; // Date column is index 6
-                }
-
-                let date = moment(dateStr, 'DD MMM YYYY HH:mm:ss');
-                if (!date.isValid()) {
-                    console.warn('Invalid date in table:', dateStr);
-                    return true; // Skip invalid dates
-                }
-
-                let now = moment();
-
-                if (filterValue === 'custom') {
-                    if (minDate && maxDate) {
-                        let minDateMoment = moment(minDate, 'DD MMM YYYY');
-                        let maxDateMoment = moment(maxDate, 'DD MMM YYYY');
-                        if (!minDateMoment.isValid() || !maxDateMoment.isValid()) {
-                            console.warn('Invalid custom date range:', minDate, maxDate);
-                            return true;
-                        }
-                        return date.isBetween(minDateMoment, maxDateMoment, null, '[]'); // inclusive
-                    }
-                    return true;
-                }
-
-                switch (filterValue) {
-                    case 'day':
-                        return date.isSame(now, 'day');
-                    case 'week':
-                        return date.isSame(now, 'week');
-                    case 'month':
-                        return date.isSame(now, 'month');
-                    case 'year':
-                        return date.isSame(now, 'year');
-                    case 'all':
-                    default:
-                        return true;
-                }
-            });
-
-            // Initialize Pending Transactions Table
-                const pendingTable = $('#pendingTransactionsTable').DataTable({
-                    responsive: true,
-                    paging: true,
-                    pageLength: 5,
-                    searching: true,
-                    ordering: true,
+            const pendingTable = $('#pendingTransactionsTable').DataTable({
+                responsive: true,
+                paging: true,
+                pageLength: 5,
+                searching: true,
+                ordering: true,
                 language: {
-                    emptyTable: "No pending transactions found."
+                    emptyTable: @json(__('system.common.dt_empty_pending_tx'))
                 },
                 columnDefs: [
-                    { orderable: false, targets: 8 }, // Disable sorting on Action column
-                    { searchable: false, targets: 8 } // Disable searching on Action column
-                ],
-                footerCallback: function(row, data, start, end, display) {
-                    let api = this.api();
-                    let totalTzs = api
-                        .rows({ page: 'current' })
-                        .nodes()
-                        .toArray()
-                        .reduce((sum, row) => {
-                            let amount = $(row).find('.amount').data('amount') || 0;
-                            return sum + parseFloat(amount);
-                        }, 0);
-                    let displayTotal = totalTzs;
-                    if (CURRENT_CURRENCY === 'Usd' && USD_TO_TZS_RATE > 0) {
-                        displayTotal = totalTzs / USD_TO_TZS_RATE;
-                    }
-                    $('#pendingTotal').text(displayTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                }
+                    { orderable: false, targets: 8 },
+                    { searchable: false, targets: 8 }
+                ]
             });
 
-            // Initialize All Transactions Table
-                const allTable = $('#allTransactionsTable').DataTable({
-                    responsive: true,
-                    paging: true,
-                    pageLength: 5,
-                    searching: true,
-                    ordering: true,
+            const allTable = $('#allTransactionsTable').DataTable({
+                responsive: true,
+                paging: true,
+                pageLength: 5,
+                searching: true,
+                ordering: true,
                 language: {
-                    emptyTable: "No transactions found."
+                    emptyTable: @json(__('system.common.dt_empty_tx'))
                 },
                 columnDefs: [
-                    { orderable: false, targets: 7 }, // Disable sorting on Action column
-                    { searchable: false, targets: 7 } // Disable searching on Action column
-                ],
-                footerCallback: function(row, data, start, end, display) {
-                    let api = this.api();
-                    let totalTzs = api
-                        .rows({ page: 'current' })
-                        .nodes()
-                        .toArray()
-                        .reduce((sum, row) => {
-                            let amount = $(row).find('.amount').data('amount') || 0;
-                            return sum + parseFloat(amount);
-                        }, 0);
-                    let displayTotal = totalTzs;
-                    if (CURRENT_CURRENCY === 'Usd' && USD_TO_TZS_RATE > 0) {
-                        displayTotal = totalTzs / USD_TO_TZS_RATE;
-                    }
-                    $('#allTransactionsTotal').text(displayTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
-                }
+                    { orderable: false, targets: 7 },
+                    { searchable: false, targets: 7 }
+                ]
             });
 
-            // Apply search to each column in Pending Transactions Table
             $('#pendingTransactionsTable thead tr:first-child th').each(function(index) {
-                if (index !== 0 && index !== 8) { // Skip # and Action columns
+                if (index !== 0 && index !== 8) {
                     $(this).find('input').on('keyup change', function() {
                         pendingTable.column(index).search(this.value).draw();
                     });
                 }
             });
 
-            // Apply search to each column in All Transactions Table
             $('#allTransactionsTable thead tr:first-child th').each(function(index) {
-                if (index !== 0 && index !== 7) { // Skip # and Action columns
+                if (index !== 0 && index !== 7) {
                     $(this).find('input').on('keyup change', function() {
                         allTable.column(index).search(this.value).draw();
                     });
-                }
-            });
-
-            // Apply time filter for Pending Transactions Table
-            $('#pendingTimeFilter').on('change', function() {
-                if ($(this).val() === 'custom') {
-                    $('#pendingDateRangeGroup').removeClass('hidden');
-                } else {
-                    $('#pendingDateRangeGroup').addClass('hidden');
-                    pendingTable.draw();
-                }
-            });
-
-            // Apply time filter for All Transactions Table
-            $('#allTimeFilter').on('change', function() {
-                if ($(this).val() === 'custom') {
-                    $('#allDateRangeGroup').removeClass('hidden');
-                } else {
-                    $('#allDateRangeGroup').addClass('hidden');
-                    allTable.draw();
-                }
-            });
-
-            // Redraw the Pending Transactions Table when the custom date inputs change
-            $('#pendingMinDate, #pendingMaxDate').on('change', function() {
-                if ($('#pendingTimeFilter').val() === 'custom') {
-                    pendingTable.draw();
-                }
-            });
-
-            // Redraw the All Transactions Table when the custom date inputs change
-            $('#allMinDate, #allMaxDate').on('change', function() {
-                if ($('#allTimeFilter').val() === 'custom') {
-                    allTable.draw();
                 }
             });
         });

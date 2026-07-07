@@ -20,9 +20,28 @@
         </div>
     @endif
 
-    <div class="mb-6">
-        <h1 class="text-2xl font-semibold text-gray-800">{{ __('system.pages.special_hire_title') }}</h1>
-        <p class="text-gray-600 mt-1">{{ __('system.pages.special_hire_subtitle') }}</p>
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold text-gray-800">{{ __('system.pages.special_hire_title') }}</h1>
+            <p class="text-gray-600 mt-1">{{ __('system.pages.special_hire_subtitle') }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('system.special_hire.report.pdf', ['tab' => $tab]) }}" target="_blank"
+               class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+                <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v2h12V3z"/></svg>
+                {{ __('system.pages.export_pdf') }}
+            </a>
+            <a href="{{ route('system.special_hire.report.csv', ['tab' => $tab]) }}"
+               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                {{ __('system.pages.export_csv') }}
+            </a>
+            @if($tab !== 'orders')
+                <a href="{{ route('system.special_hire.report.pdf', ['tab' => 'orders']) }}" target="_blank"
+                   class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                    {{ __('system.pages.export_pdf') }} — {{ __('system.pages.orders') }}
+                </a>
+            @endif
+        </div>
     </div>
 
     <div class="flex flex-wrap gap-2 border-b border-gray-200 mb-6" role="tablist">

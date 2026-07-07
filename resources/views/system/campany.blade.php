@@ -31,9 +31,18 @@
             <h1 class="text-2xl font-bold text-gray-800">{{ __('system.operators.title') }}</h1>
             <p class="mt-1 text-sm text-gray-500">{{ __('system.operators.subtitle') }}</p>
         </div>
-        <div class="mt-4 md:mt-0 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
-            <span class="text-sm font-medium text-gray-700">{{ __('system.common.total_balance') }}:</span>
-            <span class="ml-2 font-bold text-indigo-600" id="companyTotal">{{ $currency }} 0.00</span>
+        <div class="mt-4 md:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <a href="{{ route('system.campany.print') }}" target="_blank"
+               class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v2h12V3z"/>
+                </svg>
+                {{ __('system.operators.print_all') }}
+            </a>
+            <div class="bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+                <span class="text-sm font-medium text-gray-700">{{ __('system.common.total_balance') }}:</span>
+                <span class="ml-2 font-bold text-indigo-600" id="companyTotal">{{ $currency }} 0.00</span>
+            </div>
         </div>
     </div>
 
@@ -150,9 +159,17 @@
 
 <script>
 $(document).ready(function() {
+    $.fn.dataTable.ext.errMode = 'none';
     window.companyCurrency = @json(session('currency', 'Tzs'));
     window.companyUsdToTzs = {{ app('usdToTzs') ?? 2500 }};
-    const companyTable = $('#companyTable').DataTable({
+    var $companyTable = $('#companyTable');
+    var columnCount = $companyTable.find('thead tr:last th').length;
+    var firstRowCells = $companyTable.find('tbody tr:first td').length;
+    if (firstRowCells !== 0 && firstRowCells !== columnCount) {
+        return;
+    }
+
+    const companyTable = $companyTable.DataTable({
         responsive: true,
         paging: true,
         searching: true,

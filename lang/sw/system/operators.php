@@ -13,4 +13,7 @@ return [
     'no_companies' => 'Hakuna kampuni zilizopatikana',
     'no_companies_desc' => 'Kwa sasa hakuna kampuni za mabasi zilizosajiliwa.',
     'amount_placeholder' => 'Kiasi',
+    'print_all' => 'Chapisha Zote',
+    'print_list_title' => 'Orodha ya Waendeshaji wa Mabasi',
+    'printed_on' => 'Ilichapishwa',
 ];

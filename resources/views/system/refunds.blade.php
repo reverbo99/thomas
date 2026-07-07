@@ -6,8 +6,8 @@
 <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {{-- Page header --}}
-        <div class="mb-8">
-            <div class="flex items-center gap-3 mb-2">
+        <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-center gap-3">
                 <div class="p-2.5 rounded-xl bg-white shadow-sm border border-gray-200">
                     <svg class="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -17,6 +17,16 @@
                     <h1 class="text-2xl font-bold text-gray-800 tracking-tight">{{ __('system.refunds.title') }}</h1>
                     <p class="text-sm text-gray-500 mt-0.5">{{ __('system.refunds.subtitle') }}</p>
                 </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('system.refunds.pdf') }}" target="_blank"
+                   class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm shadow-sm">
+                    {{ __('system.pages.export_pdf') }}
+                </a>
+                <a href="{{ route('system.refunds.csv') }}"
+                   class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm shadow-sm">
+                    {{ __('system.pages.export_csv') }}
+                </a>
             </div>
         </div>
 

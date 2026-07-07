@@ -58,9 +58,30 @@
                 <h6 class="mb-0">Payment Details</h6>
             </div>
             <div class="card-body">
+                @include('partials.booking_payment_amounts', ['booking' => $booking])
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Amount:</span>
-                    <span class="fw-bold">{{ $currency }} {{ convert_money($booking->amount) }}</span>
+                    <span class="text-muted">Ticket Fee:</span>
+                    <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownTicketFee) }}</span>
+                </div>
+                @if ($breakdownLuggageFee > 0)
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">{{ __('all.excess_luggage') }}:</span>
+                    <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownLuggageFee) }}</span>
+                </div>
+                @endif
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Service Fee:</span>
+                    <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownServiceFee) }}</span>
+                </div>
+                @if ($booking->bima == 1)
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Insurance:</span>
+                    <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownInsurance) }}</span>
+                </div>
+                @endif
+                <div class="d-flex justify-content-between mb-2 border-top pt-2">
+                    <span class="text-muted fw-semibold">Total Paid:</span>
+                    <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownAmountPaid) }}</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Payment Method:</span>

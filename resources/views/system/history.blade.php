@@ -3,8 +3,6 @@
 @section('content')
     <!-- DataTables CSS -->
     <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
-    <!-- Date Range Picker CSS -->
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
     <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 
@@ -12,40 +10,68 @@
         <h4 class="text-blue-600 text-center text-lg font-semibold mb-4">{{ __('all.highlink_isgc') }}</h4>
         <div class="bg-white rounded-lg shadow-md overflow-hidden">
             <!-- Card Header -->
-            <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div class="flex flex-col">
-                    <h2 class="text-lg font-semibold mb-2">{{ __('system.pages.history_title') }}</h2>
-                    <div class="flex flex-wrap gap-3 text-sm font-medium">
-                        <span>{{ __('system.pages.total_payment') }}: {{ $currency }} <span id="totalPayment">{{ convert_money($totalPayment ?? 0) }}</span></span>
-                        <span>{{ __('system.pages.total_discount') }}: {{ $currency }} <span id="totalDiscount">{{ convert_money($totalDiscount ?? 0) }}</span></span>
-                        <span>{{ __('system.pages.total_vat') }}: {{ $currency }} <span id="totalVAT">{{ convert_money($totalVAT ?? 0) }}</span></span>
-                        <span>{{ __('system.pages.grand_total') }}: {{ $currency }} <span id="grandTotal">{{ convert_money($grandTotal ?? 0) }}</span></span>
+            <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold mb-2">{{ __('system.pages.history_title') }}</h2>
+                        <div class="flex flex-wrap gap-3 text-sm font-medium">
+                            <span>{{ __('system.pages.total_payment') }}: {{ $currency }} <span id="totalPayment">{{ convert_money($totalPayment ?? 0) }}</span></span>
+                            <span>{{ __('system.pages.total_discount') }}: {{ $currency }} <span id="totalDiscount">{{ convert_money($totalDiscount ?? 0) }}</span></span>
+                            <span>{{ __('system.pages.total_vat') }}: {{ $currency }} <span id="totalVAT">{{ convert_money($totalVAT ?? 0) }}</span></span>
+                            <span>{{ __('system.pages.grand_total') }}: {{ $currency }} <span id="grandTotal">{{ convert_money($grandTotal ?? 0) }}</span></span>
+                        </div>
                     </div>
                 </div>
-                <div class="flex flex-col sm:flex-row items-center gap-2">
-                    <form method="GET" action="{{ route('system.history') }}" class="flex items-center gap-2">
-                        <select name="channel" class="px-3 py-2 border rounded-lg text-sm" onchange="this.form.submit()">
+            </div>
+
+            <div class="px-4 py-4 bg-gray-50 border-b border-gray-200">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">{{ __('system.pages.select_date_range') }}</p>
+                <form method="GET" action="{{ route('system.history') }}" class="flex flex-wrap items-end gap-3" id="bookingHistoryPeriodForm">
+                    <div class="flex flex-col gap-1">
+                        <label for="historyPeriodSelect" class="text-xs font-medium text-gray-600">{{ __('system.pages.period') }}</label>
+                        <select name="period" id="historyPeriodSelect" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm min-w-[160px]" onchange="window.toggleHistoryCustomDates && window.toggleHistoryCustomDates(this)">
+                            <option value="today" @selected(($period ?? request('period')) === 'today')>{{ __('system.sidebar.today') }}</option>
+                            <option value="week" @selected(($period ?? request('period')) === 'week')>{{ __('system.common.this_week') }}</option>
+                            <option value="month" @selected(($period ?? request('period')) === 'month')>{{ __('system.common.this_month') }}</option>
+                            <option value="year" @selected(($period ?? request('period')) === 'year')>{{ __('system.common.this_year') }}</option>
+                            <option value="custom" @selected(($period ?? request('period')) === 'custom' || (($startDate ?? request('start_date')) && ($endDate ?? request('end_date'))))>{{ __('system.common.custom_range') }}</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1 history-custom-dates {{ (($period ?? request('period')) === 'custom' || (($startDate ?? request('start_date')) && ($endDate ?? request('end_date')))) ? '' : 'hidden' }}">
+                        <label for="historyStartDate" class="text-xs font-medium text-gray-600">{{ __('system.common.start_date') }}</label>
+                        <input type="date" name="start_date" id="historyStartDate" value="{{ $startDate ?? request('start_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1 history-custom-dates {{ (($period ?? request('period')) === 'custom' || (($startDate ?? request('start_date')) && ($endDate ?? request('end_date')))) ? '' : 'hidden' }}">
+                        <label for="historyEndDate" class="text-xs font-medium text-gray-600">{{ __('system.common.end_date') }}</label>
+                        <input type="date" name="end_date" id="historyEndDate" value="{{ $endDate ?? request('end_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="historyChannelSelect" class="text-xs font-medium text-gray-600">{{ __('all.sales_channel_filter') }}</label>
+                        <select name="channel" id="historyChannelSelect" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm min-w-[160px]">
                             <option value="">{{ __('all.sales_channel_all') }}</option>
                             <option value="online" @selected(($channelFilter ?? '') === 'online')>{{ __('all.sales_channel_online') }}</option>
                             <option value="in_person" @selected(($channelFilter ?? '') === 'in_person')>{{ __('all.sales_channel_in_person') }}</option>
                             <option value="phone" @selected(($channelFilter ?? '') === 'phone')>{{ __('all.sales_channel_phone') }}</option>
                         </select>
-                    </form>
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <input type="text" class="px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm w-full sm:w-48" id="dateRangeFilter" placeholder="{{ __('system.pages.select_date_range') }}">
-                        <button class="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition" id="clearDateFilter">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
                     </div>
-                    <button type="submit" form="manifestForm" class="px-3 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-sm">
-                        {{ __('vender/history.print_manifest') }}
-                    </button>
-                    <button type="submit" form="incomeForm" class="px-3 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-sm">
-                        {{ __('system.pages.print_service') }}
-                    </button>
-                </div>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">{{ __('system.pages.apply_filter') }}</button>
+                    <a href="{{ route('system.history') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">{{ __('system.pages.reset') }}</a>
+                </form>
+            </div>
+
+            <div class="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-2">
+                <button type="submit" form="manifestForm" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+                    {{ __('vender/history.print_manifest') }}
+                </button>
+                <button type="submit" form="serviceForm" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                    {{ __('system.pages.print_service') }}
+                </button>
+                <button type="submit" form="commissionForm" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                    {{ __('system.pages.print_commission') }}
+                </button>
+                <button type="submit" form="allForm" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                    {{ __('system.pages.print_all') }}
+                </button>
             </div>
 
             <!-- Card Body -->
@@ -89,7 +115,17 @@
                         <tbody class="text-gray-600 text-xs">
                             @if (isset($bookings) && $bookings->count())
                                 @foreach ($bookings as $index => $booking)
-                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition"
+                                        data-booking-id="{{ $booking->id }}"
+                                        data-has-excess-luggage="{{ (int) ($booking->has_excess_luggage ?? 0) }}"
+                                        data-excess-luggage-fee="{{ booking_luggage_fee($booking) }}"
+                                        data-bus-fee="{{ (float) ($booking->busFee ?? 0) }}"
+                                        data-service-fee="{{ booking_service_fee($booking) }}"
+                                        data-customer-total="{{ (float) ($booking->customer_paid_total ?? 0) }}"
+                                        data-gender="{{ $booking->gender ?? 'N/A' }}"
+                                        data-age="{{ $booking->age ?? 'N/A' }}"
+                                        data-age-group="{{ $booking->age_group ?? 'N/A' }}"
+                                        data-infant-child="{{ (int) ($booking->infant_child ?? 0) }}">
                                         <td class="py-2 px-4 text-center">{{ $index + 1 }}</td>
                                         <td class="py-2 px-4">
                                             <div class="flex flex-col">
@@ -198,13 +234,21 @@
         </div>
     </div>
 
-    <form id="manifestForm" action="{{ route('system.print.manifest') }}" method="POST" class="hidden">
+    <form id="manifestForm" action="{{ route('system.print.manifest') }}" method="POST" class="hidden" target="_blank">
         @csrf
-        <input type="hidden" name="data" value="">
+        <input type="hidden" name="booking_ids" value="">
     </form>
-    <form id="incomeForm" action="{{ route('system.print') }}" method="POST" class="hidden">
+    <form id="serviceForm" action="{{ route('system.print.service') }}" method="POST" class="hidden" target="_blank">
         @csrf
-        <input type="hidden" name="data" value="">
+        <input type="hidden" name="booking_ids" value="">
+    </form>
+    <form id="commissionForm" action="{{ route('system.print.commission') }}" method="POST" class="hidden" target="_blank">
+        @csrf
+        <input type="hidden" name="booking_ids" value="">
+    </form>
+    <form id="allForm" action="{{ route('system.print') }}" method="POST" class="hidden" target="_blank">
+        @csrf
+        <input type="hidden" name="booking_ids" value="">
     </form>
 
     <!-- View Booking Modal -->
@@ -236,8 +280,6 @@
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script>
         window.historyCurrency = @json(session('currency', 'Tsh'));
         window.historyUsdToTzs = @json(app('usdToTzs') ?? 2500);
@@ -258,7 +300,6 @@
 
             // Initialize DataTable
             DataTable.ext.errMode = 'none';
-            let currentDateRange = null;
             const table = $table.DataTable({
                 responsive: true,
                 paging: true,
@@ -296,72 +337,6 @@
                     $('#totalVAT').text(formatAmount(totalVAT));
                     $('#grandTotal').text(formatAmount(grandTotal));
                 }
-            });
-
-            $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-                if (settings.nTable?.id !== 'busTable') {
-                    return true;
-                }
-                if (!currentDateRange) {
-                    return true;
-                }
-
-                const api = $(settings.nTable).DataTable();
-                const rowNode = api.row(dataIndex).node();
-                if (!rowNode) {
-                    return false;
-                }
-
-                const createdDateStr = $(rowNode).find('[data-created-at]').data('created-at');
-                if (!createdDateStr) {
-                    return false;
-                }
-
-                const createdDate = moment(createdDateStr, 'YYYY-MM-DD');
-                return createdDate.isValid()
-                    && !createdDate.isBefore(currentDateRange.start, 'day')
-                    && !createdDate.isAfter(currentDateRange.end, 'day');
-            });
-
-            // Initialize date range picker
-            $('#dateRangeFilter').daterangepicker({
-                autoUpdateInput: false,
-                locale: {
-                    cancelLabel: 'Clear',
-                    format: 'YYYY-MM-DD',
-                    separator: ' - ',
-                    applyLabel: 'Apply',
-                    cancelLabel: 'Cancel',
-                    fromLabel: 'From',
-                    toLabel: 'To',
-                    customRangeLabel: 'Custom',
-                    daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
-                    monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-                    firstDay: 1
-                }
-            });
-
-            // Apply date range filter
-            $('#dateRangeFilter').on('apply.daterangepicker', function(ev, picker) {
-                $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-                currentDateRange = {
-                    start: picker.startDate,
-                    end: picker.endDate,
-                };
-                table.draw();
-            });
-
-            // Clear date filter
-            $('#dateRangeFilter').on('cancel.daterangepicker', function() {
-                $(this).val('');
-                currentDateRange = null;
-                table.draw();
-            });
-
-            $('#clearDateFilter').on('click', function() {
-                $('#dateRangeFilter').val('');
-                currentDateRange = null;
-                table.draw();
             });
 
             // Column-specific search - properly map inputs to columns
@@ -402,53 +377,28 @@
                 }
             });
 
-            // Handle form submissions for filtered data
-            $('#manifestForm, #incomeForm').on('submit', function(e) {
-                e.preventDefault();
-                let form = $(this);
-                let filteredData = [];
-
-                table.rows({ filter: 'applied' }).every(function() {
-                    let row = this.data();
-                    filteredData.push({
-                        booking_code: ($(row[1]).find('p').first().text().trim() || 'N/A'),
-                        company_name: ($(row[2]).find('h6').text().trim() || 'N/A'),
-                        route_from: ($(row[2]).find('p').eq(0).text().split(' to ')[0]?.trim() || 'N/A'),
-                        route_to: ($(row[2]).find('p').eq(0).text().split(' to ')[1]?.trim() || 'N/A'),
-                        bus_number: ($(row[2]).find('p').eq(1).text().trim() || 'N/A'),
-                        travel_date: ($(row[3]).find('[data-created-at]').data('created-at') || 'N/A'),
-                        seat: ($(row[3]).find('p').eq(1).text().replace('Seat: ', '').trim() || 'N/A'),
-                        pickup_point: ($(row[3]).find('p').eq(2).text().replace('Pickup: ', '').trim() || 'N/A'),
-                        customer_name: ($(row[4]).find('p').first().text().trim() || 'N/A'),
-                        customer_phone: ($(row[4]).find('p').eq(1).text().trim() || 'N/A'),
-                        amount: ($(row[5]).find('p').first().text().trim() || 'N/A'),
-                        commision: (function() {
-                            const c = $(row[6]).find('.commission-breakdown');
-                            return c.length ? ('{{ $currency }} ' + formatAmount(parseFloat(c.attr('data-commission-total')) || 0)) : (($(row[6]).find('p').first().text().replace('Commission: ', '').trim()) || 'N/A');
-                        })(),
-                        discount: (function() {
-                            const c = $(row[6]).find('.commission-breakdown');
-                            return c.length ? ('{{ $currency }} ' + formatAmount(parseFloat(c.attr('data-discount')) || 0)) : (($(row[6]).find('p').eq(1).text().replace('Discount: ', '').trim()) || 'N/A');
-                        })(),
-                        gov_levy: (function() {
-                            const c = $(row[6]).find('.commission-breakdown');
-                            return c.length ? ('{{ $currency }} ' + formatAmount(parseFloat(c.attr('data-gov-levy')) || 0)) : (($(row[6]).find('p').eq(2).text().replace('Gov. levy: ', '').trim()) || 'N/A');
-                        })(),
-                        vat: (function() {
-                            const c = $(row[6]).find('.commission-breakdown');
-                            return c.length ? ('{{ $currency }} ' + formatAmount(parseFloat(c.attr('data-vat')) || 0)) : (($(row[6]).find('p').eq(3).text().replace('VAT: ', '').trim()) || 'N/A');
-                        })(),
-                        total: (function() {
-                            // Total = gross bus fee (bookings.busFee), excluding commission/service/levy
-                            let totalEl = $(row[7]).find('.total-amount');
-                            let calculatedTotal = parseFloat(totalEl.data('total')) || 0;
-                            return calculatedTotal.toFixed(2);
-                        })()
-                    });
+            // Handle print form submissions for filtered rows
+            function getVisibleBookingIds() {
+                const ids = [];
+                table.rows({ search: 'applied' }).every(function() {
+                    const id = $(this.node()).attr('data-booking-id');
+                    if (id) {
+                        ids.push(parseInt(id, 10));
+                    }
                 });
+                return ids;
+            }
 
-                form.find('input[name="data"]').val(JSON.stringify(filteredData));
-                form.off('submit').submit(); // Prevent infinite loop and submit
+            $('#manifestForm, #serviceForm, #commissionForm, #allForm').on('submit', function(e) {
+                e.preventDefault();
+                const form = $(this);
+                const ids = getVisibleBookingIds();
+                if (!ids.length) {
+                    alert(@json(__('system.pages.no_bookings_history')));
+                    return false;
+                }
+                form.find('input[name="booking_ids"]').val(JSON.stringify(ids));
+                form.off('submit').submit();
             });
 
             // View booking details
@@ -488,24 +438,23 @@
         }
     </script>
 
+    <script>
+        window.toggleHistoryCustomDates = function (select) {
+            const form = select.closest('form');
+            if (!form) return;
+            const show = select.value === 'custom';
+            form.querySelectorAll('.history-custom-dates').forEach(function (el) {
+                el.classList.toggle('hidden', !show);
+            });
+        };
+    </script>
+
     <style>
         .search-input {
             width: 100%;
             padding: 4px;
             font-size: 12px;
             border-radius: 4px;
-        }
-        .daterangepicker {
-            z-index: 9999 !important;
-        }
-        #dateRangeFilter {
-            min-width: 150px;
-            text-align: center;
-        }
-        @media (max-width: 640px) {
-            #dateRangeFilter {
-                min-width: 100%;
-            }
         }
     </style>
 @endsection

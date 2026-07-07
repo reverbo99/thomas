@@ -5,6 +5,7 @@ return [
     'platform_percent_saved' => 'Asilimia ya jukwaa kwa mwendeshaji huyu imehifadhiwa.',
     'transaction_completed' => 'Muamala umewekwa alama kama umekamilika.',
     'transaction_cancelled' => 'Muamala umeghairiwa.',
+    'transaction_cancel_failed' => 'Imeshindwa kughairi muamala. Tafadhali jaribu tena.',
     'invalid_company_transaction' => 'Kampuni si sahihi kwa muamala huu.',
     'transaction_completed_back' => 'Muamala umewekwa alama kama Umekamilika.',
     'invalid_transaction' => 'Muamala si sahihi.',

@@ -6,7 +6,7 @@
         ? collect($legs)->sum(fn ($leg) => (float) ($leg->busFee ?: $leg->amount))
         : (float) ($book->busFee ?: $book->amount);
 @endphp
-<tr>
+<tr data-booking-ids='@json(collect($legs)->pluck("id")->values())'>
     <td class="tickets-table__col-no" data-label="#">{{ $rowNumber }}</td>
     <td data-label="{{ __('customer/myticket.booking_id') }}">
         @if ($isRoundTrip)

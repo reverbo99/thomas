@@ -48,7 +48,7 @@
             <h3 class="text-lg font-medium text-gray-900">{{ __('system.pages.recent_transactions') }}</h3>
         </div>
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table id="balanceTable" class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
@@ -236,7 +236,15 @@
 
     // DataTable initialization
     $(document).ready(function() {
-        $('table').DataTable({
+        $.fn.dataTable.ext.errMode = 'none';
+        var $table = $('#balanceTable');
+        var columnCount = $table.find('thead tr:first th').length;
+        var firstRowCells = $table.find('tbody tr:first td').length;
+        if (firstRowCells !== 0 && firstRowCells !== columnCount) {
+            return;
+        }
+
+        $table.DataTable({
             paging: true,
             pageLength: 10,
             lengthMenu: [10, 25, 50, 100],

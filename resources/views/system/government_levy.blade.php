@@ -2,9 +2,21 @@
 
 @section('content')
     <div class="container mx-auto px-4 py-6 max-w-7xl">
-        <div class="mb-5">
-            <h2 class="text-2xl font-semibold text-slate-800">{{ __('system.pages.levy_title') }}</h2>
-            <p class="text-sm text-slate-500 mt-1">{{ __('system.pages.levy_subtitle') }}</p>
+        <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <h2 class="text-2xl font-semibold text-slate-800">{{ __('system.pages.levy_title') }}</h2>
+                <p class="text-sm text-slate-500 mt-1">{{ __('system.pages.levy_subtitle') }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('system.government_levy.pdf', request()->only(['period', 'start_date', 'end_date'])) }}" target="_blank"
+                   class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm">
+                    {{ __('system.pages.export_pdf') }}
+                </a>
+                <a href="{{ route('system.government_levy.csv', request()->only(['period', 'start_date', 'end_date'])) }}"
+                   class="inline-flex items-center px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition text-sm">
+                    {{ __('system.pages.export_csv') }}
+                </a>
+            </div>
         </div>
 
         <form method="GET" action="{{ route('system.government_levy') }}" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">

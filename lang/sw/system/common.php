@@ -56,6 +56,7 @@ return [
     'reference_no' => 'Nambari ya Rejea',
     'payment_method' => 'Njia ya Malipo',
     'payment_number' => 'Nambari ya Malipo',
+    'payment_details' => 'Maelezo ya Malipo',
     'customer' => 'Mteja',
     'route' => 'Njia',
     'travel_date' => 'Tarehe ya Safari',

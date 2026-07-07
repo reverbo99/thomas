@@ -32,10 +32,7 @@
                             <span class="payment-result-row__label">{{ __('all.seats') }}</span>
                             <span class="payment-result-row__value">{{ $booking1->seat }}</span>
                         </div>
-                        <div class="payment-result-row payment-result-row--total">
-                            <span class="payment-result-row__label">{{ __('all.amount') }}</span>
-                            <span class="payment-result-row__value">{{ $currency }} {{ convert_money($booking1->busFee ?? $booking1->amount) }}</span>
-                        </div>
+                        @include('partials.payment_success_breakdown_rows', ['booking' => $booking1])
                     </div>
                 </div>
             @endif
@@ -73,10 +70,7 @@
                             <span class="payment-result-row__label">{{ __('all.seats') }}</span>
                             <span class="payment-result-row__value">{{ $booking2->seat }}</span>
                         </div>
-                        <div class="payment-result-row payment-result-row--total">
-                            <span class="payment-result-row__label">{{ __('all.amount') }}</span>
-                            <span class="payment-result-row__value">{{ $currency }} {{ convert_money($booking2->busFee ?? $booking2->amount) }}</span>
-                        </div>
+                        @include('partials.payment_success_breakdown_rows', ['booking' => $booking2])
                     </div>
                 </div>
             @endif

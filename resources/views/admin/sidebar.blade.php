@@ -94,6 +94,9 @@
                         <li>
                             <a class="block px-3 py-2 text-white text-sm rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->query('period') == 'year' ? 'bg-teal-600' : '' }}" href="{{ route(\App\Models\Access::BUS['BOOKING_HISTORY']) }}?period=year">{{ trans('vendor_sidebar.year') }}</a>
                         </li>
+                        <li>
+                            <a class="block px-3 py-2 text-white text-sm rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->query('period') == 'custom' ? 'bg-teal-600' : '' }}" href="{{ route(\App\Models\Access::BUS['BOOKING_HISTORY']) }}?period=custom">{{ trans('vendor_sidebar.custom_range') }}</a>
+                        </li>
                     </ul>
                 </div>
             </div>

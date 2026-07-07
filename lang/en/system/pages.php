@@ -77,6 +77,9 @@ return [
     // Government levy
     'levy_title' => 'Government Levy Report',
     'levy_subtitle' => '5% government levy on service fees from paid bookings.',
+    'gov_levy_fare' => 'Gov Levy (Fare)',
+    'paid_amount' => 'Paid Amount',
+    'vendor_involvement' => 'Vendor',
 
     // Balance / admin wallet
     'balance_title' => 'Transaction History',
@@ -89,6 +92,11 @@ return [
 
     // Buses
     'buses_title' => 'My Buses',
+    'print_all' => 'Print All',
+    'print_all_manifest' => 'Print All Manifest',
+    'print_commission' => 'Print Commission',
+    'print_buses_title' => 'Buses List',
+    'printed_on' => 'Printed on',
 
     // Bus route / schedule
     'schedule_title' => 'Bus Schedule',
@@ -138,6 +146,21 @@ return [
     'withdrawal_requests' => 'Withdrawal Requests',
     'coasters' => 'Coasters',
     'orders' => 'Orders',
+    'special_hire_accounts_report' => 'Special Hire Accounts Report',
+    'special_hire_withdrawals_report' => 'Special Hire Withdrawals Report',
+    'special_hire_orders_report' => 'Special Hire Orders Report',
+    'special_hire_report_empty' => 'No data available for this report.',
+    'export_pdf' => 'Export PDF',
+    'export_csv' => 'Export CSV',
+    'operator' => 'Operator',
+    'coaster' => 'Coaster',
+    'platform_commission' => 'Platform Commission',
+    'operator_net' => 'Operator Net',
+    'paid_revenue' => 'Paid Revenue',
+    'hire_date' => 'Hire Date',
+    'processed_at' => 'Processed At',
+    'admin_note' => 'Admin Note',
+    'payment_status' => 'Payment',
 
     // Migrate result
     'migrate_title' => 'Run Migrations',
@@ -198,6 +221,7 @@ return [
     'address' => 'Address',
     'no_data_found' => 'No data found',
     'no_paid_bookings_filter' => 'No paid bookings found for this filter.',
+    'no_transactions_filter' => 'No transactions found for this filter.',
     'filter_options' => 'Filter Options',
     'total_cancelled' => 'Total Cancelled',
     'today_cancelled' => 'Today Cancelled',

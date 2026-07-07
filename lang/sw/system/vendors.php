@@ -13,4 +13,8 @@ return [
     'no_account_info' => 'Hakuna taarifa za akaunti ya muuzaji.',
     'status_accept' => 'Kubali',
     'status_cancel' => 'Ghairi',
+    'print_all' => 'Chapisha Zote',
+    'print_list_title' => 'Orodha ya Wauzaji',
+    'printed_on' => 'Ilichapishwa',
+    'no_vendors' => 'Hakuna wauzaji waliopatikana',
 ];

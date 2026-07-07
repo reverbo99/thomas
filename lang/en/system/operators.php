@@ -13,4 +13,7 @@ return [
     'no_companies' => 'No companies found',
     'no_companies_desc' => 'There are currently no registered bus companies.',
     'amount_placeholder' => 'Amount',
+    'print_all' => 'Print All',
+    'print_list_title' => 'Bus Operators List',
+    'printed_on' => 'Printed on',
 ];

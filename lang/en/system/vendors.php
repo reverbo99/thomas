@@ -15,4 +15,8 @@ return [
     'no_account_info' => 'No vendor account information available.',
     'status_accept' => 'Accept',
     'status_cancel' => 'Cancel',
+    'print_all' => 'Print All',
+    'print_list_title' => 'Vendors List',
+    'printed_on' => 'Printed on',
+    'no_vendors' => 'No vendors found',
 ];

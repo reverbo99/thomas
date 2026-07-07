@@ -194,7 +194,7 @@
                                                         @endphp
                                                         <div>
                                                             <label for="Insurance"
-                                                                class="block text-sm font-semibold text-gray-800">{{ __('customer/busroot.insurance', ['amount' => 'TSh.3700']) }}</label>
+                                                                class="block text-sm font-semibold text-gray-800">{{ __('customer/busroot.insurance', ['amount' => insurance_local_rate_display() . '/' . (__('all.day') ?? 'day')]) }}</label>
                                                             <div class="mt-1">
                                                                 <input type="checkbox" id="Insurance" name="Insurance"
                                                                     value="1" class="mr-2"

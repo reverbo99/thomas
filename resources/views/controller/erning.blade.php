@@ -117,6 +117,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.date') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.reference_no') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.status') }}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.cancel_reason') }}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.action') }}</th>
                         </tr>
                     </thead>
@@ -139,14 +140,26 @@
                                     {{ $transaction->reference_number ?? '' }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
+                                    @php
+                                        $statusKey = strtolower($transaction->status ?? '');
+                                    @endphp
                                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                        {{ $transaction->status === 'Completed' ? 'bg-green-100 text-green-800' : 
-                                           ($transaction->status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800') }}">
-                                        {{ $transaction->status === 'Completed' ? __('vender/earning.status_completed') : ($transaction->status === 'Pending' ? __('vender/earning.status_pending') : __('vender/earning.status_failed')) }}
+                                        {{ in_array($statusKey, ['completed', 'complete']) ? 'bg-green-100 text-green-800' : 
+                                           ($statusKey === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                           ($statusKey === 'cancelled' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800')) }}">
+                                        {{ in_array($statusKey, ['completed', 'complete']) ? __('vender/earning.status_completed') : 
+                                           ($statusKey === 'pending' ? __('vender/earning.status_pending') : 
+                                           ($statusKey === 'cancelled' ? __('vender/earning.status_cancelled') : __('vender/earning.status_failed'))) }}
                                     </span>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    @if($transaction->status == "Completed")
+                                <td class="px-6 py-4 text-sm text-gray-600 max-w-xs">
+                                    @if($statusKey === 'cancelled' && !empty($transaction->cancel_reason))
+                                        <span title="{{ $transaction->cancel_reason }}">{{ Str::limit($transaction->cancel_reason, 80) }}</span>
+                                    @else
+                                        <span class="text-gray-400">{{ __('vender/earning.cancel_reason_na') }}</span>
+                                    @endif
+                                </td>                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    @if(in_array($statusKey, ['completed', 'complete']))
                                     <form action="{{ route('print.recipt') }}" method="POST">
                                         @csrf
                                         <input type="hidden" name="data" value="{{ $transaction }}">
@@ -159,7 +172,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">{{ __('vender/earning.no_transactions_found') }}</td>
+                                <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">{{ __('vender/earning.no_transactions_found') }}</td>
                             </tr>
                         @endforelse
                     </tbody>

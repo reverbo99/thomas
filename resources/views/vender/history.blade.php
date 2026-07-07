@@ -4,22 +4,24 @@
 
 @php
     $period = $period ?? request('period', 'today');
+    $startDate = $startDate ?? request('start_date', '');
+    $endDate = $endDate ?? request('end_date', '');
     $filters = [
         'today' => __('assistance/dashboard.today'),
         'week' => __('assistance/dashboard.this_week'),
         'month' => __('assistance/dashboard.this_month'),
         'year' => __('assistance/dashboard.this_year'),
+        'custom' => __('vender/history.custom'),
     ];
+    $periodLabel = ($period === 'custom' && $startDate && $endDate)
+        ? $startDate . ' – ' . $endDate
+        : ($filters[$period] ?? $filters['today']);
     $bookingCount = $bookings->total();
+    $exportQuery = request()->only(['period', 'start_date', 'end_date']);
 @endphp
 
 @push('styles')
     <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
-    <style>
-        .daterangepicker { z-index: 9999 !important; }
-        #dateRangeFilter { min-width: 11rem; }
-    </style>
 @endpush
 
 @section('content')
@@ -28,7 +30,7 @@
         <div class="vendor-dash__welcome">
             <p class="vendor-dash__eyebrow">{{ __('all.highlink_isgc') }}</p>
             <h1 class="vendor-dash__title">{{ __('vender/history.booking_history') }}</h1>
-            <p class="vendor-dash__subtitle">{{ $filters[$period] ?? $filters['today'] }} · {{ $bookingCount }} {{ __('vender/busroot.entries') }}</p>
+            <p class="vendor-dash__subtitle">{{ $periodLabel }} · {{ $bookingCount }} {{ __('vender/busroot.entries') }}</p>
         </div>
         <div class="vendor-dash__actions">
             <a href="{{ route('vender.route') }}" class="page-btn">
@@ -88,16 +90,24 @@
                 <h3>{{ __('vender/history.booking_history') }}</h3>
                 <p>{{ $bookings->count() }} on this page · {{ $bookingCount }} total</p>
             </div>
-            <form method="GET" action="{{ route('vender.history') }}">
-                <div class="vendor-filter-pills" role="group">
-                    @foreach ($filters as $key => $label)
-                        <button type="submit" name="period" value="{{ $key }}"
-                            class="vendor-filter-pill {{ $period === $key ? 'vendor-filter-pill--active' : '' }}">
-                            {{ $label }}
-                        </button>
-                    @endforeach
-                </div>
-            </form>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('vender.history.export.pdf', $exportQuery) }}" target="_blank"
+                   class="page-btn page-btn--outline" style="font-size:0.8125rem">
+                    <i class="fas fa-file-pdf"></i> {{ __('vender/history.export_pdf') }}
+                </a>
+                <a href="{{ route('vender.history.export.csv', $exportQuery) }}"
+                   class="page-btn page-btn--outline" style="font-size:0.8125rem">
+                    <i class="fas fa-file-excel"></i> {{ __('vender/history.export_excel') }}
+                </a>
+                @include('partials.booking_history_period_filter', [
+                    'formAction' => route('vender.history'),
+                    'resetUrl' => route('vender.history'),
+                    'period' => $period,
+                    'startDate' => $startDate,
+                    'endDate' => $endDate,
+                    'variant' => 'vendor',
+                ])
+            </div>
         </div>
 
         <div class="vendor-table-toolbar">
@@ -106,10 +116,6 @@
                 <input type="text" id="historySearch" class="page-input text-sm" placeholder="{{ __('assistance/transaction.search_all_columns') }}">
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <input type="text" class="page-input text-sm" id="dateRangeFilter" placeholder="{{ __('vender/history.select_date_range') }}">
-                <button class="page-btn page-btn--outline px-3" type="button" id="clearDateFilter" title="{{ __('vender/history.close') }}">
-                    <i class="fas fa-times"></i>
-                </button>
                 <div class="vendor-history-actions">
                     <button type="button" class="page-btn page-btn--outline" onclick="toggleHistoryMenu(this)">
                         <i class="fas fa-bars"></i> {{ __('vender/history.actions') }}
@@ -270,8 +276,6 @@
 
 @push('scripts')
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script>
         function toggleHistoryMenu(button) {
             const menu = button.nextElementSibling;
@@ -287,7 +291,6 @@
         }
 
         $(document).ready(function () {
-            let currentDateRange = null;
             const modal = document.getElementById('viewBookingModal');
 
             function openBookingModal() {
@@ -348,41 +351,6 @@
 
             $('#historySearch').on('input', function () {
                 table.search(this.value).draw();
-            });
-
-            $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
-                if (!currentDateRange) return true;
-                if (settings.nTable?.id !== 'busTable') return true;
-                const api = $(settings.nTable).DataTable();
-                const row = api.row(dataIndex).node();
-                if (!row) return false;
-                const createdDateStr = $(row).attr('data-created-at');
-                if (!createdDateStr) return false;
-                const createdDate = moment(createdDateStr, 'YYYY-MM-DD');
-                return createdDate.isValid() && !createdDate.isBefore(currentDateRange.start, 'day') && !createdDate.isAfter(currentDateRange.end, 'day');
-            });
-
-            $('#dateRangeFilter').daterangepicker({
-                autoUpdateInput: false,
-                locale: { format: 'YYYY-MM-DD', separator: ' - ', applyLabel: '{{ __('vender/history.apply') }}', cancelLabel: '{{ __('vender/history.cancel') }}' }
-            });
-
-            $('#dateRangeFilter').on('apply.daterangepicker', function (ev, picker) {
-                $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-                currentDateRange = { start: picker.startDate, end: picker.endDate };
-                table.draw();
-            });
-
-            $('#dateRangeFilter').on('cancel.daterangepicker', function () {
-                $(this).val('');
-                currentDateRange = null;
-                table.draw();
-            });
-
-            $('#clearDateFilter').on('click', function () {
-                $('#dateRangeFilter').val('');
-                currentDateRange = null;
-                table.draw();
             });
 
             function getVisibleBookingIds() {

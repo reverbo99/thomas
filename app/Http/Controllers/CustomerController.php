@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use App\Services\FareFormulaService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
@@ -57,11 +58,67 @@ class CustomerController extends Controller
 
     
 
-    public function mybooking()
+    public function mybooking(Request $request)
     {
         $user = Auth::user();
+        $query = $this->customerBookingQuery($user);
 
-        $booking = Booking::with('bus.route', 'vender', 'campany.busOwnerAccount')
+        $period = $request->query('period', '');
+        $startDate = $request->query('start_date', '');
+        $endDate = $request->query('end_date', '');
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            apply_booking_history_date_filter($query, $request);
+            $period = 'custom';
+        } elseif ($period) {
+            apply_booking_history_date_filter($query, $request);
+        }
+
+        $booking = $query->latest()->get();
+        $ticketRows = group_ticket_list_rows($booking);
+
+        return view('customer.mybooking', compact('booking', 'ticketRows', 'period', 'startDate', 'endDate'));
+    }
+
+    public function printReport(Request $request)
+    {
+        $user = Auth::user();
+        $query = $this->customerBookingQuery($user)
+            ->with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService']);
+
+        if ($request->filled('booking_ids')) {
+            $ids = is_array($request->booking_ids)
+                ? $request->booking_ids
+                : (array) json_decode($request->booking_ids, true);
+            $ids = array_filter(array_map('intval', $ids));
+            if (empty($ids)) {
+                return redirect()->back()->with('error', __('customer/myticket.no_booking_found'));
+            }
+            $query->whereIn('id', $ids);
+        } elseif ($request->filled('period') || ($request->filled('start_date') && $request->filled('end_date'))) {
+            apply_booking_history_date_filter($query, $request);
+        }
+
+        $bookings = $query->latest()->get();
+
+        if ($bookings->isEmpty()) {
+            return redirect()->back()->with('error', __('customer/myticket.no_booking_found'));
+        }
+
+        $data = $bookings->map(fn ($booking) => booking_to_report_row($booking))->all();
+
+        $pdf = Pdf::loadView('print.customer_tickets', [
+            'bookings' => $data,
+            'customerName' => trim((string) ($user->name ?? $user->fname ?? '')) ?: 'Customer',
+            'generatedAt' => now(),
+        ]);
+
+        return $pdf->download('my-tickets-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    private function customerBookingQuery($user)
+    {
+        return Booking::with('bus.route', 'vender', 'campany.busOwnerAccount')
             ->where(function ($query) use ($user) {
                 $query->where('user_id', $user->id);
 
@@ -76,13 +133,7 @@ class CustomerController extends Controller
                         $query->orWhere('customer_phone', $normalizedPhone);
                     }
                 }
-            })
-            ->latest()
-            ->get();
-
-        $ticketRows = group_ticket_list_rows($booking);
-
-        return view('customer.mybooking', compact('booking', 'ticketRows'));
+            });
     }
 
     public function mybooking_search(Request $request)
@@ -354,14 +405,18 @@ class CustomerController extends Controller
         $bus_info['category'] = $request->category;
         $bus_info['start'] = session()->get('time')['start'];
         $bus_info['end'] = session()->get('time')['end'];
-        $bus_info['bima'] = $request->Insurance ?? 0;
-        $bus_info['insuranceDate'] = $request->insuranceDate;
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? ($bus_info['cancel_amount'] ?? 0);
         $bus_info['cancel_key'] = $request->key ?? ($bus_info['cancel_key'] ?? '');
         $bus_info['excess_luggage'] = $request->excess_luggage ?? 0; // Add excess luggage checkbox value
         $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
         session()->put('booking_form', $bus_info);
+
+        $insuranceError = process_booking_insurance_input($request, $bus_info);
+        session()->put('booking_form', $bus_info);
+        if ($insuranceError) {
+            return redirect()->route('customer.pay')->with('error', __($insuranceError));
+        }
 
         if (!empty($bus_info['discount'])) {
             $couponCheck = Discount::where('code', $bus_info['discount'])->first();
@@ -373,27 +428,9 @@ class CustomerController extends Controller
             }
         }
 
-        $ins = 0;
+        $ins = (float) ($bus_info['bima_amount'] ?? 0);
         $dis = 0;
         $setting = Setting::first();
-        if (session()->get('booking_form')['bima'] == 1) {
-
-            if ($request->type == 'local') {
-                $ins = $setting->local;
-            } else {
-                $ins = $setting->international;
-            }
-            $insuranceDate = session()->get('booking_form')['insuranceDate'];
-            $today = \Carbon\Carbon::parse(session()->get('booking_form')['travel_date']);
-            //$today = session()->get('booking_form')['travel_date'];
-            $travelDate = \Carbon\Carbon::parse($insuranceDate);
-            $days = max(1, abs($today->diffInDays($insuranceDate, false)) + 1);
-            $ins *= $days;
-            $bus_info = session()->get('booking_form', []);
-            $bus_info['bima_amount'] = $ins;
-            session()->put('booking_form', $bus_info);
-            //return $days; 
-        }
 
         $total_amount = session()->get('booking_form')['total_amount'];
         $excessLuggageFee = 0;

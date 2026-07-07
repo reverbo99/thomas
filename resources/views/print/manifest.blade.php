@@ -4,229 +4,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Report</title>
-    <!-- Bootstrap CSS for consistent styling -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Passenger Manifest</title>
     <style>
+        @page {
+            size: A4 landscape;
+            margin: 6mm;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 7px;
             margin: 0;
-            padding: 20mm;
-            background-color: #fff;
-            color: #333;
-        }
-
-        .report-container {
-            max-width: 100%;
+            padding: 0;
+            color: #000;
             background: #fff;
-            padding: 20px;
         }
 
-        .report-header {
-            text-align: center;
-            margin-bottom: 20px;
+        .manifest-header {
+            margin-bottom: 6px;
         }
 
-        .report-header h1 {
-            font-size: 1.5rem;
+        .manifest-header h1 {
+            font-size: 11px;
             font-weight: 700;
-            color: #007bff;
-            margin: 0;
+            margin: 0 0 4px;
+            text-transform: uppercase;
         }
 
-        .report-header p {
-            font-size: 0.9rem;
-            color: #6c757d;
-            margin: 5px 0 0;
+        .servicer-row {
+            font-size: 7px;
+            margin: 0 0 2px;
+            line-height: 1.4;
         }
 
-        .table {
+        .servicer-row span {
+            margin-right: 12px;
+        }
+
+        .manifest-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            table-layout: fixed;
         }
 
-        .table thead th {
-            background-color: #007bff;
-            color: #fff;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 10px;
-            text-align: left;
-            border-bottom: 2px solid #0056b3;
-        }
-
-        .table tbody tr {
-            transition: background-color 0.2s;
-        }
-
-        .table tbody tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-
-        .table tbody td {
-            padding: 10px;
+        .manifest-table th,
+        .manifest-table td {
+            border: 1px solid #000;
+            padding: 3px 2px;
             vertical-align: middle;
-            border-bottom: 1px solid #dee2e6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.25;
         }
 
-        .text-xs {
-            font-size: 0.8rem;
-            margin: 0;
+        .manifest-table thead th {
+            background-color: #f2f2f2;
+            font-weight: normal;
+            text-align: center;
+            font-size: 7px;
         }
 
-        .text-sm {
-            font-size: 0.9rem;
+        .manifest-table tbody td {
+            font-size: 7px;
         }
 
-        .font-weight-bold {
-            font-weight: 600;
+        .text-center {
+            text-align: center;
         }
 
-        .text-secondary {
-            color: #6c757d;
-        }
-
-        .amount {
-            color: #28a745;
-            font-weight: 700;
-        }
-
-        .booking-code {
-            color: #343a40;
-            font-weight: 600;
+        .text-right {
+            text-align: right;
         }
 
         .no-data {
             text-align: center;
-            padding: 20px;
-            color: #6c757d;
+            padding: 12px;
             font-style: italic;
-        }
-
-        @media print {
-            body {
-                padding: 10mm;
-            }
-
-            .report-container {
-                padding: 0;
-            }
-
-            .table thead th {
-                background-color: #0056b3;
-                color: #fff;
-            }
-
-            .table tbody tr:nth-child(even) {
-                background-color: #f8f9fa;
-            }
-
-            .no-print {
-                display: none;
-            }
         }
     </style>
 </head>
 
 <body>
-    <div class="report-container">
-        <!-- Report Header -->
-        <div class="report-header">
-            <h1>Booking Report</h1>
-            <p>Generated on {{ now()->format('F j, Y, g:i A') }}</p>
-            <p>HIGHLINK ISGC</p>
-        </div>
-
-        <!-- Servicer Details -->
-        <div class="servicer-details mb-4">
-            <h2 class="h5 mb-2">Servicer Information</h2>
-            <p class="text-sm mb-1"><strong>Driver:</strong> {{ $bus->driver_name ?? 'N/A' }} ({{ $bus->driver_contact ?? 'N/A' }})</p>
-            <p class="text-sm mb-1"><strong>Second Driver:</strong> {{ $bus->driver_name_2 ?? 'N/A' }} ({{ $bus->driver_contact_2 ?? 'N/A' }})</p>
-            <p class="text-sm mb-1"><strong>Conductor:</strong> {{ $bus->conductor_name ?? 'N/A' }} ({{ $bus->conductor ?? 'N/A' }})</p>
-            <p class="text-sm mb-1"><strong>Customer Service 1:</strong> {{ $bus->customer_service_name_1 ?? 'N/A' }} ({{ $bus->customer_service_contact_1 ?? 'N/A' }})</p>
-            <p class="text-sm mb-1"><strong>Customer Service 2:</strong> {{ $bus->customer_service_name_2 ?? 'N/A' }} ({{ $bus->customer_service_contact_2 ?? 'N/A' }})</p>
-            <p class="text-sm mb-1"><strong>Customer Service 3:</strong> {{ $bus->customer_service_name_3 ?? 'N/A' }} ({{ $bus->customer_service_contact_3 ?? 'N/A' }})</p>
-            <p class="text-sm mb-1"><strong>Customer Service 4:</strong> {{ $bus->customer_service_name_4 ?? 'N/A' }} ({{ $bus->customer_service_contact_4 ?? 'N/A' }})</p>
-        </div>
-
-        <!-- Report Table -->
-        <div class="table-responsive">
-            <table class="table" aria-describedby="bookingReportTable">
-                <thead>
-                    <tr>
-                        <th>SN</th>
-                        <th scope="col">Booking ID</th>
-                        <th scope="col">Bus/Route</th>
-                        <th scope="col">Travel Details</th>
-                        <th scope="col">Passenger Details</th>
-                        <th scope="col">Luggage</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (isset($bookings) && is_array($bookings) && count($bookings) > 0)
-                        @foreach ($bookings as $index => $booking)
-                            <tr>
-                                <td style="text-align: center; font-weight: bold;">{{ $index + 1 }}</td>
-                                <td>
-                                    <p class="text-xs booking-code">{{ $booking['booking_code'] ?? 'N/A' }}</p>
-                                    <p class="text-xs text-secondary">Confirmed</p>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        <p class="text-sm font-weight-bold mb-0">{{ $booking['company_name'] ?? 'N/A' }}
-                                        </p>
-                                        <p class="text-xs text-secondary mb-0">
-                                            {{ $booking['route_from'] ?? 'N/A' }} to {{ $booking['route_to'] ?? 'N/A' }}
-                                        </p>
-                                        <p class="text-xs text-secondary mb-0">{{ $booking['bus_number'] ?? 'N/A' }}</p>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        <p class="text-xs font-weight-bold mb-0">{{ $booking['travel_date'] ?? 'N/A' }}
-                                        </p>
-                                        <p class="text-xs text-secondary mb-0">Seat: {{ $booking['seat'] ?? 'N/A' }}</p>
-                                        <p class="text-xs text-secondary mb-0">Pickup:
-                                            {{ $booking['pickup_point'] ?? 'N/A' }}</p>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        <p class="text-xs font-weight-bold mb-0">
-                                            {{ $booking['customer_name'] ?? 'N/A' }}</p>
-                                        <p class="text-xs text-secondary mb-0">
-                                            {{ $booking['customer_phone'] ?? 'N/A' }}</p>
-                                         <p class="text-xs text-secondary mb-0">
-                                            {{ $booking['gender'] ?? 'N/A' }}</p>
-                                        <p class="text-xs text-secondary mb-0">Age: {{ $booking['age'] ?? 'N/A' }}</p>
-                                        <p class="text-xs text-secondary mb-0">Age Group: {{ $booking['age_group'] ?? 'N/A' }}</p>
-                                        <p class="text-xs text-secondary mb-0">Infant Child: {{ ($booking['infant_child'] ?? 0) == 1 ? 'Yes' : 'No' }}</p>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-column">
-                                        @if (($booking['excess_luggage'] ?? 0) == 1)
-                                            <p class="text-xs font-weight-bold mb-0">Excess Luggage: Yes</p>
-                                            <p class="text-xs text-secondary mb-0">Description: {{ $booking['excess_luggage_description'] ?? 'N/A' }}</p>
-                                            <p class="text-xs text-secondary mb-0">Fee: {{ $booking['excess_luggage_fee'] ?? 'N/A' }}</p>
-                                        @else
-                                            <p class="text-xs text-secondary mb-0">No Excess Luggage</p>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                    @else
-                        <tr>
-                            <td colspan="6" class="no-data">No bookings available</td>
-                        </tr>
-                    @endif
-                </tbody>
-            </table>
-        </div>
+    <div class="manifest-header">
+        <h1>Passenger Manifest</h1>
+        @if (isset($bus))
+            <div class="servicer-row">
+                <span><strong>Bus:</strong> {{ $bookings[0]['bus_number'] ?? 'N/A' }}</span>
+                <span><strong>Driver:</strong> {{ $bus->driver_name ?? 'N/A' }} ({{ $bus->driver_contact ?? 'N/A' }})</span>
+                <span><strong>Conductor:</strong> {{ $bus->conductor_name ?? 'N/A' }} ({{ $bus->conductor ?? 'N/A' }})</span>
+                <span><strong>Date:</strong> {{ $bookings[0]['travel_date'] ?? now()->format('Y-m-d') }}</span>
+            </div>
+        @endif
     </div>
+
+    <table class="manifest-table" aria-describedby="passengerManifest">
+        <thead>
+            <tr>
+                <th style="width: 2%;">#</th>
+                <th style="width: 5%;">Seat</th>
+                <th style="width: 9%;">Route</th>
+                <th style="width: 9%;">Name</th>
+                <th style="width: 2%;">Sex</th>
+                <th style="width: 7%;">Phone</th>
+                <th style="width: 4%;">Type</th>
+                <th style="width: 4%;">ID Type</th>
+                <th style="width: 5%;">Id no</th>
+                <th style="width: 8%;">PNR</th>
+                <th style="width: 6%;">Issue date</th>
+                <th style="width: 5%;">Issue by</th>
+                <th style="width: 6%;">From</th>
+                <th style="width: 6%;">To</th>
+                <th style="width: 5%;">Base Fare</th>
+                <th style="width: 4%;">Discount</th>
+                <th style="width: 5%;">Paid fare</th>
+                <th style="width: 5%;">Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (isset($bookings) && is_array($bookings) && count($bookings) > 0)
+                @foreach ($bookings as $index => $booking)
+                    <tr>
+                        <td class="text-center">{{ $index + 1 }}</td>
+                        <td>{{ $booking['seat'] ?? '' }}</td>
+                        <td>{{ $booking['route_label'] ?? '' }}</td>
+                        <td>{{ strtoupper($booking['customer_name'] ?? '') }}</td>
+                        <td class="text-center">{{ $booking['gender_code'] ?? '' }}</td>
+                        <td>{{ $booking['customer_phone'] ?? '' }}</td>
+                        <td>{{ $booking['passenger_type'] ?? 'Adult' }}</td>
+                        <td>{{ $booking['id_type'] ?? '' }}</td>
+                        <td>{{ $booking['id_number'] ?? '' }}</td>
+                        <td>{{ $booking['booking_code'] ?? '' }}</td>
+                        <td>{{ $booking['issue_date'] ?? '' }}</td>
+                        <td>{{ $booking['issue_by'] ?? '' }}</td>
+                        <td>{{ $booking['pickup_point'] ?? '' }}</td>
+                        <td>{{ $booking['dropping_point'] ?? '' }}</td>
+                        <td class="text-right">{{ $booking['base_fare'] ?? '0' }}</td>
+                        <td class="text-right">{{ $booking['manifest_discount'] ?? '0' }}</td>
+                        <td class="text-right">{{ $booking['paid_fare'] ?? '0' }}</td>
+                        <td>{{ $booking['remarks'] ?? '' }}</td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="18" class="no-data">No bookings available</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
 </body>
 
 </html>

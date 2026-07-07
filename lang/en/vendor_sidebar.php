@@ -13,6 +13,7 @@ return [
     'week' => 'Week',
     'month' => 'Month',
     'year' => 'Year',
+    'custom_range' => 'Custom Range',
     'earnings_payments' => 'Earnings & Payments',
     'account' => 'Account',
     'profile' => 'Profile',

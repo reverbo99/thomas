@@ -2,6 +2,12 @@
 
 @section('title', __('customer_sidebar.My Tickets'))
 
+@php
+    $period = $period ?? request('period', '');
+    $startDate = $startDate ?? request('start_date', '');
+    $endDate = $endDate ?? request('end_date', '');
+@endphp
+
 @section('page_hero')
     @include('test.partials.page_hero', [
         'eyebrow' => __('all.highlink_isgc'),
@@ -14,9 +20,29 @@
 <section class="page-section page-section--alt">
     <div class="container mx-auto px-4">
         <div class="customer-panel fade-in">
-            <div class="customer-panel__header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h3 class="text-base sm:text-lg">{{ __('customer/myticket.my_ticket') }}</h3>
-                <span class="text-sm opacity-90">{{ count($ticketRows ?? []) }} {{ __('customer/myticket.my_ticket') }}</span>
+            <div class="customer-panel__header flex flex-col gap-3">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <h3 class="text-base sm:text-lg">{{ __('customer/myticket.my_ticket') }}</h3>
+                    <span class="text-sm opacity-90">{{ count($ticketRows ?? []) }} {{ __('customer/myticket.my_ticket') }}</span>
+                </div>
+                @if (!empty($ticketRows))
+                    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                        @include('partials.booking_history_period_filter', [
+                            'formAction' => route('customer.mybooking'),
+                            'resetUrl' => route('customer.mybooking'),
+                            'period' => $period,
+                            'startDate' => $startDate,
+                            'endDate' => $endDate,
+                        ])
+                        <form action="{{ route('customer.print.report') }}" method="POST" id="customerTicketReportForm" class="flex-shrink-0">
+                            @csrf
+                            <input type="hidden" name="booking_ids" id="customerTicketReportIds" value="">
+                            <button type="submit" class="page-btn page-btn--outline text-sm w-full sm:w-auto">
+                                <i class="fas fa-file-pdf"></i> {{ __('customer/myticket.print_report') }}
+                            </button>
+                        </form>
+                    </div>
+                @endif
             </div>
 
             <div class="customer-panel__body">
@@ -160,6 +186,37 @@
                     { orderable: false, targets: [7] },
                     { searchable: false, targets: [0, 7] }
                 ]
+            });
+
+            function getVisibleBookingIds() {
+                const ids = [];
+                const table = $('#ticketsTable').DataTable();
+                table.rows({ search: 'applied' }).every(function () {
+                    const raw = $(this.node()).attr('data-booking-ids');
+                    if (!raw) return;
+                    try {
+                        const rowIds = JSON.parse(raw);
+                        if (Array.isArray(rowIds)) {
+                            rowIds.forEach(function (id) {
+                                const parsed = parseInt(id, 10);
+                                if (parsed && ids.indexOf(parsed) === -1) {
+                                    ids.push(parsed);
+                                }
+                            });
+                        }
+                    } catch (e) {}
+                });
+                return ids;
+            }
+
+            $('#customerTicketReportForm').on('submit', function (e) {
+                const ids = getVisibleBookingIds();
+                if (!ids.length) {
+                    e.preventDefault();
+                    alert(@json(__('customer/myticket.no_booking_found')));
+                    return false;
+                }
+                $('#customerTicketReportIds').val(JSON.stringify(ids));
             });
         });
     </script>

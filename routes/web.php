@@ -441,29 +441,45 @@ Route::middleware('auth')->group(function () {
     Route::prefix('admin')->middleware(['role:admin', '2fa'])->group(function () {
         Route::get('/', [SystemController::class, 'index'])->name('system.index');
         Route::get('/companies', [SystemController::class, 'campany'])->name('system.campany');
+        Route::get('/companies/print/pdf', [SystemController::class, 'printCampaniesPdf'])->name('system.campany.print');
         Route::get('/companies/{campany}', [SystemController::class, 'campanyShow'])->name('system.campany.show');
         Route::post('/campany_status', [SystemController::class, 'campany_status'])->name('system.campany.status');
         Route::get('/buses', [SystemController::class, 'buses'])->name('system.buses');
+        Route::get('/buses/print/pdf', [SystemController::class, 'printBusesPdf'])->name('system.buses.print');
         Route::get('/special-hire', [SystemController::class, 'specialHireIndex'])->name('system.special_hire');
+        Route::get('/special-hire/report/pdf', [SystemController::class, 'specialHireReportPdf'])->name('system.special_hire.report.pdf');
+        Route::get('/special-hire/report/csv', [SystemController::class, 'specialHireReportCsv'])->name('system.special_hire.report.csv');
+        Route::get('/special-hire/{user}/report/pdf', [SystemController::class, 'specialHireOwnerReportPdf'])->name('system.special_hire.show.report.pdf')
+            ->whereNumber('user');
+        Route::get('/special-hire/{user}/report/csv', [SystemController::class, 'specialHireOwnerReportCsv'])->name('system.special_hire.show.report.csv')
+            ->whereNumber('user');
         Route::get('/special-hire/{user}', [SystemController::class, 'specialHireShow'])->name('system.special_hire.show')
             ->whereNumber('user');
         Route::post('/special-hire/withdrawals/{id}', [SystemController::class, 'updateSpecialHireWithdrawal'])->name('system.special_hire.withdrawal');
         Route::post('/special-hire/{user}/platform-percent', [SystemController::class, 'updateSpecialHireOwnerPlatformPercent'])->name('system.special_hire.platform_percent')
             ->whereNumber('user');
         Route::get('/transaction', [SystemController::class, 'pay_request'])->name('pay.request');
+        Route::get('/transaction/export/pdf', [SystemController::class, 'paymentRequestReportPdf'])->name('pay.request.pdf');
+        Route::get('/transaction/export/csv', [SystemController::class, 'paymentRequestReportCsv'])->name('pay.request.csv');
         Route::post('/transactions/{transaction}/company/{campany}/complete', [SystemController::class, 'complete'])->name('transactions.complete');
         Route::post('/transactions/{transaction}/company/{campany}/cancel', [SystemController::class, 'cancel'])->name('transactions.cancel');
         Route::get('/system_payments', [SystemController::class, 'system_payments'])->name('system.payments');
         Route::get('/government-levy', [SystemController::class, 'governmentLevyReport'])->name('system.government_levy');
+        Route::get('/government-levy/export/pdf', [SystemController::class, 'governmentLevyReportPdf'])->name('system.government_levy.pdf');
+        Route::get('/government-levy/export/csv', [SystemController::class, 'governmentLevyReportCsv'])->name('system.government_levy.csv');
         Route::get('/history', [SystemController::class, 'history'])->name('system.history');
+        Route::get('/history/manifest/print', [SystemController::class, 'printManifestAll'])->name('system.history.manifest.print');
         Route::get('/cancelled-bookings', [SystemController::class, 'cancelled_bookings'])->name('system.cancelled_bookings');
         Route::post('/print', [SystemController::class, 'print'])->name('system.print');
+        Route::post('/print/service', [SystemController::class, 'printService'])->name('system.print.service');
+        Route::post('/print/commission', [SystemController::class, 'printCommission'])->name('system.print.commission');
         Route::post('/manifest', [AdminController::class, 'manifest'])->name('system.print.manifest');
         Route::post('/transactions/filter', [SystemController::class, 'filter'])->name('transactions.filter');
         Route::post('/transactions/{transaction}/complete/{campany}/{vender}', [SystemController::class, 'complete'])->name('transactions.complete');
         Route::post('/transactions/{transaction}/cancel/{campany}/{vender}', [SystemController::class, 'cancel'])->name('transactions.cancel');
         Route::get('/bima', [BimaController::class, 'index'])->name('bima.index');
         Route::get('/vender', [SystemController::class, 'vender'])->name('system.vender');
+        Route::get('/vender/print/pdf', [SystemController::class, 'printVendersPdf'])->name('system.vender.print');
         Route::get('/bima/data', [BimaController::class, 'getData'])->name('bima.data');
         Route::post('/vender/status', [SystemController::class, 'vender_status'])->name('system.vender.status');
 
@@ -503,6 +519,8 @@ Route::middleware('auth')->group(function () {
         Route::post('vender/percentage', [SystemController::class, 'vender_percent'])->name('vender.percent');
 
         Route::get('/refunds', [SystemController::class, 'refunds'])->name('system.refunds');
+        Route::get('/refunds/export/pdf', [SystemController::class, 'refundsReportPdf'])->name('system.refunds.pdf');
+        Route::get('/refunds/export/csv', [SystemController::class, 'refundsReportCsv'])->name('system.refunds.csv');
         Route::post('/refunds/{id}/approve', [SystemController::class, 'approveRefund'])->name('system.refunds.approve');
         Route::post('/refunds/{id}/reject', [SystemController::class, 'rejectRefund'])->name('system.refunds.reject');
 
@@ -549,8 +567,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/booking/payment/pay', [VenderController::class, 'payment_info'])->name('vender.payment_store');
         Route::get('/bus/bus_route', [VenderController::class, 'bus_route'])->name('vender.bus_route');
         Route::get('/transaction', [VenderController::class, 'transaction'])->name('vender.transaction');
+        Route::get('/transaction/export/pdf', [VenderController::class, 'transactionExportPdf'])->name('vender.transaction.export.pdf');
+        Route::get('/transaction/export/csv', [VenderController::class, 'transactionExportCsv'])->name('vender.transaction.export.csv');
         Route::post('/transaction_request', [VenderController::class, 'transaction_request'])->name('vender.transaction.request');
         Route::get('/history', [VenderController::class, 'history'])->name('vender.history');
+        Route::get('/history/export/pdf', [VenderController::class, 'historyExportPdf'])->name('vender.history.export.pdf');
+        Route::get('/history/export/csv', [VenderController::class, 'historyExportCsv'])->name('vender.history.export.csv');
         Route::get('/resaved-tickets', [VenderController::class, 'resavedTickets'])->name('vender.resaved.tickets');
         Route::post('/cancel-resaved/{id}', [VenderController::class, 'cancelResavedTicket'])->name('vender.cancel.resaved');
         Route::get('/pay-resaved/{id}', [VenderController::class, 'payResavedTicket'])->name('vender.pay.resaved');
@@ -592,6 +614,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/home', [CustomerController::class, 'dashboard'])->name('customer.dashboard');
         Route::get('/', [CustomerController::class, 'index'])->name('customer.index');
         Route::get('/mybooking', [CustomerController::class, 'mybooking'])->name('customer.mybooking');
+        Route::post('/mybooking/print-report', [CustomerController::class, 'printReport'])->name('customer.print.report');
         Route::get('/mybooking/search', [CustomerController::class, 'mybooking_search'])->name('customer.mybooking.search');
         Route::match(['get', 'post'], '/mybooking/search/form', [CustomerController::class, 'by_route_search'])->name('customer.mybooking.search.form');
         Route::get('/booking/inline/{id}/{from}/{to}', [BookingController::class, 'inlineBookingForm'])->name('customer.booking.inline.form');

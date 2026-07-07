@@ -133,7 +133,7 @@ class AdminController extends Controller
                 'amount' => $request->amount,
                 'payment_method' => $request->payment_method,
                 'payment_number' => $request->payment_number,
-                'status' => 'pending',
+                'status' => 'Pending',
             ]);
 
             // Deduct the amount from balance when request is created (so it's in pending state)
@@ -603,28 +603,10 @@ class AdminController extends Controller
 $q->where('id', auth()->user()->campany->id);
             });
 
-        // Prefer explicit date range over period (date picker on history page)
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->whereBetween('created_at', [
-                Carbon::parse($request->start_date)->startOfDay(),
-                Carbon::parse($request->end_date)->endOfDay(),
-            ]);
-        } elseif ($request->has('period')) {
-            switch ($request->period) {
-                case 'today':
-                    $query->whereDate('created_at', today());
-                    break;
-                case 'week':
-                    $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
-                    break;
-                case 'month':
-                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
-                    break;
-                case 'year':
-                    $query->whereYear('created_at', now()->year);
-                    break;
-            }
-        }
+        $dateFilter = apply_booking_history_date_filter($query, $request);
+        $period = $dateFilter['period'];
+        $startDate = $dateFilter['startDate'];
+        $endDate = $dateFilter['endDate'];
 
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();
 
@@ -639,7 +621,7 @@ $q->where('id', auth()->user()->campany->id);
             $grandTotal += round((float)($b->fee ?? 0) + (float)($b->vender_fee ?? 0) + (float)($b->amount ?? 0) + (float)($b->vat ?? 0) + (float)($b->fee_vat ?? 0));
         }
 
-        return view('controller.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal'));
+        return view('controller.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal', 'period', 'startDate', 'endDate'));
     }
 
     public function search(Request $request)
@@ -976,35 +958,7 @@ $q->where('id', auth()->user()->campany->id);
     {
         $out = [];
         foreach ($bookings as $b) {
-            $rowTotal = round(($b->fee ?? 0) + ($b->vender_fee ?? 0) + ($b->amount ?? 0) + ($b->vat ?? 0) + ($b->fee_vat ?? 0));
-            $out[] = [
-                'booking_code' => $b->booking_code ?? 'N/A',
-                'company_name' => optional($b->campany)->name ?? 'N/A',
-                'route_from' => optional($b->schedule)->from ?? optional(optional($b->bus)->route)->from ?? 'N/A',
-                'route_to' => optional($b->schedule)->to ?? optional(optional($b->bus)->route)->to ?? 'N/A',
-                'bus_number' => optional($b->bus)->bus_number ?? 'N/A',
-                'travel_date' => $b->travel_date ? Carbon::parse($b->travel_date)->format('Y-m-d') : 'N/A',
-                'seat' => $b->seat ?? 'N/A',
-                'pickup_point' => $b->pickup_point ?? 'N/A',
-                'customer_name' => $b->customer_name ?? 'N/A',
-                'customer_phone' => $b->customer_phone ?? 'N/A',
-                'amount' => $b->amount ?? '0',
-                'commision' => (string) round(($b->fee ?? 0) + ($b->vender_fee ?? 0)),
-                'service' => $b->vender_fee ?? 'N/A',
-                'vendor_service' => $b->vender_service ?? 'N/A',
-                'discount' => $b->discount_amount ?? 'N/A',
-                'gov_levy' => (string) (float) ($b->government_levy ?? 0),
-                'gov_levy_service' => (string) (float) $b->governmentLeviesOnService->sum('amount'),
-                'vat' => $b->vat ?? 'N/A',
-                'total' => (string) $rowTotal,
-                'gender' => $b->gender ?? 'N/A',
-                'age' => $b->age ?? 'N/A',
-                'age_group' => $b->age_group ?? 'N/A',
-                'infant_child' => $b->infant_child ?? 0,
-                'excess_luggage' => $b->excess_luggage ?? 0,
-                'excess_luggage_description' => $b->excess_luggage_description ?? null,
-                'excess_luggage_fee' => $b->excess_luggage_fee ?? null,
-            ];
+            $out[] = booking_to_report_row($b);
         }
         return $out;
     }
@@ -1038,7 +992,7 @@ $q->where('id', auth()->user()->campany->id);
         $data = null;
 
         if ($request->filled('start_date') && $request->filled('end_date') && $companyId) {
-            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService'])
+            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
                 ->where('campany_id', $companyId)
                 ->where('payment_status', 'Paid')
                 ->whereBetween('created_at', [
@@ -1053,7 +1007,7 @@ $q->where('id', auth()->user()->campany->id);
             $ids = is_array($request->booking_ids) ? $request->booking_ids : (array) json_decode($request->booking_ids, true);
             $ids = array_filter(array_map('intval', $ids));
             if (!empty($ids)) {
-                $query = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService'])
+                $query = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
                     ->whereIn('id', $ids)
                     ->where('payment_status', 'Paid')
                     ->orderBy('seat');
@@ -1070,7 +1024,7 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         if ($data === null && $companyId) {
-            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService'])
+            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
                 ->where('campany_id', $companyId)
                 ->where('payment_status', 'Paid')
                 ->orderBy('seat')
@@ -1083,23 +1037,61 @@ $q->where('id', auth()->user()->campany->id);
             return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
         }
 
-        if (!isset($data[0]['bus_number']) || empty(trim($data[0]['bus_number'] ?? ''))) {
+        $busNumbers = collect($data)
+            ->pluck('bus_number')
+            ->filter(fn ($number) => !empty(trim((string) $number)))
+            ->unique()
+            ->values();
+
+        if ($busNumbers->isEmpty()) {
             return redirect()->back()->with('error', __('vender/history.bus_number_not_found'));
         }
 
-        $number = $data[0]['bus_number'];
+        if ($busNumbers->count() > 1) {
+            $sections = [];
+            foreach ($busNumbers as $busNumber) {
+                $bus = bus::where('bus_number', $busNumber)->first();
+                if (!$bus) {
+                    continue;
+                }
+
+                $rows = collect($data)
+                    ->where('bus_number', $busNumber)
+                    ->sortBy('seat')
+                    ->values()
+                    ->all();
+
+                if (!empty($rows)) {
+                    $sections[] = ['bus' => $bus, 'bookings' => $rows];
+                }
+            }
+
+            if (empty($sections)) {
+                return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
+            }
+
+            $pdf = Pdf::loadView('print.manifest_all', compact('sections'));
+            $pdf->setPaper('a4', 'landscape');
+
+            return $pdf->download('manifest-' . now()->format('Ymd_His') . '.pdf');
+        }
+
+        $number = $busNumbers->first();
         $bus = bus::where('bus_number', $number)->first();
 
         if (!$bus) {
             return redirect()->back()->with('error', __('vender/history.bus_not_found_number', ['number' => $number]));
         }
 
-        return $this->generateManifest($data, $bus);
+        $busRows = collect($data)->where('bus_number', $number)->sortBy('seat')->values()->all();
+
+        return $this->generateManifest($busRows, $bus);
     }
 
     public function generateManifest($data,$bus)
     {
         $pdf = Pdf::loadView('print.manifest', ['bookings' => $data, 'bus' => $bus]);
+        $pdf->setPaper('a4', 'landscape');
 
         return $pdf->download('manifest-' . now() . '.pdf');
     }

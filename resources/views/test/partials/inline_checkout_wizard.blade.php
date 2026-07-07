@@ -16,6 +16,11 @@
     $displayPrice = session('currency') == 'Usd'
         ? number_format(($price ?? 0) / ($usdToTzs ?? 2500), 2)
         : ($price ?? 0);
+    $insuranceForm = array_merge(session('booking_form', []), [
+        'route_distance' => $distance,
+        'travel_date' => $info['travel_date'] ?? session('booking_form.travel_date'),
+    ]);
+    $insuranceEligible = booking_insurance_eligible($insuranceForm);
 @endphp
 
 <div class="inline-wizard" data-inline-wizard data-inline-uid="{{ $inlineUid }}">
@@ -97,10 +102,11 @@
                     </label>
                 </div>
 
+                @if ($insuranceEligible)
                 <div class="inline-extras-form__row inline-extras-form__row--full">
                     <label class="inline-extras-form__check">
                         <input type="checkbox" name="Insurance" value="1" id="insurance_{{ $inlineUid }}" data-inline-insurance-toggle>
-                        <span>{{ __('all.add_insurance') }}</span>
+                        <span>{{ __('all.add_insurance') }} ({{ insurance_local_rate_display() }}/{{ __('all.day') ?? 'day' }})</span>
                     </label>
                 </div>
 
@@ -120,6 +126,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 <div class="inline-extras-form__row inline-extras-form__row--full">
                     <div class="booking-field">

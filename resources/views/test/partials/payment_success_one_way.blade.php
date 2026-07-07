@@ -1,28 +1,11 @@
+@include('partials.booking_payment_amounts', ['data' => $data])
 @php
-    $ticketFee = (float) ($data->busFee ?? 0);
-    $insuranceAmount = (float) ($data->bima_amount ?? 0);
-    $storedCustomerTotal = (float) ($data->customer_paid_total ?? 0);
-
-    $fareService = app(\App\Services\FareFormulaService::class);
-    $seatCountForFee = $fareService->seatCountFromSeatString($data->seat ?? null);
-    $travelerServiceFee = $fareService
-        ->calculateTravellerServiceFee($ticketFee, \App\Models\Setting::first(), $seatCountForFee);
-
-    $legacyServiceFee = (float) ($data->service ?? 0)
-        + (float) ($data->vender_service ?? 0)
-        + (float) ($data->service_vat ?? 0);
-
-    $displayServiceFee = $ticketFee > 0 ? $travelerServiceFee : $legacyServiceFee;
-    $computedTotal = $ticketFee + $displayServiceFee + $insuranceAmount;
-
-    if ($storedCustomerTotal > 0) {
-        $amountPaid = $storedCustomerTotal;
-        $displayServiceFee = max(0, $storedCustomerTotal - $ticketFee - $insuranceAmount);
-        $useStoredCustomerTotal = true;
-    } else {
-        $amountPaid = $computedTotal;
-        $useStoredCustomerTotal = false;
-    }
+    $ticketFee = $breakdownTicketFee;
+    $luggageFee = $breakdownLuggageFee;
+    $insuranceAmount = $breakdownInsurance;
+    $displayServiceFee = $breakdownServiceFee;
+    $amountPaid = $breakdownAmountPaid;
+    $useStoredCustomerTotal = $breakdownUseStoredTotal;
 @endphp
 
 <div class="payment-result-panel fade-in">
@@ -79,8 +62,14 @@
                         <dt>{{ __('all.bus_fare') ?? 'Ticket Fee' }}</dt>
                         <dd>{{ $currency }} {{ convert_money($ticketFee) }}</dd>
                     </div>
+                    @if ($luggageFee > 0)
+                        <div class="payment-result-row">
+                            <dt>{{ __('all.excess_luggage') }}</dt>
+                            <dd>{{ $currency }} {{ convert_money($luggageFee) }}</dd>
+                        </div>
+                    @endif
                     <div class="payment-result-row">
-                        <dt>{{ ($useStoredCustomerTotal ?? false) ? __('all.service_and_charges') : __('all.system_charge') }}</dt>
+                        <dt>{{ __('all.system_charge') }}</dt>
                         <dd>{{ $currency }} {{ convert_money($displayServiceFee) }}</dd>
                     </div>
                     @if ($data->bima == 1)

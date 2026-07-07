@@ -3,6 +3,7 @@
 return [
     'title' => 'Refund Requests',
     'subtitle' => 'Review and manage customer refund requests',
+    'report_title' => 'Refund Requests Report',
     'total_requests' => 'Total Requests',
     'booking' => 'Booking',
     'reason' => 'Reason',

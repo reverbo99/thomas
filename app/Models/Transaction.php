@@ -19,6 +19,7 @@ class Transaction extends Model
         'vender_id',
         'created_at',
         'reference_number',
+        'cancel_reason',
         'updated_at',
     ];
 

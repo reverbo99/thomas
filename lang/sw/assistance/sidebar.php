@@ -13,6 +13,7 @@ return [
     'week' => 'Wiki',
     'month' => 'Mwezi',
     'year' => 'Mwaka',
+    'custom_range' => 'Masafa Maalum',
     'transactions' => 'Miamala',
     'account' => 'Akaunti',
     'profile' => 'Wasifu',

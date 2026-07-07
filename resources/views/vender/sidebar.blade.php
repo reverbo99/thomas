@@ -66,6 +66,7 @@
                 <a href="{{ route('vender.history') }}?period=week" class="vendor-sidebar__sublink">{{ __('assistance/sidebar.week') }}</a>
                 <a href="{{ route('vender.history') }}?period=month" class="vendor-sidebar__sublink">{{ __('assistance/sidebar.month') }}</a>
                 <a href="{{ route('vender.history') }}?period=year" class="vendor-sidebar__sublink">{{ __('assistance/sidebar.year') }}</a>
+                <a href="{{ route('vender.history') }}?period=custom" class="vendor-sidebar__sublink">{{ __('assistance/sidebar.custom_range') }}</a>
             </div>
         </div>
 

@@ -5,6 +5,7 @@ return [
     'platform_percent_saved' => 'Platform percentage for this operator has been saved.',
     'transaction_completed' => 'Transaction marked as completed.',
     'transaction_cancelled' => 'Transaction cancelled.',
+    'transaction_cancel_failed' => 'Failed to cancel transaction. Please try again.',
     'invalid_company_transaction' => 'Invalid company for this transaction.',
     'transaction_completed_back' => 'Transaction marked as Completed.',
     'invalid_transaction' => 'Invalid transaction.',

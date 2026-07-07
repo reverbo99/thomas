@@ -568,3 +568,391 @@ if (!function_exists('group_ticket_list_rows')) {
         return $rows;
     }
 }
+
+if (!function_exists('booking_luggage_fee')) {
+    function booking_luggage_fee($booking): float
+    {
+        if ((int) ($booking->has_excess_luggage ?? 0) === 1 || (float) ($booking->excess_luggage_fee ?? 0) > 0) {
+            return (float) ($booking->excess_luggage_fee ?? 0);
+        }
+
+        return 0.0;
+    }
+}
+
+if (!function_exists('booking_seat_list')) {
+    function booking_seat_list($seatString): array
+    {
+        $seats = array_values(array_filter(array_map('trim', explode(',', (string) $seatString))));
+
+        return !empty($seats) ? $seats : ['N/A'];
+    }
+}
+
+if (!function_exists('split_amount_across_seats')) {
+    function split_amount_across_seats(float $total, int $seatCount, int $seatIndex): float
+    {
+        $seatCount = max(1, $seatCount);
+        if ($seatCount === 1) {
+            return round($total, 2);
+        }
+
+        $evenShare = round($total / $seatCount, 2);
+
+        if ($seatIndex === 0) {
+            return round($total - ($evenShare * ($seatCount - 1)), 2);
+        }
+
+        return $evenShare;
+    }
+}
+
+if (!function_exists('booking_insurance_eligible')) {
+    function booking_insurance_eligible(array $form): bool
+    {
+        $distance = (float) ($form['route_distance'] ?? 0);
+        if ($distance <= 99) {
+            return false;
+        }
+
+        $travelDate = $form['travel_date'] ?? null;
+        if (empty($travelDate)) {
+            return false;
+        }
+
+        try {
+            $travelDay = \Carbon\Carbon::parse($travelDate)->timezone('Africa/Nairobi')->format('Y-m-d');
+            $today = now('Africa/Nairobi')->format('Y-m-d');
+
+            return $travelDay !== $today;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('insurance_local_rate_display')) {
+    function insurance_local_rate_display(): string
+    {
+        $setting = \App\Models\Setting::first();
+        $currency = app()->bound('currency') ? app('currency') : (session('currency', 'TSH'));
+        $rate = (float) ($setting->local ?? 0);
+
+        return trim($currency . ' ' . convert_money($rate));
+    }
+}
+
+if (!function_exists('validate_booking_insurance_selection')) {
+    /**
+     * @return string|null Translation key for error message
+     */
+    function validate_booking_insurance_selection($request, array $form): ?string
+    {
+        if ((int) ($request->Insurance ?? 0) !== 1) {
+            return null;
+        }
+
+        if (!booking_insurance_eligible($form)) {
+            return 'all.insurance_not_available';
+        }
+
+        $type = $request->type ?? null;
+        $insuranceDate = $request->insuranceDate ?? ($form['insuranceDate'] ?? null);
+        if (empty($insuranceDate) || !in_array($type, ['local', 'foreign'], true)) {
+            return 'all.insurance_details_required';
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('calculate_booking_bima_amount')) {
+    function calculate_booking_bima_amount($request, array $form, $setting): float
+    {
+        if ((int) ($request->Insurance ?? 0) !== 1) {
+            return 0.0;
+        }
+
+        $rate = ($request->type === 'local')
+            ? (float) ($setting->local ?? 0)
+            : (float) ($setting->international ?? 0);
+
+        $insuranceDate = $form['insuranceDate'] ?? $request->insuranceDate;
+        $travelDate = $form['travel_date'] ?? null;
+
+        if (empty($insuranceDate) || empty($travelDate)) {
+            return 0.0;
+        }
+
+        $days = max(1, abs(\Carbon\Carbon::parse($travelDate)->diffInDays($insuranceDate, false)) + 1);
+
+        return $rate * $days;
+    }
+}
+
+if (!function_exists('process_booking_insurance_input')) {
+    /**
+     * Validates insurance selection and updates $busInfo bima fields.
+     *
+     * @return string|null Translation key for error message
+     */
+    function process_booking_insurance_input($request, array &$busInfo): ?string
+    {
+        if ((int) ($request->Insurance ?? 0) !== 1) {
+            $busInfo['bima'] = 0;
+            $busInfo['bima_amount'] = 0;
+            $busInfo['insuranceDate'] = null;
+
+            return null;
+        }
+
+        $busInfo['bima'] = 1;
+        $busInfo['insuranceDate'] = $request->insuranceDate;
+
+        $errorKey = validate_booking_insurance_selection($request, $busInfo);
+        if ($errorKey) {
+            return $errorKey;
+        }
+
+        $setting = \App\Models\Setting::first();
+        $busInfo['bima_amount'] = calculate_booking_bima_amount($request, $busInfo, $setting);
+
+        return null;
+    }
+}
+
+if (!function_exists('booking_per_seat_payment_amounts')) {
+    /**
+     * @param  \App\Models\Booking|object  $booking
+     */
+    function booking_per_seat_payment_amounts($booking, int $seatIndex, int $seatCount): array
+    {
+        $seatCount = max(1, $seatCount);
+        $bookingBusFee = (float) ($booking->busFee ?? 0);
+        $bookingLuggage = booking_luggage_fee($booking);
+        $bookingInsurance = (float) ($booking->bima_amount ?? 0);
+        $storedTotal = (float) ($booking->customer_paid_total ?? 0);
+
+        $ticketFee = split_amount_across_seats($bookingBusFee, $seatCount, $seatIndex);
+        $luggageFee = split_amount_across_seats($bookingLuggage, $seatCount, $seatIndex);
+        $insurance = split_amount_across_seats($bookingInsurance, $seatCount, $seatIndex);
+
+        if ($storedTotal > 0) {
+            $bookingService = max(0, $storedTotal - $bookingBusFee - $bookingLuggage - $bookingInsurance);
+            $serviceFee = split_amount_across_seats($bookingService, $seatCount, $seatIndex);
+        } else {
+            $fareService = app(\App\Services\FareFormulaService::class);
+            $serviceFee = $fareService->calculateTravellerServiceFee(
+                $ticketFee,
+                \App\Models\Setting::first(),
+                1
+            );
+        }
+
+        $amountPaid = $ticketFee + $luggageFee + $insurance + $serviceFee;
+
+        return [
+            'breakdownTicketFee' => $ticketFee,
+            'breakdownLuggageFee' => $luggageFee,
+            'breakdownInsurance' => $insurance,
+            'breakdownServiceFee' => $serviceFee,
+            'breakdownAmountPaid' => $amountPaid,
+        ];
+    }
+}
+
+if (!function_exists('booking_service_fee')) {
+    function booking_service_fee($booking): float
+    {
+        $serviceFee = (float) ($booking->system_service_fee ?? 0);
+        if ($serviceFee <= 0) {
+            $serviceFee = (float) ($booking->service ?? 0)
+                + (float) ($booking->vender_service ?? 0)
+                + (float) ($booking->service_vat ?? 0);
+        }
+
+        return $serviceFee;
+    }
+}
+
+if (!function_exists('manifest_gender_code')) {
+    function manifest_gender_code(?string $gender): string
+    {
+        if ($gender === null || $gender === '' || $gender === 'N/A') {
+            return '';
+        }
+
+        $normalized = strtolower(trim($gender));
+
+        if (str_starts_with($normalized, 'm')) {
+            return 'M';
+        }
+
+        if (str_starts_with($normalized, 'f')) {
+            return 'F';
+        }
+
+        return strtoupper(substr($gender, 0, 1));
+    }
+}
+
+if (!function_exists('manifest_issue_by')) {
+    /**
+     * @param  \App\Models\Booking  $booking
+     */
+    function manifest_issue_by($booking): string
+    {
+        if ($booking->vender_id && optional($booking->vender)->name) {
+            return $booking->vender->name;
+        }
+
+        return sales_channel_label($booking->booking_channel);
+    }
+}
+
+if (!function_exists('booking_to_report_row')) {
+    /**
+     * @param  \App\Models\Booking  $booking
+     */
+    function booking_to_report_row($booking): array
+    {
+        $luggageFee = booking_luggage_fee($booking);
+        $serviceFee = booking_service_fee($booking);
+        $govLevyOnFare = (float) ($booking->government_levy ?? 0);
+        $govLevyOnService = (float) $booking->governmentLeviesOnService->sum('amount');
+        $totalGovLevy = $govLevyOnFare + $govLevyOnService;
+        $customerTotal = (float) ($booking->customer_paid_total ?? 0);
+        $busFee = (float) ($booking->busFee ?? 0);
+        $insurance = (float) ($booking->bima_amount ?? 0);
+
+        $rowTotal = $customerTotal > 0
+            ? round($customerTotal)
+            : round($busFee + $luggageFee + $serviceFee + $insurance);
+
+        $routeFrom = optional($booking->schedule)->from ?? optional(optional($booking->bus)->route)->from ?? 'N/A';
+        $routeTo = optional($booking->schedule)->to ?? optional(optional($booking->bus)->route)->to ?? 'N/A';
+        $routeLabel = strtoupper(trim($routeFrom . '-' . $routeTo, '-'));
+        $discountAmount = round((float) ($booking->discount_amount ?? 0));
+
+        return [
+            'booking_code' => $booking->booking_code ?? 'N/A',
+            'company_name' => optional($booking->campany)->name ?? 'N/A',
+            'route_from' => $routeFrom,
+            'route_to' => $routeTo,
+            'route_label' => $routeLabel !== '' ? $routeLabel : 'N/A',
+            'bus_number' => optional($booking->bus)->bus_number ?? 'N/A',
+            'travel_date' => $booking->travel_date ? \Carbon\Carbon::parse($booking->travel_date)->format('Y-m-d') : 'N/A',
+            'seat' => $booking->seat ?? 'N/A',
+            'pickup_point' => $booking->pickup_point ?? 'N/A',
+            'dropping_point' => $booking->dropping_point ?? '',
+            'customer_name' => $booking->customer_name ?? 'N/A',
+            'customer_phone' => $booking->customer_phone ?? 'N/A',
+            'bus_fee' => (string) round($busFee),
+            'base_fare' => (string) round($busFee),
+            'amount' => $booking->amount ?? '0',
+            'luggage_fee' => (string) round($luggageFee),
+            'service_fee' => (string) round($serviceFee),
+            'commision' => (string) round(($booking->fee ?? 0) + ($booking->vender_fee ?? 0)),
+            'service' => $booking->vender_fee ?? 'N/A',
+            'vendor_service' => $booking->vender_service ?? 'N/A',
+            'discount' => $booking->discount_amount ?? 'N/A',
+            'manifest_discount' => (string) $discountAmount,
+            'gov_levy' => (string) $totalGovLevy,
+            'gov_levy_service' => (string) $govLevyOnService,
+            'vat' => $booking->vat ?? 'N/A',
+            'total' => (string) $rowTotal,
+            'paid_fare' => (string) $rowTotal,
+            'gender' => $booking->gender ?? 'N/A',
+            'gender_code' => manifest_gender_code($booking->gender ?? null),
+            'age' => $booking->age ?? 'N/A',
+            'age_group' => $booking->age_group ?? 'N/A',
+            'passenger_type' => $booking->age_group ?: 'Adult',
+            'infant_child' => $booking->infant_child ?? 0,
+            'issue_date' => $booking->created_at ? $booking->created_at->format('d-m-y H:i') : '',
+            'issue_by' => manifest_issue_by($booking),
+            'id_type' => '',
+            'id_number' => '',
+            'remarks' => $booking->excess_luggage_description ?? '',
+            'excess_luggage' => (int) ($booking->has_excess_luggage ?? 0),
+            'excess_luggage_description' => $booking->excess_luggage_description ?? null,
+            'excess_luggage_fee' => $luggageFee > 0 ? (string) round($luggageFee) : null,
+        ];
+    }
+}
+
+if (!function_exists('apply_booking_history_date_filter')) {
+    /**
+     * Apply booking history period or custom date range to a query.
+     *
+     * @return array{period: ?string, startDate: ?string, endDate: ?string}
+     */
+    function apply_booking_history_date_filter($query, $request, string $dateColumn = 'created_at'): array
+    {
+        $period = $request->query('period');
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween($dateColumn, [
+                \Carbon\Carbon::parse($startDate)->startOfDay(),
+                \Carbon\Carbon::parse($endDate)->endOfDay(),
+            ]);
+        } elseif ($period) {
+            switch ($period) {
+                case 'today':
+                    $query->whereDate($dateColumn, today());
+                    break;
+                case 'week':
+                    $query->whereBetween($dateColumn, [now()->startOfWeek(), now()->endOfWeek()]);
+                    break;
+                case 'month':
+                    $query->whereMonth($dateColumn, now()->month)->whereYear($dateColumn, now()->year);
+                    break;
+                case 'year':
+                    $query->whereYear($dateColumn, now()->year);
+                    break;
+            }
+        }
+
+        return [
+            'period' => $period,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ];
+    }
+}
+
+if (! function_exists('transaction_payment_detail')) {
+    /**
+     * Resolve the payout account shown to admins (mobile money number or bank account).
+     */
+    function transaction_payment_detail($transaction): string
+    {
+        $unknown = __('system.common.unknown');
+        $method = strtolower(trim((string) ($transaction->payment_method ?? '')));
+
+        if ($method === 'bank') {
+            $bankName = '';
+            $bankNumber = '';
+
+            if ((int) ($transaction->vender_id ?? 0) > 0 && $transaction->user?->VenderAccount) {
+                $bankName = trim((string) ($transaction->user->VenderAccount->bank_name ?? ''));
+                $bankNumber = trim((string) ($transaction->user->VenderAccount->bank_number ?? ''));
+            }
+
+            if ($bankNumber === '') {
+                $bankNumber = trim((string) ($transaction->payment_number ?? ''));
+            }
+
+            if ($bankName !== '' && $bankNumber !== '') {
+                return $bankName . ' — ' . $bankNumber;
+            }
+
+            return $bankNumber !== '' ? $bankNumber : $unknown;
+        }
+
+        $paymentNumber = trim((string) ($transaction->payment_number ?? ''));
+
+        return $paymentNumber !== '' ? $paymentNumber : $unknown;
+    }
+}

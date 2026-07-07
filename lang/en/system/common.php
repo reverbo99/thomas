@@ -56,6 +56,7 @@ return [
     'reference_no' => 'Reference No',
     'payment_method' => 'Payment Method',
     'payment_number' => 'Payment Number',
+    'payment_details' => 'Payment Details',
     'customer' => 'Customer',
     'route' => 'Route',
     'travel_date' => 'Travel Date',

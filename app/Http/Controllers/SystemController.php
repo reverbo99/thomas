@@ -150,6 +150,18 @@ class SystemController extends Controller
         return view('system.buses', compact('buses'));
     }
 
+    public function printBusesPdf()
+    {
+        $this->requireAccess(Access::LINKS['BUSES']);
+
+        $buses = bus::with(['busname', 'route', 'campany'])
+            ->orderBy('bus_number')
+            ->get();
+
+        $pdf = Pdf::loadView('print.system_bus_list', compact('buses'));
+        return $pdf->download('buses_' . now()->format('Ymd_His') . '.pdf');
+    }
+
     /**
      * Pick a special hire business account before viewing coasters, orders, drivers, withdrawals.
      */
@@ -288,6 +300,300 @@ class SystemController extends Controller
         ));
     }
 
+    public function specialHireReportPdf(Request $request)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $tab = $this->resolveSpecialHireReportTab($request);
+        $payload = $this->buildSpecialHireIndexReportPayload($tab);
+
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.special_hire_report_empty'));
+        }
+
+        $pdf = Pdf::loadView($payload['view'], $payload['pdfData']);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('special_hire_' . $tab . '_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function specialHireReportCsv(Request $request)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $tab = $this->resolveSpecialHireReportTab($request);
+        $payload = $this->buildSpecialHireIndexReportPayload($tab);
+
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.special_hire_report_empty'));
+        }
+
+        return $this->streamSpecialHireCsv(
+            'special_hire_' . $tab . '_' . now()->format('Ymd_His') . '.csv',
+            $payload['headers'],
+            $payload['rows']
+        );
+    }
+
+    public function specialHireOwnerReportPdf(int $user)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $payload = $this->buildSpecialHireOwnerOrdersReportPayload($user);
+
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.special_hire_report_empty'));
+        }
+
+        $pdf = Pdf::loadView('print.special_hire_orders', $payload['pdfData']);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('special_hire_orders_' . $user . '_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function specialHireOwnerReportCsv(int $user)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $payload = $this->buildSpecialHireOwnerOrdersReportPayload($user);
+
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.special_hire_report_empty'));
+        }
+
+        return $this->streamSpecialHireCsv(
+            'special_hire_orders_' . $user . '_' . now()->format('Ymd_His') . '.csv',
+            $payload['headers'],
+            $payload['rows']
+        );
+    }
+
+    private function resolveSpecialHireReportTab(Request $request): string
+    {
+        $tab = $request->query('tab', 'accounts');
+
+        return in_array($tab, ['accounts', 'withdrawals', 'orders'], true) ? $tab : 'accounts';
+    }
+
+    private function buildSpecialHireIndexReportPayload(string $tab): array
+    {
+        if ($tab === 'withdrawals') {
+            $withdrawals = SpecialHireWithdrawalRequest::query()
+                ->with('user')
+                ->orderByDesc('created_at')
+                ->get();
+
+            $rows = $withdrawals->map(fn ($wr) => $this->mapSpecialHireWithdrawalRow($wr));
+
+            return [
+                'view' => 'print.special_hire_withdrawals',
+                'headers' => array_keys($rows->first() ?? $this->emptySpecialHireWithdrawalRow()),
+                'rows' => $rows,
+                'pdfData' => [
+                    'title' => __('system.pages.special_hire_withdrawals_report'),
+                    'rows' => $rows->values()->all(),
+                    'totals' => [
+                        'amount' => $withdrawals->sum(fn ($wr) => (float) $wr->amount),
+                    ],
+                ],
+            ];
+        }
+
+        if ($tab === 'orders') {
+            $orders = SpecialHireOrder::query()
+                ->with(['coaster', 'user'])
+                ->orderByDesc('created_at')
+                ->get();
+
+            $rows = $orders->map(fn ($order) => $this->mapSpecialHireOrderRow($order));
+
+            return [
+                'view' => 'print.special_hire_orders',
+                'headers' => array_keys($rows->first() ?? $this->emptySpecialHireOrderRow()),
+                'rows' => $rows,
+                'pdfData' => $this->specialHireOrdersPdfData(__('system.pages.special_hire_orders_report'), $orders, $rows),
+            ];
+        }
+
+        $owners = User::query()
+            ->where('role', 'special_hire')
+            ->withCount(['coasters', 'specialHireOrders'])
+            ->orderBy('name')
+            ->get();
+
+        $rows = $owners->map(fn ($owner) => $this->mapSpecialHireAccountRow($owner));
+
+        return [
+            'view' => 'print.special_hire_accounts',
+            'headers' => array_keys($rows->first() ?? $this->emptySpecialHireAccountRow()),
+            'rows' => $rows,
+            'pdfData' => [
+                'title' => __('system.pages.special_hire_accounts_report'),
+                'rows' => $rows->values()->all(),
+                'totals' => [
+                    'coasters' => $owners->sum('coasters_count'),
+                    'orders' => $owners->sum('special_hire_orders_count'),
+                ],
+            ],
+        ];
+    }
+
+    private function buildSpecialHireOwnerOrdersReportPayload(int $user): array
+    {
+        $owner = User::query()->where('role', 'special_hire')->findOrFail($user);
+
+        $orders = SpecialHireOrder::query()
+            ->where('user_id', $owner->id)
+            ->with(['coaster', 'user'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        $rows = $orders->map(fn ($order) => $this->mapSpecialHireOrderRow($order));
+
+        return [
+            'headers' => array_keys($rows->first() ?? $this->emptySpecialHireOrderRow()),
+            'rows' => $rows,
+            'pdfData' => $this->specialHireOrdersPdfData(
+                __('system.pages.special_hire_orders_report') . ' — ' . $owner->name,
+                $orders,
+                $rows,
+                $owner
+            ),
+        ];
+    }
+
+    private function specialHireOrdersPdfData(string $title, $orders, $rows, ?User $owner = null): array
+    {
+        return [
+            'title' => $title,
+            'operator' => $owner?->name,
+            'rows' => $rows->values()->all(),
+            'totals' => [
+                'count' => $orders->count(),
+                'total_amount' => $orders->sum(fn ($order) => (float) $order->total_amount),
+                'platform_commission' => $orders->sum(fn ($order) => (float) ($order->platform_commission_amount ?? 0)),
+                'operator_net' => $orders->sum(fn ($order) => $order->operatorNetAmount()),
+                'paid_amount' => $orders->where('payment_status', 'paid')->sum(fn ($order) => (float) $order->total_amount),
+            ],
+        ];
+    }
+
+    private function mapSpecialHireAccountRow(User $owner): array
+    {
+        return [
+            'name' => $owner->name,
+            'email' => $owner->email,
+            'contact' => $owner->contact ?? $owner->phone ?? '—',
+            'coasters' => (string) ($owner->coasters_count ?? 0),
+            'orders' => (string) ($owner->special_hire_orders_count ?? 0),
+            'platform_percent' => number_format((float) ($owner->special_hire_platform_percent ?? 0), 2),
+        ];
+    }
+
+    private function emptySpecialHireAccountRow(): array
+    {
+        return [
+            'name' => '',
+            'email' => '',
+            'contact' => '',
+            'coasters' => '',
+            'orders' => '',
+            'platform_percent' => '',
+        ];
+    }
+
+    private function mapSpecialHireWithdrawalRow(SpecialHireWithdrawalRequest $wr): array
+    {
+        return [
+            'date' => $wr->created_at?->format('Y-m-d H:i') ?? '—',
+            'operator' => $wr->user?->name ?? '—',
+            'email' => $wr->user?->email ?? '—',
+            'amount' => number_format((float) $wr->amount, 2),
+            'payment_method' => $wr->payment_method ?? '—',
+            'payment_number' => $wr->payment_number ?? '—',
+            'status' => $wr->status ?? '—',
+            'processed_at' => $wr->processed_at?->format('Y-m-d H:i') ?? '—',
+            'admin_note' => $wr->admin_note ?? '',
+        ];
+    }
+
+    private function emptySpecialHireWithdrawalRow(): array
+    {
+        return [
+            'date' => '',
+            'operator' => '',
+            'email' => '',
+            'amount' => '',
+            'payment_method' => '',
+            'payment_number' => '',
+            'status' => '',
+            'processed_at' => '',
+            'admin_note' => '',
+        ];
+    }
+
+    private function mapSpecialHireOrderRow(SpecialHireOrder $order): array
+    {
+        return [
+            'order_code' => $order->order_code,
+            'operator' => $order->user?->name ?? '—',
+            'created_at' => $order->created_at?->format('Y-m-d H:i') ?? '—',
+            'coaster' => $order->coaster?->name ?? '—',
+            'plate' => $order->coaster?->plate_number ?? '—',
+            'customer_name' => $order->customer_name ?? '—',
+            'customer_phone' => $order->customer_phone ?? '—',
+            'pickup' => $order->pickup_location ?? '—',
+            'dropoff' => $order->dropoff_location ?? '—',
+            'hire_date' => $order->hire_date?->format('Y-m-d') ?? '—',
+            'passengers' => (string) ($order->passengers_count ?? 0),
+            'distance_km' => number_format((float) ($order->distance_km ?? 0), 2),
+            'total_amount' => number_format((float) $order->total_amount, 2),
+            'platform_commission' => number_format((float) ($order->platform_commission_amount ?? 0), 2),
+            'operator_net' => number_format($order->operatorNetAmount(), 2),
+            'payment_status' => $order->payment_status ?? '—',
+            'order_status' => $order->order_status ?? '—',
+            'payment_method' => $order->payment_method ?? '—',
+        ];
+    }
+
+    private function emptySpecialHireOrderRow(): array
+    {
+        return [
+            'order_code' => '',
+            'operator' => '',
+            'created_at' => '',
+            'coaster' => '',
+            'plate' => '',
+            'customer_name' => '',
+            'customer_phone' => '',
+            'pickup' => '',
+            'dropoff' => '',
+            'hire_date' => '',
+            'passengers' => '',
+            'distance_km' => '',
+            'total_amount' => '',
+            'platform_commission' => '',
+            'operator_net' => '',
+            'payment_status' => '',
+            'order_status' => '',
+            'payment_method' => '',
+        ];
+    }
+
+    private function streamSpecialHireCsv(string $filename, array $headers, $rows)
+    {
+        return response()->streamDownload(function () use ($headers, $rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, $headers);
+            foreach ($rows as $row) {
+                fputcsv($handle, array_values($row instanceof \Illuminate\Support\Collection ? $row->all() : (array) $row));
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
     public function updateSpecialHireWithdrawal(Request $request, int $id)
     {
         abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
@@ -338,16 +644,129 @@ class SystemController extends Controller
     public function pay_request(Request $request)
     {
         $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
-        // Fetch pending transactions
-        $pendingTransactions = Transaction::whereIn('status', ['Pending'])
-            ->with(['campany', 'user'])
-            ->get();
 
-        // Fetch all transactions (default: no filter)
-        $allTransactions = Transaction::with(['campany', 'user'])->get();
+        $queries = $this->buildPaymentRequestQueries($request);
+        $pendingTransactions = $queries['pendingQuery']->orderByDesc('created_at')->get();
+        $allTransactions = $queries['allQuery']->orderByDesc('created_at')->get();
+        $allTransactionsTotal = $allTransactions->sum('amount');
+        $dateFilter = $queries['dateFilter'];
 
-        // Pass modal state from query parameter
-        return view('system.transaction', compact('pendingTransactions', 'allTransactions'));
+        return view('system.transaction', array_merge(
+            compact('pendingTransactions', 'allTransactions', 'allTransactionsTotal'),
+            [
+                'period' => $dateFilter['period'],
+                'startDate' => $dateFilter['startDate'],
+                'endDate' => $dateFilter['endDate'],
+            ]
+        ));
+    }
+
+    public function paymentRequestReportPdf(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
+
+        $payload = $this->buildPaymentRequestExportPayload($request);
+        if ($payload['pendingRows']->isEmpty() && $payload['allRows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.no_transactions_filter'));
+        }
+
+        $pdf = Pdf::loadView('print.payment_request', $payload['pdfData']);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('payment_requests_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function paymentRequestReportCsv(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
+
+        $payload = $this->buildPaymentRequestExportPayload($request);
+        if ($payload['csvRows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.no_transactions_filter'));
+        }
+
+        return $this->streamSpecialHireCsv(
+            'payment_requests_' . now()->format('Ymd_His') . '.csv',
+            $payload['headers'],
+            $payload['csvRows']
+        );
+    }
+
+    private function buildPaymentRequestQueries(Request $request): array
+    {
+        $pendingQuery = Transaction::whereRaw('LOWER(status) = ?', ['pending'])
+            ->with(['campany', 'user.VenderAccount']);
+        $dateFilter = apply_booking_history_date_filter($pendingQuery, $request);
+
+        $allQuery = Transaction::with(['campany', 'user.VenderAccount']);
+        apply_booking_history_date_filter($allQuery, $request);
+
+        return [
+            'pendingQuery' => $pendingQuery,
+            'allQuery' => $allQuery,
+            'dateFilter' => $dateFilter,
+        ];
+    }
+
+    private function buildPaymentRequestExportPayload(Request $request): array
+    {
+        $queries = $this->buildPaymentRequestQueries($request);
+        $pending = $queries['pendingQuery']->orderByDesc('created_at')->get();
+        $all = $queries['allQuery']->orderByDesc('created_at')->get();
+        $dateFilter = $queries['dateFilter'];
+
+        $pendingRows = $pending->map(fn ($transaction) => $this->mapPaymentRequestRow($transaction, 'pending'));
+        $allRows = $all->map(fn ($transaction) => $this->mapPaymentRequestRow($transaction, 'all'));
+        $csvRows = $pendingRows->concat($allRows);
+
+        return [
+            'headers' => array_keys($csvRows->first() ?? $this->emptyPaymentRequestRow()),
+            'csvRows' => $csvRows,
+            'pendingRows' => $pendingRows,
+            'allRows' => $allRows,
+            'pdfData' => [
+                'title' => __('system.transactions.report_title'),
+                'period' => $dateFilter['period'] ?? '',
+                'startDate' => $dateFilter['startDate'],
+                'endDate' => $dateFilter['endDate'],
+                'pendingRows' => $pendingRows->values()->all(),
+                'allRows' => $allRows->values()->all(),
+                'pendingTotal' => (float) $pending->sum('amount'),
+                'allTotal' => (float) $all->sum('amount'),
+            ],
+        ];
+    }
+
+    private function mapPaymentRequestRow(Transaction $transaction, string $section): array
+    {
+        return [
+            'section' => $section === 'pending'
+                ? __('system.transactions.requested_transactions')
+                : __('system.transactions.all_transactions'),
+            'company' => $transaction->campany ? $transaction->campany->name : __('system.common.vender_label'),
+            'user' => $transaction->user ? $transaction->user->name : __('system.common.unknown'),
+            'payment_method' => $transaction->payment_method ?? '—',
+            'payment_number' => transaction_payment_detail($transaction),
+            'amount' => number_format((float) $transaction->amount, 2),
+            'status' => $transaction->status,
+            'reference_number' => $transaction->reference_number ?? '—',
+            'date' => optional($transaction->created_at)->format('Y-m-d H:i') ?? '—',
+        ];
+    }
+
+    private function emptyPaymentRequestRow(): array
+    {
+        return [
+            'section' => '',
+            'company' => '',
+            'user' => '',
+            'payment_method' => '',
+            'payment_number' => '',
+            'amount' => '',
+            'status' => '',
+            'reference_number' => '',
+            'date' => '',
+        ];
     }
 
     public function filter(Request $request)
@@ -361,7 +780,7 @@ class SystemController extends Controller
         ]);
 
         // Fetch pending transactions (unchanged by filter)
-        $pendingTransactions = Transaction::whereIn('status', ['Pending'])
+        $pendingTransactions = Transaction::whereRaw('LOWER(status) = ?', ['pending'])
             ->with(['campany', 'user'])
             ->get();
 
@@ -450,26 +869,44 @@ class SystemController extends Controller
         }
     }
 
-    public function cancel($transaction, $campany = null, $vender = null)
+    public function cancel(Request $request, $transaction, $campany = null, $vender = null)
     {
         $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
+        $request->validate([
+            'cancel_reason' => 'required|string|max:500',
+        ]);
+
         $transaction = Transaction::findOrFail($transaction);
 
         if ($campany != 0 && (int) $transaction->campany_id !== (int) $campany) {
             return redirect()->back()->with('error', __('system.messages.invalid_company_transaction'));
         }
 
-        // If transaction was pending, refund the amount back to balance
-        if ($transaction->status === 'Pending' && $campany != 0) {
-            $balance = balance::where('campany_id', $campany)->first();
-            if ($balance) {
-                $balance->amount += $transaction->amount;
-                $balance->save();
-            }
-        }
+        $companyId = (int) ($transaction->campany_id ?? 0);
+        $isPending = strtolower((string) $transaction->status) === 'pending';
 
-        $transaction->status = 'Cancelled';
-        $transaction->save();
+        try {
+            \DB::beginTransaction();
+
+            // If transaction was pending, refund the amount back to company balance
+            if ($isPending && $companyId > 0) {
+                $balance = balance::where('campany_id', $companyId)->first();
+                if ($balance) {
+                    $balance->amount += $transaction->amount;
+                    $balance->save();
+                }
+            }
+
+            $transaction->cancel_reason = $request->cancel_reason;
+            $transaction->status = 'Cancelled';
+            $transaction->save();
+
+            \DB::commit();
+        } catch (\Exception $e) {
+            \DB::rollBack();
+
+            return redirect()->back()->with('error', __('system.messages.transaction_cancel_failed'));
+        }
 
         return redirect()->back()->with('success', __('system.messages.transaction_cancelled'));
     }
@@ -480,6 +917,16 @@ class SystemController extends Controller
 
         $campanies = Campany::all();
         return view('system.campany', compact('campanies'));
+    }
+
+    public function printCampaniesPdf()
+    {
+        $this->requireAccess(Access::LINKS['BUS_OPERATORS']);
+
+        $campanies = Campany::with(['user', 'balance'])->orderBy('name')->get();
+
+        $pdf = Pdf::loadView('print.campany_list', compact('campanies'));
+        return $pdf->download('bus_operators_' . now()->format('Ymd_His') . '.pdf');
     }
 
     public function campany_status(Request $request)
@@ -563,6 +1010,63 @@ class SystemController extends Controller
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
 
+        $query = $this->buildGovernmentLevyBookingsQuery($request);
+        $summaryQuery = clone $query;
+        $tableQuery = clone $query;
+
+        $hasGovernmentLevyColumn = Schema::hasColumn('bookings', 'government_levy');
+        $hasSystemServiceFeeColumn = Schema::hasColumn('bookings', 'system_service_fee');
+
+        $bookings = $tableQuery->latest()->paginate(50)->withQueryString();
+        $totals = $this->computeGovernmentLevyTotals($summaryQuery, $hasGovernmentLevyColumn, $hasSystemServiceFeeColumn);
+
+        return view('system.government_levy', compact(
+            'bookings',
+            'period',
+            'startDate',
+            'endDate',
+            'hasGovernmentLevyColumn',
+            'hasSystemServiceFeeColumn'
+        ) + $totals);
+    }
+
+    public function governmentLevyReportPdf(Request $request)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SYSTEM_INCOME']), 403);
+
+        $payload = $this->buildGovernmentLevyExportPayload($request);
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.no_paid_bookings_filter'));
+        }
+
+        $pdf = Pdf::loadView('print.government_levy', $payload['pdfData']);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('government_levy_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function governmentLevyReportCsv(Request $request)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SYSTEM_INCOME']), 403);
+
+        $payload = $this->buildGovernmentLevyExportPayload($request);
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.no_paid_bookings_filter'));
+        }
+
+        return $this->streamSpecialHireCsv(
+            'government_levy_' . now()->format('Ymd_His') . '.csv',
+            $payload['headers'],
+            $payload['rows']
+        );
+    }
+
+    private function buildGovernmentLevyBookingsQuery(Request $request)
+    {
+        $period = $request->query('period', 'month');
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
         $query = Booking::query()
             ->where('payment_status', 'Paid')
             ->with(['campany', 'route', 'vender', 'governmentLeviesOnService']);
@@ -582,13 +1086,11 @@ class SystemController extends Controller
             ]);
         }
 
-        $summaryQuery = clone $query;
-        $tableQuery = clone $query;
+        return $query;
+    }
 
-        $hasGovernmentLevyColumn = Schema::hasColumn('bookings', 'government_levy');
-        $hasSystemServiceFeeColumn = Schema::hasColumn('bookings', 'system_service_fee');
-
-        $bookings = $tableQuery->latest()->paginate(50)->withQueryString();
+    private function computeGovernmentLevyTotals($summaryQuery, bool $hasGovernmentLevyColumn, bool $hasSystemServiceFeeColumn): array
+    {
         $totalPaidAmount = (float) $summaryQuery->sum('amount');
         $totalVat = (float) $summaryQuery->sum('vat');
         $totalGovLevyOnFare = $hasGovernmentLevyColumn ? (float) $summaryQuery->sum('government_levy') : 0.0;
@@ -599,44 +1101,150 @@ class SystemController extends Controller
         $totalGovernmentLevy = $totalGovLevyOnFare + $totalGovLevyOnService;
         $totalSystemServiceFee = $hasSystemServiceFeeColumn ? (float) $summaryQuery->sum('system_service_fee') : 0.0;
 
-        return view('system.government_levy', compact(
-            'bookings',
-            'period',
-            'startDate',
-            'endDate',
+        return compact(
             'totalPaidAmount',
             'totalVat',
             'totalGovLevyOnFare',
             'totalGovLevyOnService',
             'totalGovernmentLevy',
-            'totalSystemServiceFee',
-            'hasGovernmentLevyColumn',
-            'hasSystemServiceFeeColumn'
-        ));
+            'totalSystemServiceFee'
+        );
+    }
+
+    private function buildGovernmentLevyExportPayload(Request $request): array
+    {
+        $query = $this->buildGovernmentLevyBookingsQuery($request);
+        $hasGovernmentLevyColumn = Schema::hasColumn('bookings', 'government_levy');
+        $hasSystemServiceFeeColumn = Schema::hasColumn('bookings', 'system_service_fee');
+        $totals = $this->computeGovernmentLevyTotals(clone $query, $hasGovernmentLevyColumn, $hasSystemServiceFeeColumn);
+
+        $bookings = $query->latest()->get();
+        $rows = $bookings->map(fn ($booking) => $this->mapGovernmentLevyRow($booking));
+
+        return [
+            'headers' => array_keys($rows->first() ?? $this->emptyGovernmentLevyRow()),
+            'rows' => $rows,
+            'pdfData' => [
+                'title' => __('system.pages.levy_title'),
+                'period' => $request->query('period', 'month'),
+                'startDate' => $request->query('start_date'),
+                'endDate' => $request->query('end_date'),
+                'rows' => $rows->values()->all(),
+                'totals' => $totals,
+            ],
+        ];
+    }
+
+    private function mapGovernmentLevyRow(Booking $booking): array
+    {
+        $govLevyOnFare = (float) ($booking->government_levy ?? 0);
+        $govLevyOnService = (float) $booking->governmentLeviesOnService->sum('amount');
+        $totalGovLevy = $govLevyOnFare + $govLevyOnService;
+
+        return [
+            'booking_code' => $booking->booking_code ?? 'N/A',
+            'date' => optional($booking->created_at)->format('Y-m-d H:i') ?? '—',
+            'route' => ($booking->route->from ?? 'N/A') . ' - ' . ($booking->route->to ?? 'N/A'),
+            'vendor' => ($booking->vender_id ?? 0) > 0 ? 'Involved' : 'Not Involved',
+            'paid_amount' => number_format((float) ($booking->amount ?? 0), 2),
+            'vat' => number_format((float) ($booking->vat ?? 0), 2),
+            'gov_levy_fare' => number_format($govLevyOnFare, 2),
+            'gov_levy_service' => number_format($govLevyOnService, 2),
+            'total_gov_levy' => number_format($totalGovLevy, 2),
+            'system_service_fee' => number_format((float) ($booking->system_service_fee ?? 0), 2),
+        ];
+    }
+
+    private function emptyGovernmentLevyRow(): array
+    {
+        return [
+            'booking_code' => '',
+            'date' => '',
+            'route' => '',
+            'vendor' => '',
+            'paid_amount' => '',
+            'vat' => '',
+            'gov_levy_fare' => '',
+            'gov_levy_service' => '',
+            'total_gov_levy' => '',
+            'system_service_fee' => '',
+        ];
     }
 
     public function history(Request $request)
     {
         $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
         $query = Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService']);
-        // Apply period filter from sidebar dropdown
-        if ($request->has('period')) {
-            switch ($request->period) {
-                case 'today':
-                    $query->whereDate('created_at', today());
-                    break;
-                case 'week':
-                    $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
-                    break;
-                case 'month':
-                    $query->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year);
-                    break;
-                case 'year':
-                    $query->whereYear('created_at', now()->year);
-                    break;
+        $dateFilter = apply_booking_history_date_filter($query, $request);
+        $period = $dateFilter['period'];
+        $startDate = $dateFilter['startDate'];
+        $endDate = $dateFilter['endDate'];
+        $this->applyHistoryChannelFilter($query, $request);
+
+        $bookings = $query->where('payment_status', 'Paid')->latest()->get();
+
+        $totalPayment = $bookings->sum(fn ($b) => ($b->amount ?? 0) + ($b->vat ?? 0));
+        $totalDiscount = $bookings->sum('discount_amount');
+        $totalVAT = $bookings->sum('vat');
+        $grandTotal = $bookings->sum(fn ($b) => round(($b->fee ?? 0) + ($b->vender_fee ?? 0) + ($b->amount ?? 0) + ($b->vat ?? 0) + ($b->fee_vat ?? 0)));
+
+        return view('system.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal', 'period', 'startDate', 'endDate'))
+            ->with('channelFilter', $request->get('channel'));
+    }
+
+    public function printManifestAll(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
+
+        $bookings = $this->buildHistoryBookingsQuery($request)->orderBy('seat')->get();
+
+        if ($bookings->isEmpty()) {
+            return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
+        }
+
+        $sections = [];
+        foreach ($bookings->groupBy(fn ($booking) => optional($booking->bus)->bus_number ?? '') as $busNumber => $busBookings) {
+            if ($busNumber === '') {
+                continue;
+            }
+
+            $bus = bus::where('bus_number', $busNumber)->first();
+            if (!$bus) {
+                continue;
+            }
+
+            $data = $busBookings
+                ->sortBy('seat')
+                ->map(fn ($booking) => booking_to_report_row($booking))
+                ->values()
+                ->all();
+
+            if (!empty($data)) {
+                $sections[] = ['bus' => $bus, 'bookings' => $data];
             }
         }
 
+        if (empty($sections)) {
+            return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
+        }
+
+        $pdf = Pdf::loadView('print.manifest_all', compact('sections'));
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('manifest_all_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    private function buildHistoryBookingsQuery(Request $request)
+    {
+        $query = Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService']);
+        apply_booking_history_date_filter($query, $request);
+        $this->applyHistoryChannelFilter($query, $request);
+
+        return $query->where('payment_status', 'Paid');
+    }
+
+    private function applyHistoryChannelFilter($query, Request $request): void
+    {
         if ($request->filled('channel') && in_array($request->channel, ['online', 'in_person', 'phone'], true)) {
             $channel = $request->channel;
             $query->where(function ($q) use ($channel) {
@@ -652,41 +1260,88 @@ class SystemController extends Controller
                 }
             });
         }
-
-        $bookings = $query->where('payment_status', 'Paid')->latest()->get();
-
-        $totalPayment = $bookings->sum(fn ($b) => ($b->amount ?? 0) + ($b->vat ?? 0));
-        $totalDiscount = $bookings->sum('discount_amount');
-        $totalVAT = $bookings->sum('vat');
-        $grandTotal = $bookings->sum(fn ($b) => round(($b->fee ?? 0) + ($b->vender_fee ?? 0) + ($b->amount ?? 0) + ($b->vat ?? 0) + ($b->fee_vat ?? 0)));
-
-        return view('system.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal'))
-            ->with('channelFilter', $request->get('channel'));
     }
 
     public function print(Request $request)
     {
         $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
-        $data = $request->data;
-        
-        // Validate that data exists
-        if (empty($data)) {
-            return redirect()->back()->with('error', __('system.messages.no_income_data'));
-        }
-        
-        $data = json_decode($data, true);
-        
-        // Validate JSON decode was successful
-        if ($data === null || !is_array($data)) {
-            return redirect()->back()->with('error', __('system.messages.invalid_income_format'));
-        }
-        
-        // Validate that data array is not empty
-        if (empty($data)) {
+
+        $data = $this->resolvePrintBookingRows($request);
+        if ($data === null) {
             return redirect()->back()->with('error', __('system.messages.no_booking_income_data'));
         }
 
         return $this->generatePDF($data);
+    }
+
+    public function printService(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
+
+        $data = $this->resolvePrintBookingRows($request);
+        if ($data === null) {
+            return redirect()->back()->with('error', __('system.messages.no_booking_income_data'));
+        }
+
+        $pdf = Pdf::loadView('print.service_list', ['bookings' => $data]);
+        return $pdf->download('service-fees-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function printCommission(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
+
+        $data = $this->resolvePrintBookingRows($request);
+        if ($data === null) {
+            return redirect()->back()->with('error', __('system.messages.no_booking_income_data'));
+        }
+
+        $pdf = Pdf::loadView('print.commission_list', ['bookings' => $data]);
+        return $pdf->download('commission-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    private function resolvePrintBookingRows(Request $request): ?array
+    {
+        if ($request->filled('booking_ids')) {
+            $bookings = $this->bookingsFromPrintRequest($request);
+            if ($bookings->isEmpty()) {
+                return null;
+            }
+
+            return $bookings
+                ->map(fn ($booking) => booking_to_report_row($booking))
+                ->values()
+                ->all();
+        }
+
+        if (!$request->filled('data')) {
+            return null;
+        }
+
+        $data = json_decode($request->data, true);
+        if ($data === null || !is_array($data) || empty($data)) {
+            return null;
+        }
+
+        return $data;
+    }
+
+    private function bookingsFromPrintRequest(Request $request)
+    {
+        $ids = is_array($request->booking_ids)
+            ? $request->booking_ids
+            : (array) json_decode($request->booking_ids, true);
+        $ids = array_filter(array_map('intval', $ids));
+
+        if (empty($ids)) {
+            return collect();
+        }
+
+        return Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService'])
+            ->whereIn('id', $ids)
+            ->where('payment_status', 'Paid')
+            ->orderBy('created_at', 'desc')
+            ->get();
     }
 
     public function generatePDF($data)
@@ -706,6 +1361,19 @@ class SystemController extends Controller
         $this->requireAccess(Access::LINKS['VENDORS']);
         $venders = User::where('role', 'vender')->get();
         return view('system.vender', compact('venders'));
+    }
+
+    public function printVendersPdf()
+    {
+        $this->requireAccess(Access::LINKS['VENDORS']);
+
+        $venders = User::where('role', 'vender')
+            ->with(['VenderBalances', 'VenderAccount'])
+            ->orderBy('name')
+            ->get();
+
+        $pdf = Pdf::loadView('print.vender_list', compact('venders'));
+        return $pdf->download('vendors_' . now()->format('Ymd_His') . '.pdf');
     }
 
     public function vender_status(Request $request)
@@ -1072,8 +1740,88 @@ class SystemController extends Controller
     public function refunds()
     {
         $this->requireAccess(Access::LINKS['REFUNDS']);
-        $refunds = Refund::all();
+        $refunds = Refund::orderByDesc('id')->get();
+
         return view('system.refunds', compact('refunds'));
+    }
+
+    public function refundsReportPdf()
+    {
+        $this->requireAccess(Access::LINKS['REFUNDS']);
+
+        $payload = $this->buildRefundsExportPayload();
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.refunds.no_refunds'));
+        }
+
+        $pdf = Pdf::loadView('print.refunds', $payload['pdfData']);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('refunds_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function refundsReportCsv()
+    {
+        $this->requireAccess(Access::LINKS['REFUNDS']);
+
+        $payload = $this->buildRefundsExportPayload();
+        if ($payload['rows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.refunds.no_refunds'));
+        }
+
+        return $this->streamSpecialHireCsv(
+            'refunds_' . now()->format('Ymd_His') . '.csv',
+            $payload['headers'],
+            $payload['rows']
+        );
+    }
+
+    private function buildRefundsExportPayload(): array
+    {
+        $refunds = Refund::orderByDesc('id')->get();
+        $rows = $refunds->map(fn ($refund) => $this->mapRefundRow($refund));
+
+        return [
+            'headers' => array_keys($rows->first() ?? $this->emptyRefundRow()),
+            'rows' => $rows,
+            'pdfData' => [
+                'title' => __('system.refunds.report_title'),
+                'rows' => $rows->values()->all(),
+                'totals' => [
+                    'count' => $refunds->count(),
+                    'pendingCount' => $refunds->where('status', 'Pending')->count(),
+                    'approvedCount' => $refunds->where('status', 'Approved')->count(),
+                    'rejectedCount' => $refunds->where('status', 'Rejected')->count(),
+                    'pendingAmount' => (float) $refunds->where('status', 'Pending')->sum('amount'),
+                    'approvedAmount' => (float) $refunds->where('status', 'Approved')->sum('amount'),
+                    'totalAmount' => (float) $refunds->sum('amount'),
+                ],
+            ],
+        ];
+    }
+
+    private function mapRefundRow(Refund $refund): array
+    {
+        return [
+            'booking_code' => $refund->booking_code ?? '—',
+            'amount' => number_format((float) $refund->amount, 2),
+            'status' => $refund->status,
+            'phone' => $refund->phone ?? '—',
+            'fullname' => $refund->fullname ?? '—',
+            'date' => optional($refund->created_at)->format('Y-m-d H:i') ?? '—',
+        ];
+    }
+
+    private function emptyRefundRow(): array
+    {
+        return [
+            'booking_code' => '',
+            'amount' => '',
+            'status' => '',
+            'phone' => '',
+            'fullname' => '',
+            'date' => '',
+        ];
     }
 
     public function approveRefund($id)

@@ -205,16 +205,19 @@
                 <tr>
                     <td>Seat number:</td>
                 <td>{{ $data->seat ?? 'N/A' }}</td>
-                </tr> 
+                </tr>
+                @include('partials.booking_payment_amounts', ['data' => $data])
+                @if ($breakdownLuggageFee > 0)
+                <tr>
+                    <td>Luggage amount:</td>
+                    <td>{{ number_format($breakdownLuggageFee, 2) }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>Service Amount:</td>
                     <td>
                         @php
-                            $serviceAmount = (float)($data->service ?? 0) + (float)($data->vender_service ?? 0);
-                            if ($serviceAmount <= 0 && isset($data->vender) && $data->vender && $data->vender->VenderBalances) {
-                                $serviceAmount = (float)($data->vender->VenderBalances->fees ?? 0);
-                            }
-                            echo $serviceAmount > 0 ? ceil($serviceAmount) : 'N/A';
+                            echo $breakdownServiceFee > 0 ? number_format($breakdownServiceFee, 2) : 'N/A';
                         @endphp
                     </td>
                 </tr>

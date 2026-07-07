@@ -69,14 +69,21 @@
                             </svg>
                             <h4 class="text-lg font-semibold text-gray-800">Payment Details</h4>
                         </div>
+                        @include('partials.booking_payment_amounts', ['booking' => $booking])
                         <div class="space-y-3">
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Ticket Fee:</span>
-                                <span class="font-medium text-gray-600">{{ number_format($booking->busFee, 2) }}</span>
+                                <span class="font-medium text-gray-600">{{ number_format($breakdownTicketFee, 2) }}</span>
                             </div>
+                            @if ($breakdownLuggageFee > 0)
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">{{ __('all.excess_luggage') }}:</span>
+                                <span class="font-medium text-gray-600">{{ number_format($breakdownLuggageFee, 2) }}</span>
+                            </div>
+                            @endif
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Service Fee:</span>
-                                <span class="font-medium text-gray-600">{{ number_format($booking->service + $booking->vender_service + $booking->service_vat, 2) }}</span>
+                                <span class="font-medium text-gray-600">{{ number_format($breakdownServiceFee, 2) }}</span>
                             </div>
                             @if ($booking->vender_id > 0)
                             <div class="flex justify-between">
@@ -107,7 +114,7 @@
                             <div class="flex justify-between border-t border-gray-200 pt-2 mt-2">
                                 <span class="font-semibold">Total Amount:</span>
                                 <span class="font-bold text-blue-600">
-                                    {{ number_format($booking->busFee + $booking->service + $booking->vender_service + $booking->service_vat + $booking->bima_amount, 2) }}
+                                    {{ number_format($breakdownAmountPaid, 2) }}
                                 </span>
                             </div>
                             <div class="flex justify-between">

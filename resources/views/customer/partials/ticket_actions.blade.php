@@ -34,7 +34,7 @@
 
         <form action="{{ route('ticket.print') }}" method="post">
             @csrf
-            <input type="hidden" name="data" value="{{ $book }}">
+            <input type="hidden" name="data" value='@json(["id" => $book->id])'>
             <button type="submit" class="ticket-action-btn ticket-action-btn--warning" title="{{ __('all.print_title') }}">
                 <i class="fas fa-print"></i>
             </button>

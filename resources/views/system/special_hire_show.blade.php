@@ -205,9 +205,21 @@
     </div>
 
     <div id="transactions" class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
-        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h2 class="text-lg font-semibold text-gray-800">Hire orders</h2>
-            <p class="text-sm text-gray-500">Latest {{ $orders->count() }} (max 150). New hires are accepted or declined by the assigned driver in the driver app; this list is read-only for monitoring.</p>
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-800">Hire orders</h2>
+                <p class="text-sm text-gray-500">Latest {{ $orders->count() }} (max 150). New hires are accepted or declined by the assigned driver in the driver app; this list is read-only for monitoring.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('system.special_hire.show.report.pdf', $selectedOwner->id) }}" target="_blank"
+                   class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
+                    {{ __('system.pages.export_pdf') }}
+                </a>
+                <a href="{{ route('system.special_hire.show.report.csv', $selectedOwner->id) }}"
+                   class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                    {{ __('system.pages.export_csv') }}
+                </a>
+            </div>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">

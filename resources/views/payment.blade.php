@@ -202,7 +202,7 @@
                                                        onchange="toggleDateInput()"
                                                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
                                                 <label for="Insurance" class="ml-2 block text-sm font-medium text-gray-700">
-                                                    {{ __('all.insurance') }} ({{ $currency }} {{ convert_money(3700) }})
+                                                    {{ __('all.insurance') }} ({{ insurance_local_rate_display() }}/{{ __('all.day') ?? 'day' }})
                                                 </label>
                                             </div>
                                             

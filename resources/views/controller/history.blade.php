@@ -22,6 +22,13 @@
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row items-center gap-2 flex-wrap">
+                    @include('partials.booking_history_period_filter', [
+                        'formAction' => route('history'),
+                        'resetUrl' => route('history'),
+                        'period' => $period ?? request('period'),
+                        'startDate' => $startDate ?? request('start_date'),
+                        'endDate' => $endDate ?? request('end_date'),
+                    ])
                     <div class="relative w-full sm:w-auto">
                         <button type="button"
                             class="px-3 py-2 bg-white text-blue-500 rounded-lg hover:bg-blue-50 transition flex items-center gap-1 text-sm w-full sm:w-auto"

@@ -25,7 +25,14 @@
                 </svg>
                 <h3 class="text-xl font-semibold text-gray-800">{{ __('system.vendors.title') }}</h3>
             </div>
-            <div class="mt-4 sm:mt-0 flex items-center space-x-4">
+            <div class="mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <a href="{{ route('system.vender.print') }}" target="_blank"
+                   class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v2h12V3z"/>
+                    </svg>
+                    {{ __('system.vendors.print_all') }}
+                </a>
                 <span class="text-sm font-medium bg-gray-100 px-3 py-1 rounded-lg">
                     {{ __('system.vendors.total_balance') }} <span class="font-bold text-blue-600" id="vendorTotal">0</span>
                 </span>
@@ -182,7 +189,15 @@
 <script>
 // Initialize DataTable
 $(document).ready(function() {
-    const vendorTable = $('#vendorTable').DataTable({
+    $.fn.dataTable.ext.errMode = 'none';
+    var $table = $('#vendorTable');
+    var columnCount = $table.find('thead tr:first th').length;
+    var firstRowCells = $table.find('tbody tr:first td').length;
+    if (firstRowCells !== 0 && firstRowCells !== columnCount) {
+        return;
+    }
+
+    const vendorTable = $table.DataTable({
         responsive: true,
         paging: true,
         pageLength: 10,

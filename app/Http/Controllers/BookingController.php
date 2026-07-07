@@ -666,8 +666,6 @@ class BookingController extends Controller
         $bus_info['category'] = $request->category;
         $bus_info['start'] = session()->get('time')['start'];
         $bus_info['end'] = session()->get('time')['end'];
-        $bus_info['bima'] = $request->Insurance ?? 0;
-        $bus_info['insuranceDate'] = $request->insuranceDate;
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? 0;
         $bus_info['cancel_key'] = $request->key ?? '';
@@ -675,6 +673,16 @@ class BookingController extends Controller
         $bus_info['has_excess_luggage'] = $request->excess_luggage ?? 0; // Canonical DB flag
         $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
         session()->put('booking_form', $bus_info);
+
+        $insuranceError = process_booking_insurance_input($request, $bus_info);
+        session()->put('booking_form', $bus_info);
+        if ($insuranceError) {
+            if ($this->isInlineBookingRequest($request)) {
+                return response()->json(['ok' => false, 'message' => __($insuranceError)], 422);
+            }
+
+            return redirect()->to(booking_route('pay'))->with('error', __($insuranceError));
+        }
 
         if (!empty($bus_info['discount'])) {
             $couponCheck = Discount::where('code', $bus_info['discount'])->first();
@@ -715,27 +723,9 @@ class BookingController extends Controller
             return $new;
         }
 
-        $ins = 0;
+        $ins = (float) ($bus_info['bima_amount'] ?? 0);
         $dis = 0;
         $setting = Setting::first();
-        if ((session()->get('booking_form')['bima'] ?? 0) == 1) {
-
-            if ($request->type == 'local') {
-                $ins = $setting->local;
-            } else {
-                $ins = $setting->international;
-            }
-            $insuranceDate = session()->get('booking_form')['insuranceDate'];
-            $today = \Carbon\Carbon::parse(session()->get('booking_form')['travel_date']);
-            //$today = session()->get('booking_form')['travel_date'];
-            $travelDate = \Carbon\Carbon::parse($insuranceDate);
-            $days = max(1, abs($today->diffInDays($insuranceDate, false)) + 1);
-            $ins *= $days;
-            $bus_info = session()->get('booking_form', []);
-            $bus_info['bima_amount'] = $ins;
-            session()->put('booking_form', $bus_info);
-            //return $days; 
-        }
 
         $total_amount = session()->get('booking_form')['total_amount'];
 
@@ -1638,10 +1628,6 @@ class BookingController extends Controller
         if (is_object($data) && !isset($data->payment_number)) {
             $data->payment_number = null;
         }
-
-        $dns2d = new DNS2D();
-        $qrCode = $dns2d->getBarcodeHTML($data->booking_code, 'QRCODE', 6, 6, 'black');
-        $data->qrcode = $qrCode;
 
         $pdf = Pdf::loadView('print.ticket', ['data' => $data]);
         $pdf->setPaper([0, 0, 4 * 72, 10 * 72], 'portrait'); // 4"x10"

@@ -120,7 +120,8 @@
                             <li role="menuitem"><a class="block px-4 py-2 hover:bg-gray-600 rounded-t-lg" href="{{ route('system.history') }}?period=today">{{ __('system.sidebar.today') }}</a></li>
                             <li role="menuitem"><a class="block px-4 py-2 hover:bg-gray-600" href="{{ route('system.history') }}?period=week">{{ __('system.sidebar.week') }}</a></li>
                             <li role="menuitem"><a class="block px-4 py-2 hover:bg-gray-600" href="{{ route('system.history') }}?period=month">{{ __('system.sidebar.month') }}</a></li>
-                            <li role="menuitem"><a class="block px-4 py-2 hover:bg-gray-600 rounded-b-lg" href="{{ route('system.history') }}?period=year">{{ __('system.sidebar.year') }}</a></li>
+                            <li role="menuitem"><a class="block px-4 py-2 hover:bg-gray-600" href="{{ route('system.history') }}?period=year">{{ __('system.sidebar.year') }}</a></li>
+                            <li role="menuitem"><a class="block px-4 py-2 hover:bg-gray-600 rounded-b-lg" href="{{ route('system.history') }}?period=custom">{{ __('system.common.custom_range') }}</a></li>
                         </ul>
                     </div>
                 </li>

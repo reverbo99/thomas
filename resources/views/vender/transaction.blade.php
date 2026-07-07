@@ -8,12 +8,24 @@
     $commissionBalance = optional($vb)->amount ?? 0;
     $cashBalance = $vendorDualWallet ? ($vb->sell_cash_amount ?? 0) : 0;
     $txCount = $coll->count();
+    $vendorAccount = auth()->user()->VenderAccount;
+    $vendorMobileNumber = trim((string) ($vb->payment_number ?? ''));
+    $vendorBankName = trim((string) ($vendorAccount->bank_name ?? ''));
+    $vendorBankNumber = trim((string) ($vendorAccount->bank_number ?? ''));
+    $period = $period ?? request('period', 'today');
+    $startDate = $startDate ?? request('start_date', '');
+    $endDate = $endDate ?? request('end_date', '');
     $filters = [
         'today' => __('assistance/transaction.today'),
         'week' => __('assistance/transaction.this_week'),
         'month' => __('assistance/transaction.this_month'),
         'year' => __('assistance/transaction.this_year'),
+        'custom' => __('assistance/transaction.custom_range'),
     ];
+    $periodLabel = ($period === 'custom' && $startDate && $endDate)
+        ? $startDate . ' – ' . $endDate
+        : ($filters[$period] ?? $filters['today']);
+    $exportQuery = request()->only(['period', 'start_date', 'end_date']);
 @endphp
 
 @section('content')
@@ -22,7 +34,7 @@
         <div class="vendor-dash__welcome">
             <p class="vendor-dash__eyebrow">{{ __('all.highlink_isgc') }}</p>
             <h1 class="vendor-dash__title">{{ __('assistance/transaction.transactions') }}</h1>
-            <p class="vendor-dash__subtitle">{{ __('assistance/sidebar.transactions') }} · {{ $filters[$filter] ?? $filters['today'] }}</p>
+            <p class="vendor-dash__subtitle">{{ __('assistance/sidebar.transactions') }} · {{ $periodLabel }}</p>
         </div>
         <div class="vendor-dash__actions">
             @if ($vb)
@@ -140,18 +152,26 @@
         <div class="vendor-table-card__head">
             <div class="vendor-table-card__title-wrap">
                 <h3>{{ __('assistance/transaction.transaction_history') }}</h3>
-                <p>{{ $txCount }} {{ __('vender/busroot.entries') }} · {{ $filters[$filter] ?? $filters['today'] }}</p>
+                <p>{{ $txCount }} {{ __('vender/busroot.entries') }} · {{ $periodLabel }}</p>
             </div>
-            <form method="GET">
-                <div class="vendor-filter-pills" role="group">
-                    @foreach ($filters as $key => $label)
-                        <button type="submit" name="filter" value="{{ $key }}"
-                                class="vendor-filter-pill {{ ($filter ?? 'today') === $key ? 'vendor-filter-pill--active' : '' }}">
-                            {{ $label }}
-                        </button>
-                    @endforeach
-                </div>
-            </form>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('vender.transaction.export.pdf', $exportQuery) }}" target="_blank"
+                   class="page-btn page-btn--outline" style="font-size:0.8125rem">
+                    <i class="fas fa-file-pdf"></i> {{ __('assistance/transaction.export_pdf') }}
+                </a>
+                <a href="{{ route('vender.transaction.export.csv', $exportQuery) }}"
+                   class="page-btn page-btn--outline" style="font-size:0.8125rem">
+                    <i class="fas fa-file-excel"></i> {{ __('assistance/transaction.export_excel') }}
+                </a>
+                @include('partials.booking_history_period_filter', [
+                    'formAction' => route('vender.transaction'),
+                    'resetUrl' => route('vender.transaction'),
+                    'period' => $period,
+                    'startDate' => $startDate,
+                    'endDate' => $endDate,
+                    'variant' => 'vendor',
+                ])
+            </div>
         </div>
 
         <div class="vendor-table-toolbar">
@@ -276,9 +296,14 @@
                     @enderror
                 </div>
                 <div class="vendor-form-field" style="margin-bottom:0">
-                    <label for="payment_number">{{ __('assistance/transaction.payment_number') }}</label>
+                    <label for="payment_number" id="payment_number_label">{{ __('assistance/transaction.payment_number') }}</label>
                     <input type="text" name="payment_number" id="payment_number" class="page-input w-full bg-gray-50"
-                           readonly value="{{ $vb->payment_number ?? __('assistance/transaction.na') }}" required>
+                           readonly value="{{ $vendorMobileNumber !== '' ? $vendorMobileNumber : __('assistance/transaction.na') }}" required>
+                    @if ($vendorBankName !== '' || $vendorBankNumber !== '')
+                        <p class="vendor-form-hint" id="bank_account_hint" hidden>
+                            {{ __('assistance/transaction.bank_account_on_file', ['bank' => $vendorBankName !== '' ? $vendorBankName : __('assistance/transaction.na'), 'account' => $vendorBankNumber !== '' ? $vendorBankNumber : __('assistance/transaction.na')]) }}
+                        </p>
+                    @endif
                     @error('payment_number')
                         <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
                     @enderror
@@ -413,6 +438,35 @@ document.addEventListener('DOMContentLoaded', function () {
         const val = parseFloat(this.value);
         if (val > max) this.value = max;
     });
+
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const paymentNumberInput = document.getElementById('payment_number');
+    const paymentNumberLabel = document.getElementById('payment_number_label');
+    const bankAccountHint = document.getElementById('bank_account_hint');
+    const mobileNumber = @json($vendorMobileNumber);
+    const bankNumber = @json($vendorBankNumber);
+    const naLabel = @json(__('assistance/transaction.na'));
+    const mobileLabel = @json(__('assistance/transaction.payment_number'));
+    const bankLabel = @json(__('assistance/transaction.bank_account_number'));
+
+    function syncPayoutAccountField() {
+        if (!paymentMethodSelect || !paymentNumberInput || !paymentNumberLabel) {
+            return;
+        }
+
+        const isBank = paymentMethodSelect.value.toLowerCase() === 'bank';
+        paymentNumberLabel.textContent = isBank ? bankLabel : mobileLabel;
+        paymentNumberInput.value = isBank
+            ? (bankNumber || naLabel)
+            : (mobileNumber || naLabel);
+
+        if (bankAccountHint) {
+            bankAccountHint.hidden = !isBank;
+        }
+    }
+
+    paymentMethodSelect?.addEventListener('change', syncPayoutAccountField);
+    syncPayoutAccountField();
 
     update();
 });
