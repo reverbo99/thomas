@@ -775,6 +775,74 @@ if (!function_exists('booking_service_fee')) {
     }
 }
 
+if (!function_exists('booking_payment_amounts')) {
+    /**
+     * Booking-level fee breakdown for success / status / print views.
+     * Use extract(booking_payment_amounts($booking)) in the same Blade scope
+     * (included partials do not leak @php variables to the parent).
+     *
+     * @param  \App\Models\Booking|object|null  $booking
+     * @return array{
+     *     breakdownTicketFee: float,
+     *     breakdownLuggageFee: float,
+     *     breakdownInsurance: float,
+     *     breakdownServiceFee: float,
+     *     breakdownAmountPaid: float,
+     *     breakdownUseStoredTotal: bool,
+     *     breakdownStoredTotal: float
+     * }
+     */
+    function booking_payment_amounts($booking): array
+    {
+        if ($booking === null) {
+            return [
+                'breakdownTicketFee' => 0.0,
+                'breakdownLuggageFee' => 0.0,
+                'breakdownInsurance' => 0.0,
+                'breakdownServiceFee' => 0.0,
+                'breakdownAmountPaid' => 0.0,
+                'breakdownUseStoredTotal' => false,
+                'breakdownStoredTotal' => 0.0,
+            ];
+        }
+
+        $breakdownTicketFee = (float) ($booking->busFee ?? 0);
+        $breakdownLuggageFee = booking_luggage_fee($booking);
+        $breakdownInsurance = (float) ($booking->bima_amount ?? 0);
+        $breakdownStoredTotal = (float) ($booking->customer_paid_total ?? 0);
+        $breakdownServiceFee = booking_service_fee($booking);
+
+        if ($breakdownStoredTotal > 0) {
+            $breakdownAmountPaid = $breakdownStoredTotal;
+            $breakdownServiceFee = max(0, $breakdownStoredTotal - $breakdownTicketFee - $breakdownLuggageFee - $breakdownInsurance);
+            $breakdownUseStoredTotal = true;
+        } else {
+            if ($breakdownServiceFee <= 0 && $breakdownTicketFee > 0) {
+                $fareService = app(\App\Services\FareFormulaService::class);
+                $seatCountForFee = $fareService->seatCountFromSeatString($booking->seat ?? null);
+                $breakdownServiceFee = $fareService->calculateTravellerServiceFee(
+                    $breakdownTicketFee,
+                    \App\Models\Setting::first(),
+                    $seatCountForFee
+                );
+            }
+
+            $breakdownAmountPaid = $breakdownTicketFee + $breakdownLuggageFee + $breakdownInsurance + $breakdownServiceFee;
+            $breakdownUseStoredTotal = false;
+        }
+
+        return [
+            'breakdownTicketFee' => $breakdownTicketFee,
+            'breakdownLuggageFee' => $breakdownLuggageFee,
+            'breakdownInsurance' => $breakdownInsurance,
+            'breakdownServiceFee' => $breakdownServiceFee,
+            'breakdownAmountPaid' => $breakdownAmountPaid,
+            'breakdownUseStoredTotal' => $breakdownUseStoredTotal,
+            'breakdownStoredTotal' => $breakdownStoredTotal,
+        ];
+    }
+}
+
 if (!function_exists('manifest_gender_code')) {
     function manifest_gender_code(?string $gender): string
     {

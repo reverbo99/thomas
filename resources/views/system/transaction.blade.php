@@ -96,6 +96,10 @@
                                         @endif
                                     </td>
                                 </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="9" class="py-4 px-4 text-center text-gray-500">{{ __('system.common.dt_empty_pending_tx') }}</td>
+                                </tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -175,6 +179,10 @@
                                             @endif
                                         @endif
                                     </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="8" class="py-4 px-4 text-center text-gray-500">{{ __('system.common.dt_empty_tx') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -44,6 +44,10 @@
                                     <td class="py-2 px-4">{{ $discount->percentage }}%</td>
                                     <td class="py-2 px-4">{{ $discount->booking->count() }} / {{ $discount->used }}</td>
                                 </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="py-4 px-4 text-center text-gray-500">{{ __('system.pages.no_discounts') }}</td>
+                                </tr>
                             @endforelse
                         </tbody>
                     </table>

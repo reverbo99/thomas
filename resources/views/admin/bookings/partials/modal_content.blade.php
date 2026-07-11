@@ -58,7 +58,9 @@
                 <h6 class="mb-0">Payment Details</h6>
             </div>
             <div class="card-body">
-                @include('partials.booking_payment_amounts', ['booking' => $booking])
+                @php
+                    extract(booking_payment_amounts($booking ?? null));
+                @endphp
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Ticket Fee:</span>
                     <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownTicketFee) }}</span>

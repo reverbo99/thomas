@@ -69,7 +69,9 @@
                             </svg>
                             <h4 class="text-lg font-semibold text-gray-800">Payment Details</h4>
                         </div>
-                        @include('partials.booking_payment_amounts', ['booking' => $booking])
+                        @php
+                            extract(booking_payment_amounts($booking ?? null));
+                        @endphp
                         <div class="space-y-3">
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Ticket Fee:</span>

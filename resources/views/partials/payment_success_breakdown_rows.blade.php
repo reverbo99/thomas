@@ -1,7 +1,7 @@
 @php
     $bpBooking = $booking ?? $data ?? null;
+    extract(booking_payment_amounts($bpBooking));
 @endphp
-@include('partials.booking_payment_amounts', ['booking' => $bpBooking, 'data' => $bpBooking])
 <div class="payment-result-row">
     <span class="payment-result-row__label">{{ __('all.bus_fare') }}</span>
     <span class="payment-result-row__value">{{ $currency }} {{ convert_money($breakdownTicketFee) }}</span>

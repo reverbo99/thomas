@@ -1,5 +1,5 @@
-@include('partials.booking_payment_amounts', ['data' => $data])
 @php
+    extract(booking_payment_amounts($data ?? null));
     $ticketFee = $breakdownTicketFee;
     $luggageFee = $breakdownLuggageFee;
     $insuranceAmount = $breakdownInsurance;

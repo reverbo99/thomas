@@ -206,7 +206,9 @@
                     <td>Seat number:</td>
                 <td>{{ $data->seat ?? 'N/A' }}</td>
                 </tr>
-                @include('partials.booking_payment_amounts', ['data' => $data])
+                @php
+                    extract(booking_payment_amounts($data ?? null));
+                @endphp
                 @if ($breakdownLuggageFee > 0)
                 <tr>
                     <td>Luggage amount:</td>
