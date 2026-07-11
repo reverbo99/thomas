@@ -5,7 +5,7 @@
     <title>Bus Ticket</title>
     <style>
         @page {
-            size: 80mm 340mm;
+            size: 80mm 180mm;
             margin: 2mm;
         }
 
@@ -92,13 +92,11 @@
         }
 
         .qr-cell img,
-        .qr-cell-single img,
-        .qr-cell table,
-        .qr-cell-single table {
-            width: 26mm !important;
-            height: 26mm !important;
-            max-width: 26mm;
-            max-height: 26mm;
+        .qr-cell-single img {
+            width: 24mm;
+            height: 24mm;
+            display: block;
+            margin: 0 auto;
         }
 
         .footer h6 {
@@ -198,9 +196,20 @@
                 $printTotalPaid = max(0, $breakdownAmountPaid - $breakdownInsurance);
             }
             $seatQrPayload = trim(($data->booking_code ?? 'N/A') . '|' . $printSeat, '|');
-            $seatQrCode = DNS2D::getBarcodeHTML($seatQrPayload, 'QRCODE', 3, 3, 'black');
+            // PNG + fixed img size keeps TRA and Ticket QRs identical (HTML table QRs scale with data length)
+            $seatQrPng = DNS2D::getBarcodePNG($seatQrPayload, 'QRCODE', 4, 4, [0, 0, 0]);
+            $seatQrCode = $seatQrPng
+                ? '<img src="data:image/png;base64,' . $seatQrPng . '" alt="Ticket QR" width="68" height="68">'
+                : '';
             $hasTraQr = !empty($data->tra_qr_url);
-            $traQrCode = $hasTraQr ? DNS2D::getBarcodeHTML($data->tra_qr_url, 'QRCODE', 3, 3) : null;
+            $traQrCode = null;
+            if ($hasTraQr) {
+                $traQrPng = DNS2D::getBarcodePNG($data->tra_qr_url, 'QRCODE', 4, 4, [0, 0, 0]);
+                $traQrCode = $traQrPng
+                    ? '<img src="data:image/png;base64,' . $traQrPng . '" alt="TRA QR" width="68" height="68">'
+                    : null;
+                $hasTraQr = !empty($traQrCode);
+            }
         @endphp
 
         <div class="ticket-container{{ $seatIndex < ($seatCount - 1) ? ' ticket-page-break' : '' }}">
