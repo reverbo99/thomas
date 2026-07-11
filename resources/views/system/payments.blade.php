@@ -23,10 +23,22 @@
                     {{ __('system.pages.payments_subtitle') }}
                 </p>
             </div>
-            <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm lg:text-right shrink-0">
-                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ __('system.pages.combined_total') }}</p>
-                <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ $currency }} {{ convert_money($combinedIncome) }}</p>
-                <p class="text-xs text-gray-400 mt-1">{{ __('all.highlink_isgc') }}</p>
+            <div class="flex flex-col sm:flex-row sm:items-end gap-3 shrink-0">
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('system.payments.pdf', request()->only(['period', 'start_date', 'end_date'])) }}" target="_blank"
+                       class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm">
+                        {{ __('system.pages.export_pdf') }}
+                    </a>
+                    <a href="{{ route('system.payments.csv', request()->only(['period', 'start_date', 'end_date'])) }}"
+                       class="inline-flex items-center px-3 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition text-sm">
+                        {{ __('system.pages.export_csv') }}
+                    </a>
+                </div>
+                <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm lg:text-right">
+                    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ __('system.pages.combined_total') }}</p>
+                    <p class="text-2xl font-bold text-gray-900 tabular-nums">{{ $currency }} {{ convert_money($combinedIncome) }}</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ __('all.highlink_isgc') }}</p>
+                </div>
             </div>
         </div>
 

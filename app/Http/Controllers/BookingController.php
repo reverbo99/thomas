@@ -1630,7 +1630,8 @@ class BookingController extends Controller
         }
 
         $pdf = Pdf::loadView('print.ticket', ['data' => $data]);
-        $pdf->setPaper([0, 0, 4 * 72, 10 * 72], 'portrait'); // 4"x10"
+        // 80mm x 340mm receipt (4" x ~13.4") — tall enough for TRA + insurance + side-by-side QRs on one page
+        $pdf->setPaper([0, 0, 4 * 72, 13.4 * 72], 'portrait');
 
         $dompdf = $pdf->getDomPDF();
         $canvas = $dompdf->getCanvas();

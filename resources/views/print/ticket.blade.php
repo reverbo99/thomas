@@ -4,17 +4,23 @@
 <head>
     <title>Bus Ticket</title>
     <style>
+        @page {
+            size: 80mm 340mm;
+            margin: 2mm;
+        }
+
         body {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 10px;
-            line-height: 1.2;
+            font-size: 9px;
+            line-height: 1.15;
             margin: 0;
-            padding: 5mm;
-            width: 80mm;
+            padding: 1mm;
+            width: 76mm;
         }
 
         .ticket-container {
             width: 100%;
+            page-break-inside: avoid;
         }
 
         .ticket-page-break {
@@ -24,7 +30,16 @@
         .header,
         .footer {
             text-align: center;
-            margin-bottom: 2mm;
+            margin-bottom: 1.5mm;
+        }
+
+        .header h2 {
+            margin: 0 0 1mm;
+            font-size: 13px;
+        }
+
+        .header p {
+            margin: 0.3mm 0;
         }
 
         .details table {
@@ -34,19 +49,62 @@
 
         .details table th,
         .details table td {
-            padding: 1mm 0;
+            padding: 0.3mm 0;
             text-align: left;
+            vertical-align: top;
+        }
+
+        .details h3 {
+            margin: 1mm 0;
+            font-size: 10px;
         }
 
         .divider {
             border-top: 1px dashed #000;
-            margin: 2mm 0;
+            margin: 1mm 0;
         }
 
-        .qr-code-container {
+        .qr-row {
+            width: 100%;
+            border-collapse: collapse;
+            page-break-inside: avoid;
+            margin: 1mm 0;
+        }
+
+        .qr-cell {
+            width: 50%;
             text-align: center;
-            margin-left: 20%;
-            height: 3.2cm;
+            vertical-align: top;
+            padding: 0.5mm;
+        }
+
+        .qr-cell-single {
+            width: 100%;
+            text-align: center;
+            vertical-align: top;
+            padding: 0.5mm;
+        }
+
+        .qr-label {
+            font-size: 8px;
+            font-weight: bold;
+            margin-bottom: 0.5mm;
+        }
+
+        .qr-cell img,
+        .qr-cell-single img,
+        .qr-cell table,
+        .qr-cell-single table {
+            width: 26mm !important;
+            height: 26mm !important;
+            max-width: 26mm;
+            max-height: 26mm;
+        }
+
+        .footer h6 {
+            font-size: 7px;
+            margin: 0;
+            font-weight: normal;
         }
     </style>
 </head>
@@ -140,7 +198,9 @@
                 $printTotalPaid = max(0, $breakdownAmountPaid - $breakdownInsurance);
             }
             $seatQrPayload = trim(($data->booking_code ?? 'N/A') . '|' . $printSeat, '|');
-            $seatQrCode = DNS2D::getBarcodeHTML($seatQrPayload, 'QRCODE', 6, 6, 'black');
+            $seatQrCode = DNS2D::getBarcodeHTML($seatQrPayload, 'QRCODE', 3, 3, 'black');
+            $hasTraQr = !empty($data->tra_qr_url);
+            $traQrCode = $hasTraQr ? DNS2D::getBarcodeHTML($data->tra_qr_url, 'QRCODE', 3, 3) : null;
         @endphp
 
         <div class="ticket-container{{ $seatIndex < ($seatCount - 1) ? ' ticket-page-break' : '' }}">
@@ -326,24 +386,31 @@
                             <td>TRA Z Number:</td>
                             <td>{{ $data->tra_z_num ?? 'N/A' }}</td>
                         </tr>
-                        <tr>
-                            <td>TRA QR URL:</td>
-                            <td>{{ $data->tra_qr_url ?? 'N/A' }}</td>
-                        </tr>
                     </table>
-                    @if (!empty($data->tra_qr_url))
-                        <div style="margin-top: 12px; text-align: center;">
-                            {!! DNS2D::getBarcodeHTML($data->tra_qr_url, 'QRCODE', 4, 4) !!}
-                        </div>
-                    @endif
                 </div>
             @endif
 
             <div class="divider"></div>
 
-            <div class="qr-code-container">
-                {!! $seatQrCode !!}
-            </div>
+            <table class="qr-row">
+                <tr>
+                    @if ($hasTraQr)
+                        <td class="qr-cell">
+                            <div class="qr-label">TRA Verification</div>
+                            {!! $traQrCode !!}
+                        </td>
+                        <td class="qr-cell">
+                            <div class="qr-label">Ticket QR</div>
+                            {!! $seatQrCode !!}
+                        </td>
+                    @else
+                        <td class="qr-cell-single">
+                            <div class="qr-label">Ticket QR</div>
+                            {!! $seatQrCode !!}
+                        </td>
+                    @endif
+                </tr>
+            </table>
 
             <div class="divider"></div>
 

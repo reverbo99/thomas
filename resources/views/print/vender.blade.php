@@ -77,8 +77,8 @@
                     <td>{{ $data->payment_method ?? 'N/A' }}</td>
                 </tr>
                 <tr>
-                    <td>Payment Number:</td>
-                    <td>{{ $data->payment_number ?? 'N/A' }}</td>
+                    <td>Payment Details:</td>
+                    <td>{{ transaction_payment_detail($data) }}</td>
                 </tr>
                 <tr>
                     <td>Status:</td>

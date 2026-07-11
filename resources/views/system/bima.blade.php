@@ -12,8 +12,17 @@
         <div class="bg-white rounded-lg shadow-md overflow-hidden">
             <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white flex flex-col sm:flex-row justify-between items-center gap-4">
                 <h2 class="text-lg font-semibold">{{ __('system.pages.bima_title') }}</h2>
-                <h3 class="text-base font-medium">HIGHLINK ISGC</h3>
-                <span class="text-sm font-medium">Total: {{ $currency }} <span id="bimaTotal">0</span></span>
+                <div class="flex flex-wrap items-center gap-3">
+                    <a href="{{ route('bima.pdf', request()->only(['period', 'start_date', 'end_date'])) }}" target="_blank"
+                       class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm">
+                        {{ __('system.pages.export_pdf') }}
+                    </a>
+                    <a href="{{ route('bima.csv', request()->only(['period', 'start_date', 'end_date'])) }}"
+                       class="inline-flex items-center px-3 py-2 bg-white text-blue-700 rounded-lg hover:bg-blue-50 transition text-sm">
+                        {{ __('system.pages.export_csv') }}
+                    </a>
+                    <span class="text-sm font-medium">Total: {{ $currency }} <span id="bimaTotal">0</span></span>
+                </div>
             </div>
 
             <div class="p-4">

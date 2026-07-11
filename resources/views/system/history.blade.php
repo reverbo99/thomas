@@ -7,6 +7,9 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 
     <div class="container mx-auto px-4 py-6 max-w-7xl">
+        @if (session('error'))
+            <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+        @endif
         <h4 class="text-blue-600 text-center text-lg font-semibold mb-4">{{ __('all.highlink_isgc') }}</h4>
         <div class="bg-white rounded-lg shadow-md overflow-hidden">
             <!-- Card Header -->
@@ -30,6 +33,7 @@
                     <div class="flex flex-col gap-1">
                         <label for="historyPeriodSelect" class="text-xs font-medium text-gray-600">{{ __('system.pages.period') }}</label>
                         <select name="period" id="historyPeriodSelect" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm min-w-[160px]" onchange="window.toggleHistoryCustomDates && window.toggleHistoryCustomDates(this)">
+                            <option value="" @selected(empty($period))>{{ __('system.common.all_time') }}</option>
                             <option value="today" @selected(($period ?? request('period')) === 'today')>{{ __('system.sidebar.today') }}</option>
                             <option value="week" @selected(($period ?? request('period')) === 'week')>{{ __('system.common.this_week') }}</option>
                             <option value="month" @selected(($period ?? request('period')) === 'month')>{{ __('system.common.this_month') }}</option>
@@ -445,8 +449,21 @@
             const show = select.value === 'custom';
             form.querySelectorAll('.history-custom-dates').forEach(function (el) {
                 el.classList.toggle('hidden', !show);
+                el.querySelectorAll('input[type="date"]').forEach(function (input) {
+                    input.disabled = !show;
+                    if (!show) {
+                        input.value = '';
+                    }
+                });
             });
         };
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const select = document.getElementById('historyPeriodSelect');
+            if (select) {
+                window.toggleHistoryCustomDates(select);
+            }
+        });
     </script>
 
     <style>

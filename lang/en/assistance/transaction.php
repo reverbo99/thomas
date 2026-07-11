@@ -87,6 +87,7 @@ return [
     'bank_account_number' => 'Bank Account Number',
     'bank_account_required' => 'Add your bank account number on your profile before requesting a bank payout.',
     'bank_account_on_file' => 'Bank: :bank · Account: :account',
+    'payment_number_required' => 'Add your mobile money payment number on your profile before requesting a payout.',
     'transaction_request_sent' => 'Transaction request sent successfully',
     'transaction_request_failed' => 'Transaction request failed',
     // Deposit form

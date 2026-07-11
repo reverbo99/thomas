@@ -31,6 +31,7 @@
             <label for="historyPeriodSelect" class="text-xs font-medium text-gray-600">{{ __('system.pages.period') }}</label>
         @endunless
         <select name="period" id="historyPeriodSelect" class="{{ $selectClass }}" onchange="window.toggleHistoryCustomDates && window.toggleHistoryCustomDates(this)">
+            <option value="" @selected($period === '' || $period === null)>{{ __('system.common.all_time') }}</option>
             <option value="today" @selected($period === 'today')>{{ __('system.sidebar.today') }}</option>
             <option value="week" @selected($period === 'week')>{{ __('system.common.this_week') }}</option>
             <option value="month" @selected($period === 'month')>{{ __('system.common.this_month') }}</option>
@@ -60,6 +61,18 @@
         const show = select.value === 'custom';
         form.querySelectorAll('.history-custom-dates').forEach(function (el) {
             el.classList.toggle('hidden', !show);
+            el.querySelectorAll('input[type="date"]').forEach(function (input) {
+                input.disabled = !show;
+                if (!show) {
+                    input.value = '';
+                }
+            });
         });
     };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('#historyPeriodSelect').forEach(function (select) {
+            window.toggleHistoryCustomDates(select);
+        });
+    });
 </script>

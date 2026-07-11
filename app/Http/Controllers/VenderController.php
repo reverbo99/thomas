@@ -1045,12 +1045,26 @@ class VenderController extends Controller
 
         $paymentMethod = strtolower(trim((string) $request->payment_method));
         if ($paymentMethod === 'bank') {
-            $paymentNumber = trim((string) optional($user->VenderAccount)->bank_number);
-            if ($paymentNumber === '') {
+            // Always use saved bank account from profile — never the mobile money number
+            $account = $user->VenderAccount;
+            $paymentNumber = trim((string) optional($account)->bank_number);
+            if ($paymentNumber === '' || in_array(strtolower($paymentNumber), ['n/a', 'haipatikani'], true)) {
                 return back()->with('error', __('assistance/transaction.bank_account_required'));
             }
+            // Snapshot: store bank name + account so admin always sees bank details
+            $bankName = trim((string) optional($account)->bank_name);
+            if ($bankName !== '') {
+                $paymentNumber = $bankName . ' — ' . $paymentNumber;
+            }
         } else {
-            $paymentNumber = trim((string) ($request->payment_number ?? optional($user->VenderBalances)->payment_number));
+            // Mobile money: use saved wallet payment number (ignore stale/wrong form value)
+            $paymentNumber = trim((string) optional($user->VenderBalances)->payment_number);
+            if ($paymentNumber === '') {
+                $paymentNumber = trim((string) ($request->payment_number ?? ''));
+            }
+            if ($paymentNumber === '' || in_array(strtolower($paymentNumber), ['n/a', 'haipatikani'], true)) {
+                return back()->with('error', __('assistance/transaction.payment_number_required'));
+            }
         }
 
         // Create the transaction

@@ -87,6 +87,7 @@ return [
     'bank_account_number' => 'Namba ya Akaunti ya Benki',
     'bank_account_required' => 'Ongeza namba ya akaunti yako ya benki kwenye wasifu kabla ya kuomba malipo kupitia benki.',
     'bank_account_on_file' => 'Benki: :bank · Akaunti: :account',
+    'payment_number_required' => 'Ongeza namba yako ya malipo ya pesa za simu kwenye wasifu kabla ya kuomba malipo.',
     'transaction_request_sent' => 'Ombi la muamala limetumwa kwa mafanikio',
     'transaction_request_failed' => 'Ombi la muamala limeshindwa',
     // Fomu ya uwekaji

@@ -598,6 +598,12 @@ class AdminController extends Controller
     /////////////history///////////////
     public function history(Request $request)
     {
+        if ($request->get('period') === 'custom' && (! $request->filled('start_date') || ! $request->filled('end_date'))) {
+            return redirect()
+                ->route('history', ['period' => 'custom'])
+                ->with('error', __('system.pages.custom_range_requires_dates'));
+        }
+
         $query = Booking::with(['campany', 'schedule', 'user', 'bus.route', 'vender', 'campany.busOwnerAccount', 'governmentLeviesOnService'])
             ->whereHas('campany', function ($q) {
 $q->where('id', auth()->user()->campany->id);
@@ -607,6 +613,10 @@ $q->where('id', auth()->user()->campany->id);
         $period = $dateFilter['period'];
         $startDate = $dateFilter['startDate'];
         $endDate = $dateFilter['endDate'];
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $period = 'custom';
+        }
 
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();
 
@@ -1225,13 +1235,17 @@ $q->where('id', auth()->user()->campany->id);
 
     public function print_recipt2(Request $request)
     {
-        $data = json_decode($request->data);
+        $payload = json_decode($request->data);
+        $data = Transaction::with(['user.VenderAccount'])->find($payload->id ?? 0) ?? $payload;
 
         $pdf = Pdf::loadView('print.vender', ['data' => $data]);
 
         $pdf->setPaper([0, 0, 4 * 72, 7 * 72], 'portrait');
 
-        return $pdf->download($data->user->name . '.pdf');
+        $filename = optional(transaction_vendor_user($data))->name
+            ?? (is_object($data->user ?? null) ? ($data->user->name ?? 'vendor-transaction') : 'vendor-transaction');
+
+        return $pdf->download($filename . '.pdf');
     }
 
    public function print_service(Request $request)

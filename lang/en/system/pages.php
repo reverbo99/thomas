@@ -7,6 +7,7 @@ return [
     'section_total' => 'Section total',
     'custom_range_label' => 'Custom range',
     'select_date_range' => 'Select date range',
+    'custom_range_requires_dates' => 'Please select both start and end dates for the custom range.',
     'confirmed' => 'Confirmed',
     'pay_time' => 'Pay Time',
     'seat' => 'Seat',
@@ -99,6 +100,8 @@ return [
     'printed_on' => 'Printed on',
 
     // Bus route / schedule
+    'bus_routes_schedule' => 'Bus Routes Schedule',
+    'search_routes' => 'Search routes...',
     'schedule_title' => 'Bus Schedule',
     'departure' => 'Departure',
     'arrival' => 'Arrival',

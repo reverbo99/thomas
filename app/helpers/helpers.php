@@ -960,12 +960,16 @@ if (!function_exists('apply_booking_history_date_filter')) {
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
 
-        if ($request->filled('start_date') && $request->filled('end_date')) {
-            $query->whereBetween($dateColumn, [
-                \Carbon\Carbon::parse($startDate)->startOfDay(),
-                \Carbon\Carbon::parse($endDate)->endOfDay(),
-            ]);
-        } elseif ($period) {
+        if ($period === 'custom' && $request->filled('start_date') && $request->filled('end_date')) {
+            $start = \Carbon\Carbon::parse($startDate)->startOfDay();
+            $end = \Carbon\Carbon::parse($endDate)->endOfDay();
+
+            if ($start->gt($end)) {
+                [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+            }
+
+            $query->whereBetween($dateColumn, [$start, $end]);
+        } elseif ($period && $period !== 'custom') {
             switch ($period) {
                 case 'today':
                     $query->whereDate($dateColumn, today());
@@ -990,6 +994,42 @@ if (!function_exists('apply_booking_history_date_filter')) {
     }
 }
 
+if (! function_exists('transaction_is_bank_payment_method')) {
+    function transaction_is_bank_payment_method(?string $method): bool
+    {
+        $normalized = strtolower(trim((string) $method));
+
+        return $normalized === 'bank' || str_contains($normalized, 'bank');
+    }
+}
+
+if (! function_exists('transaction_vendor_user')) {
+    /**
+     * Resolve the vendor user for a payout transaction (vender_id takes precedence).
+     */
+    function transaction_vendor_user($transaction): ?\App\Models\User
+    {
+        if (! $transaction) {
+            return null;
+        }
+
+        $vendorUserId = (int) ($transaction->vender_id ?? 0);
+        if ($vendorUserId <= 0) {
+            $vendorUserId = (int) ($transaction->user_id ?? 0);
+        }
+
+        if ($vendorUserId <= 0) {
+            return $transaction->user ?? null;
+        }
+
+        if ($transaction->user && (int) $transaction->user->id === $vendorUserId) {
+            return $transaction->user;
+        }
+
+        return \App\Models\User::with('VenderAccount')->find($vendorUserId);
+    }
+}
+
 if (! function_exists('transaction_payment_detail')) {
     /**
      * Resolve the payout account shown to admins (mobile money number or bank account).
@@ -997,29 +1037,56 @@ if (! function_exists('transaction_payment_detail')) {
     function transaction_payment_detail($transaction): string
     {
         $unknown = __('system.common.unknown');
-        $method = strtolower(trim((string) ($transaction->payment_method ?? '')));
 
-        if ($method === 'bank') {
+        if ($transaction instanceof \App\Models\Transaction) {
+            $model = $transaction;
+        } elseif (is_object($transaction) && ! empty($transaction->id)) {
+            $model = \App\Models\Transaction::with(['user.VenderAccount'])->find($transaction->id) ?? $transaction;
+        } else {
+            $model = $transaction;
+        }
+
+        $method = (string) ($model->payment_method ?? '');
+
+        if (transaction_is_bank_payment_method($method)) {
             $bankName = '';
             $bankNumber = '';
 
-            if ((int) ($transaction->vender_id ?? 0) > 0 && $transaction->user?->VenderAccount) {
-                $bankName = trim((string) ($transaction->user->VenderAccount->bank_name ?? ''));
-                $bankNumber = trim((string) ($transaction->user->VenderAccount->bank_number ?? ''));
+            $vendorUser = transaction_vendor_user($model);
+            if ($vendorUser) {
+                $account = $vendorUser->relationLoaded('VenderAccount')
+                    ? $vendorUser->VenderAccount
+                    : $vendorUser->VenderAccount()->first();
+
+                if ($account) {
+                    $bankName = trim((string) ($account->bank_name ?? ''));
+                    $bankNumber = trim((string) ($account->bank_number ?? ''));
+                }
             }
 
-            if ($bankNumber === '') {
-                $bankNumber = trim((string) ($transaction->payment_number ?? ''));
+            $stored = trim((string) ($model->payment_number ?? ''));
+
+            // Prefer profile bank; fall back to stored snapshot (may already be "Bank — Account")
+            if ($bankNumber === '' && $stored !== '') {
+                if (str_contains($stored, '—') || str_contains($stored, '-')) {
+                    return $stored;
+                }
+                $bankNumber = $stored;
             }
 
             if ($bankName !== '' && $bankNumber !== '') {
+                // Avoid duplicating if stored already includes bank name
+                if ($stored !== '' && str_contains($stored, $bankNumber)) {
+                    return $stored;
+                }
+
                 return $bankName . ' — ' . $bankNumber;
             }
 
-            return $bankNumber !== '' ? $bankNumber : $unknown;
+            return $bankNumber !== '' ? $bankNumber : ($stored !== '' ? $stored : $unknown);
         }
 
-        $paymentNumber = trim((string) ($transaction->payment_number ?? ''));
+        $paymentNumber = trim((string) ($model->payment_number ?? ''));
 
         return $paymentNumber !== '' ? $paymentNumber : $unknown;
     }

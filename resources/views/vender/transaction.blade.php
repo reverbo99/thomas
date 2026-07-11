@@ -10,8 +10,8 @@
     $txCount = $coll->count();
     $vendorAccount = auth()->user()->VenderAccount;
     $vendorMobileNumber = trim((string) ($vb->payment_number ?? ''));
-    $vendorBankName = trim((string) ($vendorAccount->bank_name ?? ''));
-    $vendorBankNumber = trim((string) ($vendorAccount->bank_number ?? ''));
+    $vendorBankName = trim((string) ($vendorAccount?->bank_name ?? ''));
+    $vendorBankNumber = trim((string) ($vendorAccount?->bank_number ?? ''));
     $period = $period ?? request('period', 'today');
     $startDate = $startDate ?? request('start_date', '');
     $endDate = $endDate ?? request('end_date', '');
@@ -298,12 +298,14 @@
                 <div class="vendor-form-field" style="margin-bottom:0">
                     <label for="payment_number" id="payment_number_label">{{ __('assistance/transaction.payment_number') }}</label>
                     <input type="text" name="payment_number" id="payment_number" class="page-input w-full bg-gray-50"
-                           readonly value="{{ $vendorMobileNumber !== '' ? $vendorMobileNumber : __('assistance/transaction.na') }}" required>
-                    @if ($vendorBankName !== '' || $vendorBankNumber !== '')
-                        <p class="vendor-form-hint" id="bank_account_hint" hidden>
-                            {{ __('assistance/transaction.bank_account_on_file', ['bank' => $vendorBankName !== '' ? $vendorBankName : __('assistance/transaction.na'), 'account' => $vendorBankNumber !== '' ? $vendorBankNumber : __('assistance/transaction.na')]) }}
-                        </p>
-                    @endif
+                           readonly
+                           data-mobile="{{ $vendorMobileNumber }}"
+                           data-bank="{{ $vendorBankNumber }}"
+                           data-bank-name="{{ $vendorBankName }}"
+                           value="{{ $vendorMobileNumber !== '' ? $vendorMobileNumber : __('assistance/transaction.na') }}" required>
+                    <p class="vendor-form-hint" id="bank_account_hint" hidden>
+                        {{ __('assistance/transaction.bank_account_on_file', ['bank' => $vendorBankName !== '' ? $vendorBankName : __('assistance/transaction.na'), 'account' => $vendorBankNumber !== '' ? $vendorBankNumber : __('assistance/transaction.na')]) }}
+                    </p>
                     @error('payment_number')
                         <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
                     @enderror
@@ -324,12 +326,43 @@
 document.addEventListener('DOMContentLoaded', function () {
     const modal = document.getElementById('requestTransactionModal');
     const openIds = ['openTransactionModal', 'openTransactionModalSide', 'openTransactionModalEmpty'];
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const paymentNumberInput = document.getElementById('payment_number');
+    const paymentNumberLabel = document.getElementById('payment_number_label');
+    const bankAccountHint = document.getElementById('bank_account_hint');
+    const amountInput = document.getElementById('amount');
+    const mobileNumber = @json($vendorMobileNumber);
+    const bankNumber = @json($vendorBankNumber);
+    const naLabel = @json(__('assistance/transaction.na'));
+    const mobileLabel = @json(__('assistance/transaction.payment_number'));
+    const bankLabel = @json(__('assistance/transaction.bank_account_number'));
+
+    function syncPayoutAccountField() {
+        if (!paymentMethodSelect || !paymentNumberInput || !paymentNumberLabel) {
+            return;
+        }
+
+        const method = (paymentMethodSelect.value || '').toLowerCase();
+        const isBank = method === 'bank';
+        paymentNumberLabel.textContent = isBank ? bankLabel : mobileLabel;
+
+        if (isBank) {
+            paymentNumberInput.value = bankNumber || naLabel;
+        } else {
+            paymentNumberInput.value = mobileNumber || naLabel;
+        }
+
+        if (bankAccountHint) {
+            bankAccountHint.hidden = !isBank;
+        }
+    }
 
     function openModal() {
         if (!modal) return;
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
-        document.getElementById('amount')?.focus();
+        syncPayoutAccountField();
+        amountInput?.focus();
     }
 
     function closeModal() {
@@ -337,6 +370,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modal.classList.remove('is-open');
         modal.setAttribute('aria-hidden', 'true');
         document.getElementById('requestTransactionForm')?.reset();
+        syncPayoutAccountField();
     }
 
     openIds.forEach(id => {
@@ -353,6 +387,15 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeModal();
     });
+
+    amountInput?.addEventListener('input', function () {
+        const max = parseFloat(this.getAttribute('max'));
+        const val = parseFloat(this.value);
+        if (val > max) this.value = max;
+    });
+
+    paymentMethodSelect?.addEventListener('change', syncPayoutAccountField);
+    syncPayoutAccountField();
 
     @if ($errors->has('amount') || $errors->has('payment_method') || $errors->has('payment_number'))
         openModal();
@@ -431,42 +474,6 @@ document.addEventListener('DOMContentLoaded', function () {
         currentPage = 1;
         update();
     });
-
-    const amountInput = document.getElementById('amount');
-    amountInput?.addEventListener('input', function () {
-        const max = parseFloat(this.getAttribute('max'));
-        const val = parseFloat(this.value);
-        if (val > max) this.value = max;
-    });
-
-    const paymentMethodSelect = document.getElementById('payment_method');
-    const paymentNumberInput = document.getElementById('payment_number');
-    const paymentNumberLabel = document.getElementById('payment_number_label');
-    const bankAccountHint = document.getElementById('bank_account_hint');
-    const mobileNumber = @json($vendorMobileNumber);
-    const bankNumber = @json($vendorBankNumber);
-    const naLabel = @json(__('assistance/transaction.na'));
-    const mobileLabel = @json(__('assistance/transaction.payment_number'));
-    const bankLabel = @json(__('assistance/transaction.bank_account_number'));
-
-    function syncPayoutAccountField() {
-        if (!paymentMethodSelect || !paymentNumberInput || !paymentNumberLabel) {
-            return;
-        }
-
-        const isBank = paymentMethodSelect.value.toLowerCase() === 'bank';
-        paymentNumberLabel.textContent = isBank ? bankLabel : mobileLabel;
-        paymentNumberInput.value = isBank
-            ? (bankNumber || naLabel)
-            : (mobileNumber || naLabel);
-
-        if (bankAccountHint) {
-            bankAccountHint.hidden = !isBank;
-        }
-    }
-
-    paymentMethodSelect?.addEventListener('change', syncPayoutAccountField);
-    syncPayoutAccountField();
 
     update();
 });

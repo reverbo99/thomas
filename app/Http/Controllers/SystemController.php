@@ -781,11 +781,11 @@ class SystemController extends Controller
 
         // Fetch pending transactions (unchanged by filter)
         $pendingTransactions = Transaction::whereRaw('LOWER(status) = ?', ['pending'])
-            ->with(['campany', 'user'])
+            ->with(['campany', 'user.VenderAccount'])
             ->get();
 
         // Initialize query for all transactions
-        $query = Transaction::with(['campany', 'user']);
+        $query = Transaction::with(['campany', 'user.VenderAccount']);
 
         // Apply filter
         $filter = $request->input('filter');
@@ -1002,6 +1002,195 @@ class SystemController extends Controller
         return view('system.payments', compact('balances', 'pays', 'levies'));
     }
 
+    public function systemIncomeReportPdf(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['SYSTEM_INCOME']);
+
+        $payload = $this->buildSystemIncomeExportPayload($request);
+        if ($payload['csvRows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.no_data_found'));
+        }
+
+        $pdf = Pdf::loadView('print.system_income', $payload['pdfData']);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('system_income_' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    public function systemIncomeReportCsv(Request $request)
+    {
+        $this->requireAccess(Access::LINKS['SYSTEM_INCOME']);
+
+        $payload = $this->buildSystemIncomeExportPayload($request);
+        if ($payload['csvRows']->isEmpty()) {
+            return redirect()->back()->with('error', __('system.pages.no_data_found'));
+        }
+
+        return $this->streamSpecialHireCsv(
+            'system_income_' . now()->format('Ymd_His') . '.csv',
+            $payload['headers'],
+            $payload['csvRows']
+        );
+    }
+
+    private function buildSystemIncomeExportPayload(Request $request): array
+    {
+        $balances = $this->buildSystemIncomeLedgerQuery(SystemBalance::query(), $request)->get();
+        $pays = $this->buildSystemIncomeLedgerQuery(PaymentFees::query(), $request)->get();
+        $levies = $this->buildSystemIncomeLedgerQuery(\App\Models\GovernmentLevy::query(), $request)->get();
+        $dateFilter = $this->resolveSystemIncomeDateFilter($request);
+
+        $commissionRows = $balances->values()->map(function ($record, $index) {
+            return $this->mapSystemIncomeRow(
+                __('system.pages.commission'),
+                $index + 1,
+                $record->campany->name ?? '—',
+                $record->booking_id ?? 'N/A',
+                (float) $record->balance,
+                $record->created_at
+            );
+        });
+
+        $serviceFeeRows = $pays->values()->map(function ($record, $index) {
+            return $this->mapSystemIncomeRow(
+                __('system.pages.service_fees'),
+                $index + 1,
+                $record->campany->name ?? '—',
+                $record->booking_id ?? 'N/A',
+                (float) $record->amount,
+                $record->created_at
+            );
+        });
+
+        $levyRows = $levies->values()->map(function ($record, $index) {
+            return $this->mapSystemIncomeRow(
+                __('system.pages.gov_levy_service'),
+                $index + 1,
+                $record->campany->name ?? '—',
+                $record->booking_id ?? 'N/A',
+                (float) $record->amount,
+                $record->created_at
+            );
+        });
+
+        $commissionTotal = (float) $balances->sum('balance');
+        $serviceFeeTotal = (float) $pays->sum('amount');
+        $levyTotal = (float) $levies->sum('amount');
+        $combinedTotal = $commissionTotal + $serviceFeeTotal + $levyTotal;
+        $csvRows = $commissionRows->concat($serviceFeeRows)->concat($levyRows);
+
+        return [
+            'headers' => array_keys($csvRows->first() ?? $this->emptySystemIncomeRow()),
+            'csvRows' => $csvRows,
+            'pdfData' => [
+                'title' => __('system.pages.payments_title'),
+                'period' => $dateFilter['period'],
+                'startDate' => $dateFilter['startDate'],
+                'endDate' => $dateFilter['endDate'],
+                'commissionRows' => $commissionRows->values()->all(),
+                'serviceFeeRows' => $serviceFeeRows->values()->all(),
+                'levyRows' => $levyRows->values()->all(),
+                'commissionTotal' => $commissionTotal,
+                'serviceFeeTotal' => $serviceFeeTotal,
+                'levyTotal' => $levyTotal,
+                'combinedTotal' => $combinedTotal,
+            ],
+        ];
+    }
+
+    private function buildSystemIncomeLedgerQuery($query, Request $request)
+    {
+        $query->with('campany')->orderByDesc('created_at');
+        $this->applySystemIncomeDateFilter($query, $request);
+
+        return $query;
+    }
+
+    private function resolveSystemIncomeDateFilter(Request $request): array
+    {
+        $period = $request->query('period');
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        if ($startDate && $endDate) {
+            $period = 'custom';
+        } elseif (! $period || $period === 'all') {
+            $period = null;
+        }
+
+        return [
+            'period' => $period,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ];
+    }
+
+    private function applySystemIncomeDateFilter($query, Request $request, string $dateColumn = 'created_at'): void
+    {
+        $period = $request->query('period');
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        if ($startDate && $endDate) {
+            $query->whereBetween($dateColumn, [
+                Carbon::parse($startDate)->startOfDay(),
+                Carbon::parse($endDate)->endOfDay(),
+            ]);
+
+            return;
+        }
+
+        if (! $period || $period === 'all') {
+            return;
+        }
+
+        switch ($period) {
+            case 'day':
+            case 'today':
+                $query->whereDate($dateColumn, today());
+                break;
+            case 'week':
+                $query->whereBetween($dateColumn, [now()->startOfWeek(), now()->endOfWeek()]);
+                break;
+            case 'month':
+                $query->whereMonth($dateColumn, now()->month)->whereYear($dateColumn, now()->year);
+                break;
+            case 'year':
+                $query->whereYear($dateColumn, now()->year);
+                break;
+        }
+    }
+
+    private function mapSystemIncomeRow(
+        string $incomeType,
+        int $no,
+        string $company,
+        string $bookingCode,
+        float $amount,
+        $createdAt
+    ): array {
+        return [
+            'income_type' => $incomeType,
+            'no' => $no,
+            'company' => $company,
+            'booking_code' => $bookingCode,
+            'amount' => number_format($amount, 2),
+            'date' => optional($createdAt)->format('Y-m-d H:i') ?? '—',
+        ];
+    }
+
+    private function emptySystemIncomeRow(): array
+    {
+        return [
+            'income_type' => '',
+            'no' => '',
+            'company' => '',
+            'booking_code' => '',
+            'amount' => '',
+            'date' => '',
+        ];
+    }
+
     public function governmentLevyReport(Request $request)
     {
         abort_unless(Auth::user()->hasAccess(Access::LINKS['SYSTEM_INCOME']), 403);
@@ -1174,11 +1363,23 @@ class SystemController extends Controller
     public function history(Request $request)
     {
         $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
+
+        if ($request->get('period') === 'custom' && (! $request->filled('start_date') || ! $request->filled('end_date'))) {
+            return redirect()
+                ->route('system.history', array_filter(['period' => 'custom', 'channel' => $request->get('channel')]))
+                ->with('error', __('system.pages.custom_range_requires_dates'));
+        }
+
         $query = Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService']);
         $dateFilter = apply_booking_history_date_filter($query, $request);
         $period = $dateFilter['period'];
         $startDate = $dateFilter['startDate'];
         $endDate = $dateFilter['endDate'];
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $period = 'custom';
+        }
+
         $this->applyHistoryChannelFilter($query, $request);
 
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();

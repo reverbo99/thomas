@@ -464,6 +464,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/transactions/{transaction}/company/{campany}/complete', [SystemController::class, 'complete'])->name('transactions.complete');
         Route::post('/transactions/{transaction}/company/{campany}/cancel', [SystemController::class, 'cancel'])->name('transactions.cancel');
         Route::get('/system_payments', [SystemController::class, 'system_payments'])->name('system.payments');
+        Route::get('/system_payments/export/pdf', [SystemController::class, 'systemIncomeReportPdf'])->name('system.payments.pdf');
+        Route::get('/system_payments/export/csv', [SystemController::class, 'systemIncomeReportCsv'])->name('system.payments.csv');
         Route::get('/government-levy', [SystemController::class, 'governmentLevyReport'])->name('system.government_levy');
         Route::get('/government-levy/export/pdf', [SystemController::class, 'governmentLevyReportPdf'])->name('system.government_levy.pdf');
         Route::get('/government-levy/export/csv', [SystemController::class, 'governmentLevyReportCsv'])->name('system.government_levy.csv');
@@ -478,6 +480,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/transactions/{transaction}/complete/{campany}/{vender}', [SystemController::class, 'complete'])->name('transactions.complete');
         Route::post('/transactions/{transaction}/cancel/{campany}/{vender}', [SystemController::class, 'cancel'])->name('transactions.cancel');
         Route::get('/bima', [BimaController::class, 'index'])->name('bima.index');
+        Route::get('/bima/export/pdf', [BimaController::class, 'reportPdf'])->name('bima.pdf');
+        Route::get('/bima/export/csv', [BimaController::class, 'reportCsv'])->name('bima.csv');
         Route::get('/vender', [SystemController::class, 'vender'])->name('system.vender');
         Route::get('/vender/print/pdf', [SystemController::class, 'printVendersPdf'])->name('system.vender.print');
         Route::get('/bima/data', [BimaController::class, 'getData'])->name('bima.data');
