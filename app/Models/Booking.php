@@ -12,6 +12,10 @@ class Booking extends Model
 
     protected $table = "bookings";
 
+    protected $casts = [
+        'passengers' => 'array',
+    ];
+
     protected $fillable = [
         'booking_code',
         'campany_id',
@@ -41,6 +45,7 @@ class Booking extends Model
         ////////
         'customer_phone',
         'customer_name',
+        'passengers',
         'customer_email',
         'user_id',
         'bima',

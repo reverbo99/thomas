@@ -589,6 +589,152 @@ if (!function_exists('booking_seat_list')) {
     }
 }
 
+if (!function_exists('booking_passengers_list')) {
+    /**
+     * @param  \App\Models\Booking|object|array  $booking
+     */
+    function booking_passengers_list($booking): array
+    {
+        $passengers = is_array($booking)
+            ? ($booking['passengers'] ?? null)
+            : ($booking->passengers ?? null);
+
+        if (is_string($passengers)) {
+            $passengers = json_decode($passengers, true);
+        }
+
+        return is_array($passengers) ? array_values($passengers) : [];
+    }
+}
+
+if (!function_exists('booking_passengers_for_storage')) {
+    function booking_passengers_for_storage(array $form): ?array
+    {
+        $details = $form['passenger_details'] ?? null;
+
+        if (!is_array($details) || empty($details)) {
+            return null;
+        }
+
+        return array_values($details);
+    }
+}
+
+if (!function_exists('booking_passenger_name_for_seat')) {
+    /**
+     * @param  \App\Models\Booking|object|array  $booking
+     */
+    function booking_passenger_name_for_seat($booking, int $seatIndex, ?string $seatLabel = null): string
+    {
+        return booking_passenger_field_for_seat($booking, $seatIndex, $seatLabel, 'name', 'customer_name');
+    }
+}
+
+if (!function_exists('booking_passenger_phone_for_seat')) {
+    /**
+     * @param  \App\Models\Booking|object|array  $booking
+     */
+    function booking_passenger_phone_for_seat($booking, int $seatIndex, ?string $seatLabel = null): string
+    {
+        return booking_passenger_field_for_seat($booking, $seatIndex, $seatLabel, 'phone', 'customer_phone');
+    }
+}
+
+if (!function_exists('booking_passenger_field_for_seat')) {
+    /**
+     * @param  \App\Models\Booking|object|array  $booking
+     */
+    function booking_passenger_field_for_seat(
+        $booking,
+        int $seatIndex,
+        ?string $seatLabel,
+        string $passengerKey,
+        string $bookingFallbackKey
+    ): string {
+        $fallback = trim((string) (is_array($booking)
+            ? ($booking[$bookingFallbackKey] ?? '')
+            : ($booking->{$bookingFallbackKey} ?? '')));
+
+        if ($fallback === '' && $bookingFallbackKey === 'customer_phone') {
+            $fallback = trim((string) (is_array($booking)
+                ? ($booking['payment_number'] ?? '')
+                : ($booking->payment_number ?? '')));
+        }
+
+        if ($fallback === '') {
+            $fallback = 'N/A';
+        }
+
+        $passengers = booking_passengers_list($booking);
+        if (empty($passengers)) {
+            return $fallback;
+        }
+
+        $resolve = function ($passenger) use ($passengerKey) {
+            if (!is_array($passenger)) {
+                return '';
+            }
+
+            return trim((string) ($passenger[$passengerKey] ?? ''));
+        };
+
+        if (isset($passengers[$seatIndex])) {
+            $value = $resolve($passengers[$seatIndex]);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        if ($seatLabel !== null) {
+            foreach ($passengers as $passenger) {
+                if (!is_array($passenger)) {
+                    continue;
+                }
+
+                $passengerSeat = trim((string) ($passenger['seat'] ?? ''));
+                if ($passengerSeat !== '' && strcasecmp($passengerSeat, trim($seatLabel)) === 0) {
+                    $value = $resolve($passenger);
+                    if ($value !== '') {
+                        return $value;
+                    }
+                }
+            }
+        }
+
+        return $fallback;
+    }
+}
+
+if (!function_exists('booking_ticket_pdf_filename')) {
+    /**
+     * @param  \App\Models\Booking|object|array  $booking
+     */
+    function booking_ticket_pdf_filename($booking): string
+    {
+        $bookingCode = trim((string) (is_array($booking)
+            ? ($booking['booking_code'] ?? '')
+            : ($booking->booking_code ?? '')));
+
+        $seatCount = count(booking_seat_list(is_array($booking)
+            ? ($booking['seat'] ?? '')
+            : ($booking->seat ?? '')));
+
+        if ($seatCount > 1 && $bookingCode !== '') {
+            return $bookingCode . '_tickets.pdf';
+        }
+
+        $name = trim((string) (is_array($booking)
+            ? ($booking['customer_name'] ?? '')
+            : ($booking->customer_name ?? '')));
+
+        if ($name === '') {
+            $name = $bookingCode !== '' ? $bookingCode : 'ticket';
+        }
+
+        return preg_replace('/[^\w\-]+/u', '_', $name) . '.pdf';
+    }
+}
+
 if (!function_exists('split_amount_across_seats')) {
     function split_amount_across_seats(float $total, int $seatCount, int $seatIndex): float
     {

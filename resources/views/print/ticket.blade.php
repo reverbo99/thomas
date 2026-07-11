@@ -188,9 +188,11 @@
         }
     @endphp
 
-    @foreach ($seatList as $seatIndex => $printSeat)
+        @foreach ($seatList as $seatIndex => $printSeat)
         @php
             extract(booking_per_seat_payment_amounts($data, $seatIndex, $seatCount));
+            $printPassengerName = booking_passenger_name_for_seat($data, $seatIndex, $printSeat);
+            $printPassengerPhone = booking_passenger_phone_for_seat($data, $seatIndex, $printSeat);
             $printTotalPaid = $breakdownAmountPaid;
             if (($data->bima ?? 0) == 1) {
                 $printTotalPaid = max(0, $breakdownAmountPaid - $breakdownInsurance);
@@ -231,11 +233,11 @@
                 <table>
                     <tr>
                         <td>Traveller Name:</td>
-                        <td>{{ $data->customer_name ?? 'N/A' }}</td>
+                        <td>{{ $printPassengerName }}</td>
                     </tr>
                     <tr>
                         <td>Traveller Contact:</td>
-                        <td>{{ $contact ?? 'N/A' }}</td>
+                        <td>{{ $printPassengerPhone !== 'N/A' ? $printPassengerPhone : ($contact ?? 'N/A') }}</td>
                     </tr>
                     <tr>
                         <td>Booking number:</td>

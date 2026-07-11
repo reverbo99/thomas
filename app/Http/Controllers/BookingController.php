@@ -914,6 +914,7 @@ class BookingController extends Controller
             'payment_status' => 'Unpaid', // Set initial status to Unpaid
             'customer_phone' => session()->get('booking_form')['customer_number'],
             'customer_name' => session()->get('booking_form')['customer_name'],
+            'passengers' => booking_passengers_for_storage($bookingForm),
             'customer_email' => session()->get('booking_form')['customer_email'],
             'bima' => $bookingForm['bima'] ?? 0,
             'insuranceDate' => $bookingForm['insuranceDate'] ?? null,
@@ -1057,6 +1058,7 @@ class BookingController extends Controller
             'payment_status' => 'Unpaid',
             'customer_phone' => $bookingForm['customer_number'],
             'customer_name' => $bookingForm['customer_name'],
+            'passengers' => booking_passengers_for_storage($bookingForm),
             'customer_email' => $bookingForm['customer_email'],
             'bima' => $bookingForm['bima'],
             'insuranceDate' => $bookingForm['insuranceDate'],
@@ -1655,7 +1657,7 @@ class BookingController extends Controller
             $canvas->restore();
         });
 
-        return $pdf->download($data->customer_name . '.pdf');
+        return $pdf->download(booking_ticket_pdf_filename($data));
     }
 
     public function edit($id)
