@@ -199,19 +199,11 @@
                                 </td>
                                 <td>
                                     @php
-                                        $govLevyOnFare = (float) ($booking->government_levy ?? 0);
-                                        $govLevyOnService = (float) $booking->governmentLeviesOnService->sum('amount');
-                                        $totalGovLevy = $govLevyOnFare + $govLevyOnService;
                                         $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
                                         $rowTotal = round((float) ($booking->busFee ?: $booking->amount ?? 0));
                                     @endphp
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.commission_total') }} {{ convert_money($totalCommission) }}</span>
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.discount') }} {{ convert_money($booking->discount_amount ?? 0) }}</span>
-                                    <span class="vendor-schedule-date__sub block commission-breakdown"
-                                        data-commission-total="{{ $totalCommission }}"
-                                        data-discount="{{ $booking->discount_amount ?? 0 }}"
-                                        data-gov-levy="{{ $totalGovLevy }}"
-                                        data-vat="{{ $booking->vat ?? 0 }}">{{ __('vender/history.vat') }} {{ convert_money($booking->vat ?? 0) }}</span>
                                 </td>
                                 <td>
                                     <span class="vendor-tx-amount total-amount" data-total="{{ $rowTotal }}">{{ $currency }} {{ convert_money($rowTotal) }}</span>

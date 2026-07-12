@@ -59,7 +59,7 @@ return [
 
     // Payments / system income
     'payments_title' => 'System Income',
-    'payments_subtitle' => 'Commission (system balances), service fees, and government levies from paid bookings across all companies and payment methods.',
+    'payments_subtitle' => 'Commission (system balances), service fees, excess luggage, and government levies from paid bookings across all companies and payment methods.',
     'combined_total' => 'Combined total',
     'commission' => 'Commission',
     'commission_section' => 'Commission (system income)',
@@ -67,6 +67,9 @@ return [
     'commission_rows' => 'System balance entries · :count rows',
     'service_fees' => 'Service fees',
     'service_fees_rows' => 'Payment fees · :count rows',
+    'luggage_fees' => 'Luggage fees',
+    'luggage_desc' => 'Excess luggage amounts from paid bookings (separate from service fees)',
+    'luggage_fees_rows' => 'Luggage entries · :count rows',
     'gov_levy_service' => 'Gov. levy (service)',
     'gov_levy_rows' => 'Government levy · :count rows',
     'col_booking_code' => 'Booking Code',

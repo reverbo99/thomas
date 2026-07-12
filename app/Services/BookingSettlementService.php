@@ -140,7 +140,10 @@ class BookingSettlementService
         ]);
 
         $systemBalanceAmount = (float) $result['system_commission_total'];
-        $paymentFeesAmount = (float) $result['service_pool_after_vendor'];
+        // Excess luggage is paid with the booking total but is not platform service income.
+        // Subtract it so payment_fees / service levy stay service-only; luggage is tracked on bookings.
+        $luggageFee = booking_luggage_fee($booking);
+        $paymentFeesAmount = max(0, (float) $result['service_pool_after_vendor'] - $luggageFee);
         $vendorFee = 0.0;
         $vendorService = 0.0;
 
@@ -241,7 +244,7 @@ class BookingSettlementService
             'amount' => $governmentLevyOnServiceFee,
         ]);
 
-        $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy);
+        $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy + $luggageFee);
         $bus->campany->balance->increment('amount', (float) $result['bus_owner_share']);
 
         return [
@@ -250,6 +253,7 @@ class BookingSettlementService
             'bus_owner_amount' => (float) $result['bus_owner_share'],
             'system_balance_amount' => $systemBalanceAmount,
             'payment_fees_amount' => $paymentFeesAmount,
+            'luggage_fee' => $luggageFee,
             'vendor_fee_share' => $vendorFee,
             'vendor_service_share' => $vendorService,
             'government_levy' => (float) $result['government_levy_on_fare'],

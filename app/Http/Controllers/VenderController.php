@@ -1204,7 +1204,7 @@ class VenderController extends Controller
             'customer_name' => $row['customer_name'],
             'customer_phone' => $row['customer_phone'],
             'payment' => number_format($payment, 2),
-            'commission' => $row['commision'],
+            'commission' => $row['commision'], // fee + vender_fee (matches history page; VAT is separate column)
             'discount' => $row['manifest_discount'],
             'vat' => is_numeric($row['vat']) ? number_format((float) $row['vat'], 2) : (string) $row['vat'],
             'total' => $row['total'],

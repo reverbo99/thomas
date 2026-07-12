@@ -12,6 +12,8 @@ return [
     'view_balance_details' => 'Angalia maelezo ya salio',
     'cancellation_fees' => 'Ada za Kughairi',
     'total_cancelled_amount' => 'Jumla ya kiasi kilichoghairiwa',
+    'luggage_amount' => 'Kiasi cha Mizigo',
+    'total_luggage_amount' => 'Jumla ya mizigo ya ziada kutoka uhifadhi uliolipwa',
     'paid_bookings_today' => ':count :label zilizolipwa leo',
     'paid_bookings_all_time' => ':count :label zilizolipwa (muda wote)',
     'weekly_booking_amounts' => 'Kiasi cha Uhifadhi wa Kila Wiki (zilizolipwa tu)',

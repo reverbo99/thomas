@@ -132,14 +132,18 @@ class SystemController extends Controller
         $recentActivity = $recentActivity->sortByDesc('time')->take(8)->values();
 
         $service = SystemBalance::sum('balance');
-        $fees = PaymentFees::sum('amount');
+        $fees = $this->sumPaymentFeesExcludingLuggage();
+        $luggageTotal = (float) Booking::query()
+            ->where('payment_status', 'Paid')
+            ->where('excess_luggage_fee', '>', 0)
+            ->sum('excess_luggage_fee');
         $balance = AdminWallet::sum('balance');
         $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
 
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
-            'service', 'fees', 'bima', 'balance', 'cancelledAmount'
+            'service', 'fees', 'luggageTotal', 'bima', 'balance', 'cancelledAmount'
         ));
     }
 
@@ -998,8 +1002,27 @@ class SystemController extends Controller
         $balances = SystemBalance::with('campany')->orderByDesc('created_at')->get();
         $pays = PaymentFees::with('campany')->orderByDesc('created_at')->get();
         $levies = \App\Models\GovernmentLevy::with('campany')->orderByDesc('created_at')->get();
+        $luggageBookings = $this->paidLuggageBookingsQuery()->with('campany')->orderByDesc('created_at')->get();
 
-        return view('system.payments', compact('balances', 'pays', 'levies'));
+        $luggageByCode = $this->luggageFeeMapForBookingCodes(
+            $pays->pluck('booking_id')->merge($levies->pluck('booking_id'))->filter()->unique()->values()->all()
+        );
+
+        $pays = $pays->map(function ($payment) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$payment->booking_id] ?? 0);
+            $payment->display_amount = $this->serviceFeeAmountExcludingLuggage((float) $payment->amount, $luggageFee);
+
+            return $payment;
+        });
+
+        $levies = $levies->map(function ($levy) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$levy->booking_id] ?? 0);
+            $levy->display_amount = $this->levyAmountExcludingLuggage((float) $levy->amount, $luggageFee);
+
+            return $levy;
+        });
+
+        return view('system.payments', compact('balances', 'pays', 'levies', 'luggageBookings'));
     }
 
     public function systemIncomeReportPdf(Request $request)
@@ -1038,7 +1061,14 @@ class SystemController extends Controller
         $balances = $this->buildSystemIncomeLedgerQuery(SystemBalance::query(), $request)->get();
         $pays = $this->buildSystemIncomeLedgerQuery(PaymentFees::query(), $request)->get();
         $levies = $this->buildSystemIncomeLedgerQuery(\App\Models\GovernmentLevy::query(), $request)->get();
+        $luggageQuery = $this->paidLuggageBookingsQuery()->with('campany')->orderByDesc('created_at');
+        $this->applySystemIncomeDateFilter($luggageQuery, $request);
+        $luggageBookings = $luggageQuery->get();
         $dateFilter = $this->resolveSystemIncomeDateFilter($request);
+
+        $luggageByCode = $this->luggageFeeMapForBookingCodes(
+            $pays->pluck('booking_id')->merge($levies->pluck('booking_id'))->filter()->unique()->values()->all()
+        );
 
         $commissionRows = $balances->values()->map(function ($record, $index) {
             return $this->mapSystemIncomeRow(
@@ -1051,33 +1081,59 @@ class SystemController extends Controller
             );
         });
 
-        $serviceFeeRows = $pays->values()->map(function ($record, $index) {
+        $serviceFeeRows = $pays->values()->map(function ($record, $index) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$record->booking_id] ?? 0);
+            $amount = $this->serviceFeeAmountExcludingLuggage((float) $record->amount, $luggageFee);
+
             return $this->mapSystemIncomeRow(
                 __('system.pages.service_fees'),
                 $index + 1,
                 $record->campany->name ?? '—',
                 $record->booking_id ?? 'N/A',
-                (float) $record->amount,
+                $amount,
                 $record->created_at
             );
         });
 
-        $levyRows = $levies->values()->map(function ($record, $index) {
+        $levyRows = $levies->values()->map(function ($record, $index) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$record->booking_id] ?? 0);
+            $amount = $this->levyAmountExcludingLuggage((float) $record->amount, $luggageFee);
+
             return $this->mapSystemIncomeRow(
                 __('system.pages.gov_levy_service'),
                 $index + 1,
                 $record->campany->name ?? '—',
                 $record->booking_id ?? 'N/A',
-                (float) $record->amount,
+                $amount,
                 $record->created_at
             );
         });
 
+        $luggageRows = $luggageBookings->values()->map(function ($booking, $index) {
+            return $this->mapSystemIncomeRow(
+                __('system.pages.luggage_fees'),
+                $index + 1,
+                $booking->campany->name ?? '—',
+                $booking->booking_code ?? 'N/A',
+                booking_luggage_fee($booking),
+                $booking->created_at
+            );
+        });
+
         $commissionTotal = (float) $balances->sum('balance');
-        $serviceFeeTotal = (float) $pays->sum('amount');
-        $levyTotal = (float) $levies->sum('amount');
-        $combinedTotal = $commissionTotal + $serviceFeeTotal + $levyTotal;
-        $csvRows = $commissionRows->concat($serviceFeeRows)->concat($levyRows);
+        $serviceFeeTotal = (float) $pays->sum(function ($record) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$record->booking_id] ?? 0);
+
+            return $this->serviceFeeAmountExcludingLuggage((float) $record->amount, $luggageFee);
+        });
+        $levyTotal = (float) $levies->sum(function ($record) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$record->booking_id] ?? 0);
+
+            return $this->levyAmountExcludingLuggage((float) $record->amount, $luggageFee);
+        });
+        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => booking_luggage_fee($booking));
+        $combinedTotal = $commissionTotal + $serviceFeeTotal + $levyTotal + $luggageTotal;
+        $csvRows = $commissionRows->concat($serviceFeeRows)->concat($levyRows)->concat($luggageRows);
 
         return [
             'headers' => array_keys($csvRows->first() ?? $this->emptySystemIncomeRow()),
@@ -1090,12 +1146,84 @@ class SystemController extends Controller
                 'commissionRows' => $commissionRows->values()->all(),
                 'serviceFeeRows' => $serviceFeeRows->values()->all(),
                 'levyRows' => $levyRows->values()->all(),
+                'luggageRows' => $luggageRows->values()->all(),
                 'commissionTotal' => $commissionTotal,
                 'serviceFeeTotal' => $serviceFeeTotal,
                 'levyTotal' => $levyTotal,
+                'luggageTotal' => $luggageTotal,
                 'combinedTotal' => $combinedTotal,
             ],
         ];
+    }
+
+    private function paidLuggageBookingsQuery()
+    {
+        return Booking::query()
+            ->where('payment_status', 'Paid')
+            ->where('excess_luggage_fee', '>', 0);
+    }
+
+    /**
+     * @param  array<int, string|null>  $bookingCodes
+     * @return array<string, float>
+     */
+    private function luggageFeeMapForBookingCodes(array $bookingCodes): array
+    {
+        $codes = array_values(array_filter(array_unique($bookingCodes)));
+        if ($codes === []) {
+            return [];
+        }
+
+        return Booking::query()
+            ->whereIn('booking_code', $codes)
+            ->where('excess_luggage_fee', '>', 0)
+            ->pluck('excess_luggage_fee', 'booking_code')
+            ->map(fn ($fee) => (float) $fee)
+            ->all();
+    }
+
+    /**
+     * Historical payment_fees rows included 95% of luggage (5% went to government levy).
+     * After settlement fix, new rows are service-only — only subtract when the stored amount still contains luggage.
+     */
+    private function serviceFeeAmountExcludingLuggage(float $storedAmount, float $luggageFee): float
+    {
+        if ($luggageFee <= 0) {
+            return $storedAmount;
+        }
+
+        $luggageInFees = round($luggageFee * 0.95, 2);
+        if ($storedAmount + 0.01 < $luggageInFees) {
+            return $storedAmount;
+        }
+
+        return max(0, round($storedAmount - $luggageInFees, 2));
+    }
+
+    private function levyAmountExcludingLuggage(float $storedAmount, float $luggageFee): float
+    {
+        if ($luggageFee <= 0) {
+            return $storedAmount;
+        }
+
+        $luggageInLevy = round($luggageFee * 0.05, 2);
+        if ($storedAmount + 0.01 < $luggageInLevy) {
+            return $storedAmount;
+        }
+
+        return max(0, round($storedAmount - $luggageInLevy, 2));
+    }
+
+    private function sumPaymentFeesExcludingLuggage(): float
+    {
+        $pays = PaymentFees::query()->get(['amount', 'booking_id']);
+        $luggageByCode = $this->luggageFeeMapForBookingCodes($pays->pluck('booking_id')->all());
+
+        return (float) $pays->sum(function ($payment) use ($luggageByCode) {
+            $luggageFee = (float) ($luggageByCode[$payment->booking_id] ?? 0);
+
+            return $this->serviceFeeAmountExcludingLuggage((float) $payment->amount, $luggageFee);
+        });
     }
 
     private function buildSystemIncomeLedgerQuery($query, Request $request)

@@ -12,6 +12,8 @@ return [
     'view_balance_details' => 'View balance details',
     'cancellation_fees' => 'Cancellation Fees',
     'total_cancelled_amount' => 'Total cancelled amount',
+    'luggage_amount' => 'Luggage Amount',
+    'total_luggage_amount' => 'Total excess luggage from paid bookings',
     'paid_bookings_today' => ':count paid :label today',
     'paid_bookings_all_time' => ':count paid :label (all time)',
     'weekly_booking_amounts' => 'Weekly Booking Amounts (Paid only)',

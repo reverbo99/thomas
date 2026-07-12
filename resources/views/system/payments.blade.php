@@ -8,9 +8,10 @@
 
     @php
         $totalCommissionBalance = (float) $balances->sum('balance');
-        $totalServiceFees = (float) $pays->sum('amount');
-        $totalLevies = (float) $levies->sum('amount');
-        $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLevies;
+        $totalServiceFees = (float) $pays->sum(fn ($payment) => (float) ($payment->display_amount ?? $payment->amount));
+        $totalLevies = (float) $levies->sum(fn ($levy) => (float) ($levy->display_amount ?? $levy->amount));
+        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => booking_luggage_fee($booking));
+        $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLevies + $totalLuggageFees;
     @endphp
 
     <div class="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
@@ -43,7 +44,7 @@
         </div>
 
         <!-- KPI summary -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <a href="#income-commission" class="group rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                 <p class="text-xs font-semibold text-blue-700 uppercase tracking-wide">{{ __('system.pages.commission') }}</p>
                 <p class="text-xl sm:text-2xl font-bold text-blue-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalCommissionBalance) }}</p>
@@ -53,6 +54,11 @@
                 <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wide">{{ __('system.pages.service_fees') }}</p>
                 <p class="text-xl sm:text-2xl font-bold text-emerald-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalServiceFees) }}</p>
                 <p class="text-xs text-emerald-600 opacity-90 mt-2 group-hover:underline">{{ __('system.pages.service_fees_rows', ['count' => $pays->count()]) }}</p>
+            </a>
+            <a href="#income-luggage" class="group rounded-xl border border-cyan-100 bg-gradient-to-br from-cyan-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2">
+                <p class="text-xs font-semibold text-cyan-700 uppercase tracking-wide">{{ __('system.pages.luggage_fees') }}</p>
+                <p class="text-xl sm:text-2xl font-bold text-cyan-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalLuggageFees) }}</p>
+                <p class="text-xs text-cyan-600 opacity-90 mt-2 group-hover:underline">{{ __('system.pages.luggage_fees_rows', ['count' => $luggageBookings->count()]) }}</p>
             </a>
             <a href="#income-levy" class="group rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
                 <p class="text-xs font-semibold text-amber-800 uppercase tracking-wide">{{ __('system.pages.gov_levy_service') }}</p>
@@ -215,12 +221,101 @@
                                 @php $p = 1; @endphp
                                 @if($pays->count() > 0)
                                     @foreach ($pays as $payment)
+                                        @php $serviceAmount = (float) ($payment->display_amount ?? $payment->amount); @endphp
                                         <tr class="hover:bg-emerald-50 transition-colors">
                                             <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $p++ }}</td>
                                             <td class="py-2.5 px-4 font-medium text-gray-900">{{ $payment->campany->name }}</td>
                                             <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $payment->booking_id }}</td>
-                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $payment->amount }}">{{ $currency }} {{ convert_money($payment->amount) }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $serviceAmount }}">{{ $currency }} {{ convert_money($serviceAmount) }}</td>
                                             <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $payment->created_at->format('Y-m-d') }}">{{ $payment->created_at->format('d M Y') }}</td>
+                                        </tr>
+                                    @endforeach
+                                @else
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
+                                @endif
+                            </tbody>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="income-luggage" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
+                <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <h2 class="text-lg font-semibold">{{ __('system.pages.luggage_fees') }}</h2>
+                        <p class="text-cyan-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.luggage_desc') }}</p>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <span class="text-xs text-cyan-100 uppercase tracking-wide font-medium">{{ __('system.pages.section_total') }}</span>
+                        <div class="text-xl font-bold tabular-nums">{{ $currency }} <span id="luggageTotal">{{ convert_money($totalLuggageFees) }}</span></div>
+                    </div>
+                </div>
+                <div class="p-4 sm:p-6">
+                    <div class="flex flex-col lg:flex-row gap-4 mb-4 bg-gray-50 rounded-lg border border-gray-100 p-4">
+                        <div class="w-full lg:w-64">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{{ __('system.pages.period') }}</label>
+                            <select id="luggageTimeFilter" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm text-gray-800">
+                                <option value="all">{{ __('system.common.all_time') }}</option>
+                                <option value="day">{{ __('system.sidebar.today') }}</option>
+                                <option value="week">{{ __('system.common.this_week') }}</option>
+                                <option value="month">{{ __('system.common.this_month') }}</option>
+                                <option value="year">{{ __('system.common.this_year') }}</option>
+                                <option value="custom">{{ __('system.common.custom_range') }}</option>
+                            </select>
+                        </div>
+                        <div class="w-full lg:flex-1 hidden" id="luggageDateRangeGroup">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{{ __('system.pages.custom_range_label') }}</label>
+                            <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm" id="luggageMinDate" placeholder="Start Date">
+                                <span class="text-gray-400 text-sm hidden sm:block pb-2.5">→</span>
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm" id="luggageMaxDate" placeholder="End Date">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="luggageTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="luggageTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="luggageTable" data-column="2" placeholder="{{ __('system.pages.col_booking_code') }}">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="luggageTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="luggageTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="luggageTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_booking_code') }}</th>
+                                    <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold whitespace-nowrap">{{ __('system.common.date') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700 text-sm divide-y divide-gray-100 bg-white">
+                                @php $lg = 1; @endphp
+                                @if($luggageBookings->count() > 0)
+                                    @foreach ($luggageBookings as $booking)
+                                        @php $luggageAmount = booking_luggage_fee($booking); @endphp
+                                        <tr class="hover:bg-cyan-50 transition-colors">
+                                            <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $lg++ }}</td>
+                                            <td class="py-2.5 px-4 font-medium text-gray-900">{{ $booking->campany->name ?? '—' }}</td>
+                                            <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $booking->booking_code ?? 'N/A' }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $luggageAmount }}">{{ $currency }} {{ convert_money($luggageAmount) }}</td>
+                                            <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $booking->created_at->format('Y-m-d') }}">{{ $booking->created_at->format('d M Y') }}</td>
                                         </tr>
                                     @endforeach
                                 @else
@@ -302,11 +397,12 @@
                                 @php $l = 1; @endphp
                                 @if($levies->count() > 0)
                                     @foreach ($levies as $levy)
+                                        @php $levyAmount = (float) ($levy->display_amount ?? $levy->amount); @endphp
                                         <tr class="hover:bg-amber-50 transition-colors">
                                             <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $l++ }}</td>
                                             <td class="py-2.5 px-4 font-medium text-gray-900">{{ $levy->campany->name }}</td>
                                             <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $levy->booking_id }}</td>
-                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $levy->amount }}">{{ $currency }} {{ convert_money($levy->amount) }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $levyAmount }}">{{ $currency }} {{ convert_money($levyAmount) }}</td>
                                             <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $levy->created_at->format('Y-m-d') }}">{{ $levy->created_at->format('d M Y') }}</td>
                                         </tr>
                                     @endforeach
@@ -416,6 +512,14 @@
                 format: 'DD MMM YYYY'
             });
 
+            // Create date inputs for Luggage Fees Table
+            var luggageMinDate = new DateTime($('#luggageMinDate'), {
+                format: 'DD MMM YYYY'
+            });
+            var luggageMaxDate = new DateTime($('#luggageMaxDate'), {
+                format: 'DD MMM YYYY'
+            });
+
             // Custom date filtering function for all tables
             $.fn.dataTableExt.afnFiltering.push(function (settings, data, dataIndex) {
                 let tableId = settings.sTableId;
@@ -431,6 +535,11 @@
                     minDate = commissionMinDate.val();
                     maxDate = commissionMaxDate.val();
                     dateStr = data[4]; // Date column for commissionTable
+                } else if (tableId === 'luggageTable') {
+                    filterValue = $('#luggageTimeFilter').val();
+                    minDate = luggageMinDate.val();
+                    maxDate = luggageMaxDate.val();
+                    dateStr = data[4];
                 } else if (tableId === 'levyTable') {
                     filterValue = $('#levyTimeFilter').val();
                     minDate = levyMinDate.val();
@@ -473,10 +582,12 @@
             // Initialize tables
             const serviceTable = initPaymentsTable('#serviceTable', '#serviceTotal');
             const commissionTable = initPaymentsTable('#commissionTable', '#commissionTotal');
+            const luggageTable = initPaymentsTable('#luggageTable', '#luggageTotal');
             const levyTable = initPaymentsTable('#levyTable', '#levyTotal');
             const tableMap = {
                 serviceTable: serviceTable,
                 commissionTable: commissionTable,
+                luggageTable: luggageTable,
                 levyTable: levyTable,
             };
             wireColumnFilters(tableMap);
@@ -529,6 +640,22 @@
             $('#levyMinDate, #levyMaxDate').on('change', function() {
                 if ($('#levyTimeFilter').val() === 'custom') {
                     levyTable?.draw();
+                }
+            });
+
+            // Apply time filter for Luggage Fees Table
+            $('#luggageTimeFilter').on('change', function() {
+                if ($(this).val() === 'custom') {
+                    $('#luggageDateRangeGroup').removeClass('hidden');
+                } else {
+                    $('#luggageDateRangeGroup').addClass('hidden');
+                    luggageTable?.draw();
+                }
+            });
+
+            $('#luggageMinDate, #luggageMaxDate').on('change', function() {
+                if ($('#luggageTimeFilter').val() === 'custom') {
+                    luggageTable?.draw();
                 }
             });
         });
