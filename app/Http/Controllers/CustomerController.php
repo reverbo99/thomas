@@ -612,6 +612,8 @@ class CustomerController extends Controller
             'busFee' => session()->get('booking_form')['dispo'] ?? session()->get('booking_form')['total_amount'],
             'schedule_id' => session()->get('booking_form')['schedule_id'],
             'excess_luggage' => session()->get('booking_form')['excess_luggage'], // Add excess luggage
+            'has_excess_luggage' => session()->get('booking_form')['excess_luggage'] ?? 0, // Canonical DB flag
+            'excess_luggage_fee' => session()->get('booking_form')['excess_luggage_fee'] ?? 0, // Keep luggage out of the service fee
             'excess_luggage_description' => session()->get('booking_form')['excess_luggage_description'], // Add excess luggage description
         ];
 
@@ -845,6 +847,8 @@ class CustomerController extends Controller
             'schedule_id' => $bookingForm['schedule_id'],
             'cancel_key' => $bookingForm['cancel_key'] ?? null,
             'excess_luggage' => $bookingForm['excess_luggage'],
+            'has_excess_luggage' => $bookingForm['excess_luggage'] ?? 0, // Canonical DB flag
+            'excess_luggage_fee' => $bookingForm['excess_luggage_fee'] ?? 0, // Keep luggage out of the service fee
             'excess_luggage_description' => $bookingForm['excess_luggage_description'],
             'transaction_ref_id' => $xcode,
             'payment_method' => 'test_mode',
