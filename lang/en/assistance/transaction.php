@@ -84,10 +84,11 @@ return [
     'cash_wallet_in_use' => 'Cash wallet is already in use. Use Transfer to move a specific amount.',
     'no_commission_balance_to_move' => 'No balance in the commission wallet to move.',
     'insufficient_balance' => 'Insufficient balance',
+    'bank_name' => 'Bank Name',
     'bank_account_number' => 'Bank Account Number',
-    'bank_account_required' => 'Add your bank account number on your profile before requesting a bank payout.',
+    'bank_account_required' => 'Enter your bank name and account number to request a bank payout.',
     'bank_account_on_file' => 'Bank: :bank · Account: :account',
-    'payment_number_required' => 'Add your mobile money payment number on your profile before requesting a payout.',
+    'payment_number_required' => 'Enter your mobile money number to request a payout.',
     'transaction_request_sent' => 'Transaction request sent successfully',
     'transaction_request_failed' => 'Transaction request failed',
     // Deposit form

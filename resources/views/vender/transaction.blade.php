@@ -284,31 +284,48 @@
                 <div class="vendor-form-field">
                     <label for="payment_method">{{ __('assistance/transaction.payment_method') }}</label>
                     <select class="page-input w-full" id="payment_method" name="payment_method" required>
-                        <option value="" disabled selected>{{ __('assistance/transaction.select_payment_method') }}</option>
-                        <option value="MPesa">MPesa</option>
-                        <option value="AirtelMoney">Airtel-money</option>
-                        <option value="MixxBYYass">Mixx BY Yass</option>
-                        <option value="Halopesa">Halopesa</option>
-                        <option value="bank">Bank</option>
+                        <option value="" disabled @selected(old('payment_method') === null)>{{ __('assistance/transaction.select_payment_method') }}</option>
+                        <option value="MPesa" @selected(old('payment_method') === 'MPesa')>MPesa</option>
+                        <option value="AirtelMoney" @selected(old('payment_method') === 'AirtelMoney')>Airtel-money</option>
+                        <option value="MixxBYYass" @selected(old('payment_method') === 'MixxBYYass')>Mixx BY Yass</option>
+                        <option value="Halopesa" @selected(old('payment_method') === 'Halopesa')>Halopesa</option>
+                        <option value="bank" @selected(old('payment_method') === 'bank')>Bank</option>
                     </select>
                     @error('payment_method')
                         <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
                     @enderror
                 </div>
-                <div class="vendor-form-field" style="margin-bottom:0">
-                    <label for="payment_number" id="payment_number_label">{{ __('assistance/transaction.payment_number') }}</label>
-                    <input type="text" name="payment_number" id="payment_number" class="page-input w-full bg-gray-50"
-                           readonly
-                           data-mobile="{{ $vendorMobileNumber }}"
-                           data-bank="{{ $vendorBankNumber }}"
-                           data-bank-name="{{ $vendorBankName }}"
-                           value="{{ $vendorMobileNumber !== '' ? $vendorMobileNumber : __('assistance/transaction.na') }}" required>
-                    <p class="vendor-form-hint" id="bank_account_hint" hidden>
-                        {{ __('assistance/transaction.bank_account_on_file', ['bank' => $vendorBankName !== '' ? $vendorBankName : __('assistance/transaction.na'), 'account' => $vendorBankNumber !== '' ? $vendorBankNumber : __('assistance/transaction.na')]) }}
-                    </p>
+                {{-- Mobile money: entered / confirmed payout number --}}
+                <div class="vendor-form-field" id="mobileFields" style="margin-bottom:0">
+                    <label for="payment_number">{{ __('assistance/transaction.payment_number') }}</label>
+                    <input type="text" name="payment_number" id="payment_number" class="page-input w-full"
+                           value="{{ old('payment_number', $vendorMobileNumber) }}"
+                           placeholder="{{ __('assistance/transaction.payment_number') }}">
                     @error('payment_number')
                         <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
                     @enderror
+                </div>
+
+                {{-- Bank: entered bank name + account number --}}
+                <div id="bankFields" hidden>
+                    <div class="vendor-form-field">
+                        <label for="bank_name">{{ __('assistance/transaction.bank_name') }}</label>
+                        <input type="text" name="bank_name" id="bank_name" class="page-input w-full"
+                               value="{{ old('bank_name', $vendorBankName) }}"
+                               placeholder="{{ __('assistance/transaction.bank_name') }}" disabled>
+                        @error('bank_name')
+                            <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div class="vendor-form-field" style="margin-bottom:0">
+                        <label for="bank_number">{{ __('assistance/transaction.bank_account_number') }}</label>
+                        <input type="text" name="bank_number" id="bank_number" class="page-input w-full"
+                               value="{{ old('bank_number', $vendorBankNumber) }}"
+                               placeholder="{{ __('assistance/transaction.bank_account_number') }}" disabled>
+                        @error('bank_number')
+                            <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
                 </div>
             </div>
             <div class="vendor-modal__foot">
@@ -327,34 +344,26 @@ document.addEventListener('DOMContentLoaded', function () {
     const modal = document.getElementById('requestTransactionModal');
     const openIds = ['openTransactionModal', 'openTransactionModalSide', 'openTransactionModalEmpty'];
     const paymentMethodSelect = document.getElementById('payment_method');
+    const mobileFields = document.getElementById('mobileFields');
+    const bankFields = document.getElementById('bankFields');
     const paymentNumberInput = document.getElementById('payment_number');
-    const paymentNumberLabel = document.getElementById('payment_number_label');
-    const bankAccountHint = document.getElementById('bank_account_hint');
+    const bankNameInput = document.getElementById('bank_name');
+    const bankNumberInput = document.getElementById('bank_number');
     const amountInput = document.getElementById('amount');
-    const mobileNumber = @json($vendorMobileNumber);
-    const bankNumber = @json($vendorBankNumber);
-    const naLabel = @json(__('assistance/transaction.na'));
-    const mobileLabel = @json(__('assistance/transaction.payment_number'));
-    const bankLabel = @json(__('assistance/transaction.bank_account_number'));
 
+    // Show the fields for the chosen channel and disable the hidden ones so they
+    // are neither submitted nor block native "required" validation.
     function syncPayoutAccountField() {
-        if (!paymentMethodSelect || !paymentNumberInput || !paymentNumberLabel) {
-            return;
-        }
+        if (!paymentMethodSelect) return;
 
-        const method = (paymentMethodSelect.value || '').toLowerCase();
-        const isBank = method === 'bank';
-        paymentNumberLabel.textContent = isBank ? bankLabel : mobileLabel;
+        const isBank = (paymentMethodSelect.value || '').toLowerCase() === 'bank';
 
-        if (isBank) {
-            paymentNumberInput.value = bankNumber || naLabel;
-        } else {
-            paymentNumberInput.value = mobileNumber || naLabel;
-        }
+        if (mobileFields) mobileFields.hidden = isBank;
+        if (bankFields) bankFields.hidden = !isBank;
 
-        if (bankAccountHint) {
-            bankAccountHint.hidden = !isBank;
-        }
+        if (paymentNumberInput) paymentNumberInput.disabled = isBank;
+        if (bankNameInput) bankNameInput.disabled = !isBank;
+        if (bankNumberInput) bankNumberInput.disabled = !isBank;
     }
 
     function openModal() {
@@ -397,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function () {
     paymentMethodSelect?.addEventListener('change', syncPayoutAccountField);
     syncPayoutAccountField();
 
-    @if ($errors->has('amount') || $errors->has('payment_method') || $errors->has('payment_number'))
+    @if ($errors->has('amount') || $errors->has('payment_method') || $errors->has('payment_number') || $errors->has('bank_name') || $errors->has('bank_number'))
         openModal();
     @endif
 

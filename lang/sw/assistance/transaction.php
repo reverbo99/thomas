@@ -84,10 +84,11 @@ return [
     'cash_wallet_in_use' => 'Pochi ya pesa taslimu tayari inatumika. Tumia Hamisha kuhamisha kiasi maalum.',
     'no_commission_balance_to_move' => 'Hakuna salio katika pochi ya kamisheni la kuhamisha.',
     'insufficient_balance' => 'Salio halitoshi',
+    'bank_name' => 'Jina la Benki',
     'bank_account_number' => 'Namba ya Akaunti ya Benki',
-    'bank_account_required' => 'Ongeza namba ya akaunti yako ya benki kwenye wasifu kabla ya kuomba malipo kupitia benki.',
+    'bank_account_required' => 'Weka jina la benki na namba ya akaunti ili kuomba malipo kupitia benki.',
     'bank_account_on_file' => 'Benki: :bank · Akaunti: :account',
-    'payment_number_required' => 'Ongeza namba yako ya malipo ya pesa za simu kwenye wasifu kabla ya kuomba malipo.',
+    'payment_number_required' => 'Weka namba yako ya pesa za simu ili kuomba malipo.',
     'transaction_request_sent' => 'Ombi la muamala limetumwa kwa mafanikio',
     'transaction_request_failed' => 'Ombi la muamala limeshindwa',
     // Fomu ya uwekaji

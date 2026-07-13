@@ -1040,32 +1040,45 @@ class VenderController extends Controller
     public function transaction_request(Request $request)
     {
         $user = auth()->user();
-        // Check if the company balance is sufficient
+
+        // Vendor chooses one payout channel: bank OR mobile money. When bank is
+        // selected they enter the bank name + account number directly; for mobile
+        // money they enter/confirm the payout number.
+        $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'payment_method' => ['required', 'string', 'max:50'],
+            'bank_name' => ['required_if:payment_method,bank', 'nullable', 'string', 'max:100'],
+            'bank_number' => ['required_if:payment_method,bank', 'nullable', 'string', 'max:50'],
+            'payment_number' => ['required_unless:payment_method,bank', 'nullable', 'string', 'max:50'],
+        ]);
+
+        // Check if the vendor commission balance is sufficient
         if ($request->amount > $user->VenderBalances->amount) {
             return back()->with('error', __('assistance/transaction.insufficient_balance'));
         }
 
         $paymentMethod = strtolower(trim((string) $request->payment_method));
         if ($paymentMethod === 'bank') {
-            // Always use saved bank account from profile — never the mobile money number
-            $account = $user->VenderAccount;
-            $paymentNumber = trim((string) optional($account)->bank_number);
-            if ($paymentNumber === '' || in_array(strtolower($paymentNumber), ['n/a', 'haipatikani'], true)) {
-                return back()->with('error', __('assistance/transaction.bank_account_required'));
+            $bankName = trim((string) $request->bank_name);
+            $bankNumber = trim((string) $request->bank_number);
+            if ($bankNumber === '' || in_array(strtolower($bankNumber), ['n/a', 'haipatikani'], true)) {
+                return back()->with('error', __('assistance/transaction.bank_account_required'))->withInput();
             }
+
+            // Store the entered details on the vendor profile for reuse next time
+            $this->storeVendorBankAccount($user, $bankName, $bankNumber);
+
             // Snapshot: store bank name + account so admin always sees bank details
-            $bankName = trim((string) optional($account)->bank_name);
-            if ($bankName !== '') {
-                $paymentNumber = $bankName . ' — ' . $paymentNumber;
-            }
+            $paymentNumber = $bankName !== '' ? $bankName . ' — ' . $bankNumber : $bankNumber;
         } else {
-            // Mobile money: use saved wallet payment number (ignore stale/wrong form value)
-            $paymentNumber = trim((string) optional($user->VenderBalances)->payment_number);
-            if ($paymentNumber === '') {
-                $paymentNumber = trim((string) ($request->payment_number ?? ''));
-            }
+            $paymentNumber = trim((string) ($request->payment_number ?? ''));
             if ($paymentNumber === '' || in_array(strtolower($paymentNumber), ['n/a', 'haipatikani'], true)) {
-                return back()->with('error', __('assistance/transaction.payment_number_required'));
+                return back()->with('error', __('assistance/transaction.payment_number_required'))->withInput();
+            }
+
+            // Save the mobile money number on the wallet for reuse next time
+            if ($user->VenderBalances) {
+                $user->VenderBalances->update(['payment_number' => $paymentNumber]);
             }
         }
 
@@ -1082,9 +1095,32 @@ class VenderController extends Controller
 
             return back()->with('success', __('assistance/transaction.transaction_request_sent'));
         } catch (\Exception $e) {
-            // Log the error for debugging
+            Log::error('Vendor transaction request failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
 
             return back()->with('error', __('assistance/transaction.transaction_request_failed'));
+        }
+    }
+
+    /**
+     * Persist the vendor's bank name + account number to their profile so the
+     * fields are pre-filled next time and admins see current details.
+     */
+    private function storeVendorBankAccount($user, string $bankName, string $bankNumber): void
+    {
+        if ($user->VenderAccount) {
+            $user->VenderAccount->update([
+                'bank_name' => $bankName,
+                'bank_number' => $bankNumber,
+            ]);
+        } else {
+            $user->VenderAccount()->create([
+                'user_id' => $user->id,
+                'bank_name' => $bankName,
+                'bank_number' => $bankNumber,
+            ]);
         }
     }
 
