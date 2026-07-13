@@ -157,7 +157,7 @@
             </section>
 
             <section id="income-service-fees" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
-                <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #059669, #10b981);">
                     <div>
                         <h2 class="text-lg font-semibold">{{ __('system.pages.service_fees') }}</h2>
                         <p class="text-emerald-100 text-xs sm:text-sm mt-0.5">Platform service fee pool recorded per booking</p>
@@ -245,7 +245,7 @@
             </section>
 
             <section id="income-luggage" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
-                <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #0891b2, #06b6d4);">
                     <div>
                         <h2 class="text-lg font-semibold">{{ __('system.pages.luggage_fees') }}</h2>
                         <p class="text-cyan-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.luggage_desc') }}</p>
@@ -333,7 +333,7 @@
             </section>
 
             <section id="income-levy" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
-                <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-amber-600 to-amber-500 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #d97706, #f59e0b);">
                     <div>
                         <h2 class="text-lg font-semibold">Government levy (from service)</h2>
                         <p class="text-amber-100 text-xs sm:text-sm mt-0.5">Levy portion attributed to service fees</p>
