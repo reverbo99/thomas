@@ -7,6 +7,9 @@
     $variant = $variant ?? 'default';
     $extraFields = $extraFields ?? [];
     $isVendor = $variant === 'vendor';
+    // Allow callers that place the filter on a coloured header to override the
+    // label colour so the labels stay legible (e.g. white text on a teal card).
+    $labelClass = $labelClass ?? 'text-gray-600';
     $selectClass = $isVendor
         ? 'page-input text-sm'
         : 'px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm';
@@ -28,7 +31,7 @@
 
     <div class="flex flex-col gap-1">
         @unless($isVendor)
-            <label for="historyPeriodSelect" class="text-xs font-medium text-gray-600">{{ __('system.pages.period') }}</label>
+            <label for="historyPeriodSelect" class="text-xs font-medium {{ $labelClass }}">{{ __('system.pages.period') }}</label>
         @endunless
         <select name="period" id="historyPeriodSelect" class="{{ $selectClass }}" onchange="window.toggleHistoryCustomDates && window.toggleHistoryCustomDates(this)">
             <option value="" @selected($period === '' || $period === null)>{{ __('system.common.all_time') }}</option>
@@ -41,12 +44,12 @@
     </div>
 
     <div class="flex flex-col gap-1 history-custom-dates {{ ($period === 'custom' || ($startDate && $endDate)) ? '' : 'hidden' }}">
-        <label for="historyStartDate" class="text-xs font-medium {{ $isVendor ? 'text-gray-600' : 'text-gray-600' }}">{{ __('system.common.start_date') }}</label>
+        <label for="historyStartDate" class="text-xs font-medium {{ $labelClass }}">{{ __('system.common.start_date') }}</label>
         <input type="date" name="start_date" id="historyStartDate" value="{{ $startDate }}" class="{{ $dateClass }}">
     </div>
 
     <div class="flex flex-col gap-1 history-custom-dates {{ ($period === 'custom' || ($startDate && $endDate)) ? '' : 'hidden' }}">
-        <label for="historyEndDate" class="text-xs font-medium {{ $isVendor ? 'text-gray-600' : 'text-gray-600' }}">{{ __('system.common.end_date') }}</label>
+        <label for="historyEndDate" class="text-xs font-medium {{ $labelClass }}">{{ __('system.common.end_date') }}</label>
         <input type="date" name="end_date" id="historyEndDate" value="{{ $endDate }}" class="{{ $dateClass }}">
     </div>
 

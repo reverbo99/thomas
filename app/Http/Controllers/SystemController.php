@@ -1492,10 +1492,12 @@ class SystemController extends Controller
     {
         $this->requireAccess(Access::LINKS['BOOKING_HISTORY']);
 
+        // Warn (but don't redirect) when a custom range is missing its dates —
+        // redirecting back to system.history?period=custom re-triggers this guard
+        // and loops forever (ERR_TOO_MANY_REDIRECTS). The date filter helper applies
+        // no filter when the custom dates are absent.
         if ($request->get('period') === 'custom' && (! $request->filled('start_date') || ! $request->filled('end_date'))) {
-            return redirect()
-                ->route('system.history', array_filter(['period' => 'custom', 'channel' => $request->get('channel')]))
-                ->with('error', __('system.pages.custom_range_requires_dates'));
+            session()->flash('error', __('system.pages.custom_range_requires_dates'));
         }
 
         $query = Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService']);

@@ -598,10 +598,12 @@ class AdminController extends Controller
     /////////////history///////////////
     public function history(Request $request)
     {
+        // Warn (but don't redirect) when a custom range is missing its dates.
+        // Redirecting back to history?period=custom re-triggers this same guard
+        // and causes an infinite redirect loop (ERR_TOO_MANY_REDIRECTS). The date
+        // filter helper safely applies no filter when the custom dates are absent.
         if ($request->get('period') === 'custom' && (! $request->filled('start_date') || ! $request->filled('end_date'))) {
-            return redirect()
-                ->route('history', ['period' => 'custom'])
-                ->with('error', __('system.pages.custom_range_requires_dates'));
+            session()->flash('error', __('system.pages.custom_range_requires_dates'));
         }
 
         $query = Booking::with(['campany', 'schedule', 'user', 'bus.route', 'vender', 'campany.busOwnerAccount', 'governmentLeviesOnService'])

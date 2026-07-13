@@ -28,6 +28,7 @@
                         'period' => $period ?? request('period'),
                         'startDate' => $startDate ?? request('start_date'),
                         'endDate' => $endDate ?? request('end_date'),
+                        'labelClass' => 'text-white',
                     ])
                     <div class="relative w-full sm:w-auto">
                         <button type="button"
