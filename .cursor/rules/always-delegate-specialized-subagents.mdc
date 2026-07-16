@@ -20,7 +20,14 @@ For every conversation and task, apply these defaults whenever relevant work app
 - Use `busowneragent` for bus owner account tasks.
 - Use `adminagent` for system admin account tasks.
 - Use `guestagent` for guest/public user tasks.
-- Use `customeragent` for customer account tasks.
+- Use `customeragent` for customer account tasks (web `/customer/*` portal).
+
+## Bushire customer Flutter app (`mobile/bushire_customer`)
+
+- Use `bushirecustomeragent` for Bushire customer app product flow, screens, navigation, booking/tracking UX logic.
+- Use `bushirecustomeruiagent` for Flutter UI/theme/widgets/map chrome in the Bushire customer app.
+- Use `bushirecustomerapiagent` for Sanctum/HTTP client, DTOs, repositories, and `/api/special-hire/customer` integration.
+- Do not use web `customeragent` / `newuiagent` for Bushire Flutter work unless the task is specifically about the Laravel API backend or shared docs.
 
 ## Enforcement behavior
 

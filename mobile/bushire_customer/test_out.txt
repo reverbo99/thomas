@@ -1,0 +1,4 @@
+﻿00:00 +0: loading C:/wamp64/www/thomas/mobile/bushire_customer/test/widget_test.dart
+00:00 +0: Login page shows Bushire branding and sign-in CTA
+00:02 +1: Login success opens dashboard shell
+00:03 +2: All tests passed!
