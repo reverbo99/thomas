@@ -1,0 +1,245 @@
+import 'package:flutter/material.dart';
+
+import '../../core/di/app_scope.dart';
+import '../../core/strings.dart';
+import '../../data/api/api_exception.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../widgets/primary_button.dart';
+
+/// Driver profile edit and logout.
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({
+    super.key,
+    required this.onLogout,
+    this.authRepository,
+  });
+
+  final Future<void> Function() onLogout;
+  final AuthRepository? authRepository;
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+
+  String? _email;
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  AuthRepository get _auth =>
+      widget.authRepository ?? AppScope.of(context).authRepository;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final profile = await _auth.getProfile();
+      if (!mounted) return;
+      _name.text = profile.user.name;
+      _phone.text = profile.user.phone ?? '';
+      _email = profile.user.email;
+      setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      final cached = _auth.currentUser;
+      if (cached != null) {
+        _name.text = cached.name;
+        _phone.text = cached.phone ?? '';
+        _email = cached.email;
+      }
+      setState(() {
+        _loading = false;
+        _error = e is ApiException ? e.message : e.toString();
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final pwd = _password.text;
+      await _auth.updateProfile(
+        name: _name.text.trim(),
+        phone: _phone.text.trim(),
+        password: pwd.isEmpty ? null : pwd,
+        passwordConfirmation: pwd.isEmpty ? null : _confirm.text,
+      );
+      _password.clear();
+      _confirm.clear();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(AppStrings.profileUpdated)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e is ApiException ? e.message : e.toString();
+      });
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _logout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text(AppStrings.logout),
+        content: const Text(AppStrings.logoutConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(AppStrings.logout),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await widget.onLogout();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(AppStrings.profile),
+        actions: [
+          IconButton(
+            tooltip: AppStrings.logout,
+            onPressed: _logout,
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                children: [
+                  if (_email != null)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.email_outlined),
+                      title: Text(_email!),
+                      subtitle: const Text(AppStrings.emailReadOnly),
+                    ),
+                  if (_error != null) ...[
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextFormField(
+                    controller: _name,
+                    decoration: const InputDecoration(
+                      labelText: AppStrings.name,
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? AppStrings.nameRequired
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _phone,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: AppStrings.phone,
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    AppStrings.changePassword,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    AppStrings.passwordOptionalHint,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _password,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: AppStrings.newPassword,
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    validator: (v) {
+                      if (v != null && v.isNotEmpty && v.length < 6) {
+                        return AppStrings.passwordTooShort;
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _confirm,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: AppStrings.confirmPassword,
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    validator: (v) {
+                      if (_password.text.isNotEmpty && v != _password.text) {
+                        return AppStrings.passwordMismatch;
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  PrimaryButton(
+                    label: AppStrings.saveProfile,
+                    isLoading: _saving,
+                    onPressed: _saving ? null : _save,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: _logout,
+                    child: const Text(AppStrings.logout),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
