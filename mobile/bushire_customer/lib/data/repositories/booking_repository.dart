@@ -174,6 +174,73 @@ class BookingRepository {
     return TrackInfo.fromJson(Map<String, dynamic>.from(data));
   }
 
+  /// POST `/bookings/prepare-payment` — ClickPesa first; hire is NOT created yet.
+  Future<PaymentInitResult> preparePayment({
+    required int coasterId,
+    required String pickupLocation,
+    required String dropoffLocation,
+    required String hireDate,
+    required String hireTime,
+    required int passengersCount,
+    required num distanceKm,
+    required num totalAmount,
+    required String phone,
+    double? pickupLatitude,
+    double? pickupLongitude,
+    double? dropoffLatitude,
+    double? dropoffLongitude,
+    String? returnDate,
+    String? returnTime,
+    String? purpose,
+    String? notes,
+  }) async {
+    final body = <String, dynamic>{
+      'coaster_id': coasterId,
+      'pickup_location': pickupLocation,
+      'dropoff_location': dropoffLocation,
+      'hire_date': hireDate,
+      'hire_time': hireTime,
+      'passengers_count': passengersCount,
+      'distance_km': distanceKm,
+      'total_amount': totalAmount,
+      'phone': phone,
+    };
+    if (pickupLatitude != null) body['pickup_latitude'] = pickupLatitude;
+    if (pickupLongitude != null) body['pickup_longitude'] = pickupLongitude;
+    if (dropoffLatitude != null) body['dropoff_latitude'] = dropoffLatitude;
+    if (dropoffLongitude != null) body['dropoff_longitude'] = dropoffLongitude;
+    if (returnDate != null && returnDate.isNotEmpty) {
+      body['return_date'] = returnDate;
+    }
+    if (returnTime != null && returnTime.isNotEmpty) {
+      body['return_time'] = returnTime;
+    }
+    if (purpose != null && purpose.isNotEmpty) body['purpose'] = purpose;
+    if (notes != null && notes.isNotEmpty) body['notes'] = notes;
+
+    final data = await _api.post(ApiEndpoints.preparePayment, body: body);
+    return _paymentInit(data);
+  }
+
+  /// POST `/bookings/payment-intents/{id}/sync` — on paid, creates the hire.
+  Future<BookingModel> syncIntentPayment({
+    required int intentId,
+    String? reference,
+  }) async {
+    final body = <String, dynamic>{};
+    if (reference != null && reference.isNotEmpty) {
+      body['reference'] = reference;
+    }
+    final data = await _api.post(
+      ApiEndpoints.syncIntentPayment(intentId),
+      body: body.isEmpty ? null : body,
+    );
+    if (data is! Map) {
+      throw ApiException(message: 'Unexpected intent sync response');
+    }
+    return BookingModel.fromJson(Map<String, dynamic>.from(data));
+  }
+
   /// POST `/bookings/{id}/pay-deposit` — body `{ phone }`
   Future<PaymentInitResult> payDeposit({
     required int bookingId,

@@ -18,7 +18,7 @@ import 'booking_success_page.dart';
 
 enum _ConfirmPhase { review, pay, passengers }
 
-/// Confirm → ClickPesa deposit → background sync → seat names → success.
+/// Confirm → ClickPesa (no hire yet) → sync creates hire → seat names → success.
 class BookingConfirmPage extends StatefulWidget {
   const BookingConfirmPage({super.key, required this.draft});
 
@@ -34,6 +34,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
 
   _ConfirmPhase _phase = _ConfirmPhase.review;
   BookingModel? _booking;
+  int? _intentId;
   late final TextEditingController _phone;
   String? _orderReference;
 
@@ -96,6 +97,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
       ? e.message
       : e.toString().replaceFirst('Exception: ', '');
 
+  /// ClickPesa first — hire is created only after payment sync succeeds.
   Future<void> _createAndPay() async {
     final draft = widget.draft;
     final quote = draft.quote;
@@ -121,10 +123,12 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
       _loading = true;
       _error = null;
       _statusMessage = null;
+      _booking = null;
+      _intentId = null;
     });
 
     try {
-      final booking = await services.bookingRepository.createBooking(
+      final result = await services.bookingRepository.preparePayment(
         coasterId: draft.coaster.id,
         pickupLocation: draft.pickupLocation,
         dropoffLocation: draft.dropoffLocation,
@@ -135,6 +139,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
             ? quote.billableKm
             : (draft.distanceKm ?? quote.distanceKm),
         totalAmount: quote.totalAmount,
+        phone: phone,
         pickupLatitude: draft.pickupLatitude,
         pickupLongitude: draft.pickupLongitude,
         dropoffLatitude: draft.dropoffLatitude,
@@ -143,79 +148,30 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
         returnTime: draft.returnTime,
         purpose: draft.purpose,
         notes: draft.notes,
-        phone: phone,
       );
       if (!mounted) return;
 
-      // Already past deposit (e.g. resumed / server state).
-      if (booking.needsPassengers) {
+      if (result.booking != null) {
         setState(() {
-          _booking = booking;
-          _loading = false;
+          _statusMessage = result.message ?? AppStrings.paymentReceived;
+          _booking = result.booking;
         });
-        _enterPassengersPhase(booking);
+        _onPaymentSynced(result.booking!);
         return;
       }
 
-      if (booking.hireNextStep == 'done') {
-        setState(() {
-          _booking = booking;
-          _loading = false;
-        });
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => BookingSuccessPage(booking: booking),
-          ),
-        );
+      if (result.intentId == null) {
+        setState(() => _error = 'Could not start payment. Try again.');
         return;
       }
 
-      // pay_deposit, wait_owner (legacy full-on-balance), or unknown →
-      // pay-deposit API heals wait_owner into upfront deposit.
-      if (booking.needsBalance) {
-        setState(() {
-          _booking = booking;
-          _loading = false;
-          _error =
-              'Balance payment needs driver acceptance first. Open My Trips to pay when ready.';
-        });
-        return;
-      }
-
-      setState(() {
-        _booking = booking;
-        _phase = _ConfirmPhase.pay;
-        _statusMessage = AppStrings.waitingForPayment;
-      });
-
-      await _initiateDeposit(services, phone);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = _err(e));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _initiateDeposit(AppServices services, String phone) async {
-    final booking = _booking;
-    if (booking == null) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final result = await services.bookingRepository.payDeposit(
-        bookingId: booking.id,
-        phone: phone,
-      );
-      if (!mounted) return;
+      _intentId = result.intentId;
       if (result.orderReference != null && result.orderReference!.isNotEmpty) {
         _orderReference = result.orderReference;
       }
+
       setState(() {
+        _phase = _ConfirmPhase.pay;
         _statusMessage = result.message ?? AppStrings.waitingForPayment;
       });
       _startPolling();
@@ -227,11 +183,20 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
     }
   }
 
+  Future<void> _resendPaymentPrompt() async {
+    final phone = _phone.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _error = AppStrings.phoneRequired);
+      return;
+    }
+    // New intent + new USSD push (previous pending intent expires unused).
+    await _createAndPay();
+  }
+
   void _startPolling() {
     _stopPolling();
     _pollAttempts = 0;
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollSync());
-    // First check shortly after initiate.
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted && _phase == _ConfirmPhase.pay) _pollSync();
     });
@@ -239,9 +204,9 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
 
   Future<void> _pollSync({bool manual = false}) async {
     if (_phase != _ConfirmPhase.pay || _syncInFlight) return;
-    final booking = _booking;
+    final intentId = _intentId;
     final services = AppScope.maybeOf(context);
-    if (booking == null || services == null) return;
+    if (intentId == null || services == null) return;
 
     if (!manual) {
       _pollAttempts++;
@@ -265,15 +230,14 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
     }
 
     try {
-      final updated = await services.bookingRepository.syncPayment(
-        bookingId: booking.id,
+      final booking = await services.bookingRepository.syncIntentPayment(
+        intentId: intentId,
         reference: _orderReference,
       );
       if (!mounted) return;
-      _onPaymentSynced(updated);
+      _onPaymentSynced(booking);
     } on ApiException catch (e) {
       if (!mounted) return;
-      // 400 = still pending — keep waiting.
       if (e.statusCode == 400) {
         if (manual) {
           setState(() {
@@ -301,21 +265,17 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
       _statusMessage = AppStrings.paymentReceived;
       _loading = false;
     });
-    // Prefer seat names when API says so; otherwise still advance after paid deposit.
     if (updated.needsPassengers ||
-        updated.hireNextStep == 'enter_passengers' ||
-        updated.hireNextStep == 'done') {
-      if (updated.needsPassengers ||
-          updated.hireNextStep == 'enter_passengers') {
-        _enterPassengersPhase(updated);
-      } else {
-        // Names already stored — go straight to success.
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => BookingSuccessPage(booking: updated),
-          ),
-        );
-      }
+        updated.hireNextStep == 'enter_passengers') {
+      _enterPassengersPhase(updated);
+      return;
+    }
+    if (updated.hireNextStep == 'done') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => BookingSuccessPage(booking: updated),
+        ),
+      );
       return;
     }
     _enterPassengersPhase(updated);
@@ -507,6 +467,8 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
         widget.draft.quote?.totalAmount;
     final polling = _pollTimer != null;
     final orderCode = booking?.orderCode;
+    final intentLabel =
+        _intentId == null ? null : 'Payment #$_intentId (hire not saved yet)';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -514,6 +476,15 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
         if (orderCode != null && orderCode.isNotEmpty) ...[
           Text(
             orderCode,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+        ] else if (intentLabel != null) ...[
+          Text(
+            intentLabel,
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
@@ -551,13 +522,7 @@ class _BookingConfirmPageState extends State<BookingConfirmPage> {
               ),
               const SizedBox(height: 10),
               OutlinedButton(
-                onPressed: _loading
-                    ? null
-                    : () {
-                        final services = AppScope.maybeOf(context);
-                        if (services == null) return;
-                        _initiateDeposit(services, _phone.text.trim());
-                      },
+                onPressed: _loading ? null : _resendPaymentPrompt,
                 child: const Text(AppStrings.resendPaymentPrompt),
               ),
             ],

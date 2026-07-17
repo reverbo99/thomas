@@ -204,21 +204,35 @@ Route::prefix('special-hire/customer')->group(function () {
 
         // Browse Coasters (with availability)
         Route::get('/coasters', [CustomerApiController::class, 'getCoasters']);
-        Route::get('/coasters/{id}', [CustomerApiController::class, 'getCoaster']);
+        Route::get('/coasters/{id}', [CustomerApiController::class, 'getCoaster'])
+            ->whereNumber('id');
 
         // Price Calculation
         Route::post('/calculate-price', [CustomerApiController::class, 'calculatePrice']);
 
-        // Bookings
+        // Pay first (no hire until ClickPesa succeeds), then sync creates the order.
+        // Register BEFORE /bookings/{id} so "prepare-payment" is never captured as {id}.
+        Route::post('/bookings/prepare-payment', [CustomerApiController::class, 'preparePayment']);
+        Route::post('/bookings/payment-intents/{intentId}/sync', [CustomerApiController::class, 'syncIntentPayment'])
+            ->whereNumber('intentId');
+
+        // Bookings ({id} is numeric only — avoids 405 when a static path is missing on an older deploy)
         Route::post('/bookings', [CustomerApiController::class, 'createBooking']);
         Route::get('/bookings', [CustomerApiController::class, 'getBookings']);
-        Route::get('/bookings/{id}', [CustomerApiController::class, 'getBooking']);
-        Route::post('/bookings/{id}/cancel', [CustomerApiController::class, 'cancelBooking']);
-        Route::get('/bookings/{id}/track', [CustomerApiController::class, 'trackBooking']);
-        Route::post('/bookings/{id}/pay-deposit', [CustomerApiController::class, 'specialHirePayDeposit']);
-        Route::post('/bookings/{id}/pay-balance', [CustomerApiController::class, 'specialHirePayBalance']);
-        Route::post('/bookings/{id}/passengers', [CustomerApiController::class, 'specialHirePassengers']);
-        Route::post('/bookings/{id}/sync-payment', [CustomerApiController::class, 'specialHireSyncPayment']);
+        Route::get('/bookings/{id}', [CustomerApiController::class, 'getBooking'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/cancel', [CustomerApiController::class, 'cancelBooking'])
+            ->whereNumber('id');
+        Route::get('/bookings/{id}/track', [CustomerApiController::class, 'trackBooking'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/pay-deposit', [CustomerApiController::class, 'specialHirePayDeposit'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/pay-balance', [CustomerApiController::class, 'specialHirePayBalance'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/passengers', [CustomerApiController::class, 'specialHirePassengers'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/sync-payment', [CustomerApiController::class, 'specialHireSyncPayment'])
+            ->whereNumber('id');
 
         // Logout
         Route::post('/logout', [CustomerApiController::class, 'logout']);

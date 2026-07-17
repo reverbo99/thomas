@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\ClickPesaController;
 use App\Http\Controllers\SmsController;
 use App\Models\Coaster;
+use App\Models\Setting;
 use App\Models\SpecialHireOrder;
+use App\Models\SpecialHirePaymentIntent;
 use App\Models\SpecialHirePricing;
 use App\Models\User;
 use App\Services\SpecialHireOrderPaymentService;
@@ -433,6 +435,232 @@ class CustomerApiController extends Controller
         return response()->json([
             'success' => true,
             'data' => array_merge($priceData, $commission),
+        ]);
+    }
+
+    /**
+     * Start ClickPesa for a hire WITHOUT creating SpecialHireOrder.
+     * Order is created only after sync confirms payment (preparePayment → syncIntentPayment).
+     */
+    public function preparePayment(Request $request)
+    {
+        $user = Auth::user();
+
+        $validator = Validator::make($request->all(), [
+            'coaster_id' => 'required|exists:coasters,id',
+            'pickup_location' => 'required|string|max:255',
+            'pickup_latitude' => 'nullable|numeric',
+            'pickup_longitude' => 'nullable|numeric',
+            'dropoff_location' => 'required|string|max:255',
+            'dropoff_latitude' => 'nullable|numeric',
+            'dropoff_longitude' => 'nullable|numeric',
+            'hire_date' => 'required|date|after_or_equal:today',
+            'hire_time' => 'required',
+            'return_date' => 'nullable|date|after_or_equal:hire_date',
+            'return_time' => 'nullable',
+            'passengers_count' => 'required|integer|min:1',
+            'purpose' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
+            'phone' => 'required|string|max:20',
+            'total_amount' => 'required|numeric|min:0',
+            'distance_km' => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $coaster = Coaster::with('pricing')->find($request->coaster_id);
+        if (! $coaster) {
+            return response()->json(['success' => false, 'message' => 'Coaster not found'], 404);
+        }
+        if (! $coaster->pricing) {
+            return response()->json(['success' => false, 'message' => 'Pricing not set for this coaster'], 400);
+        }
+
+        $winStart = Carbon::parse($request->hire_date)->startOfDay();
+        $winEnd = Carbon::parse($request->input('return_date', $request->hire_date))->startOfDay();
+        if ($coaster->hasHireScheduleConflict($winStart, $winEnd)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This vehicle is not available for the selected hire dates.',
+            ], 422);
+        }
+
+        $amount = round((float) $request->total_amount, 2);
+        $payload = [
+            'coaster_id' => (int) $request->coaster_id,
+            'pickup_location' => $request->pickup_location,
+            'pickup_latitude' => $request->pickup_latitude,
+            'pickup_longitude' => $request->pickup_longitude,
+            'dropoff_location' => $request->dropoff_location,
+            'dropoff_latitude' => $request->dropoff_latitude,
+            'dropoff_longitude' => $request->dropoff_longitude,
+            'hire_date' => $request->hire_date,
+            'hire_time' => $request->hire_time,
+            'return_date' => $request->return_date,
+            'return_time' => $request->return_time,
+            'passengers_count' => (int) $request->passengers_count,
+            'purpose' => $request->purpose,
+            'notes' => $request->notes,
+            'distance_km' => (float) $request->distance_km,
+            'total_amount' => $amount,
+            'customer_phone' => $request->phone,
+        ];
+
+        $intent = SpecialHirePaymentIntent::create([
+            'customer_user_id' => $user->id,
+            'coaster_id' => $coaster->id,
+            'payload' => $payload,
+            'amount' => $amount,
+            'phone' => $request->phone,
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(45),
+        ]);
+
+        if ((bool) (Setting::query()->value('test_mode') ?? false)) {
+            $ref = 'TESTSH'.$intent->id.'T'.now()->format('YmdHis');
+            $intent->update(['clickpesa_ref' => $ref]);
+
+            try {
+                $order = app(SpecialHireOrderPaymentService::class)
+                    ->finalizePaidIntent($intent, (object) [
+                        'status' => 'success',
+                        'amount' => $amount,
+                        'reference' => $ref,
+                        'payment_method' => 'test_mode',
+                    ], $ref);
+            } catch (\Throwable $e) {
+                $intent->update(['status' => 'expired']);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
+            $orderPayload = $order->toArray();
+            $orderPayload['hire_next_step'] = $order->customerHireNextStep();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Test mode is enabled. Payment approved automatically and hire saved.',
+                'data' => [
+                    'intent_id' => $intent->id,
+                    'order_reference' => $ref,
+                    'amount' => $amount,
+                    'test_mode' => true,
+                    'booking' => $orderPayload,
+                ],
+            ]);
+        }
+
+        $parts = explode(' ', trim($user->name), 2);
+        $out = app(SpecialHireOrderPaymentService::class)->initiateIntentUssd(
+            $intent,
+            $request->phone,
+            $parts[0] ?? 'Customer',
+            $parts[1] ?? '',
+            $user->email ?? ''
+        );
+
+        if (! $out['ok']) {
+            $intent->update(['status' => 'expired']);
+
+            return response()->json([
+                'success' => false,
+                'message' => $out['error'] ?? 'Payment start failed',
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment request sent to phone. Approve on your handset. Hire is saved only after payment succeeds.',
+            'data' => [
+                'intent_id' => $intent->id,
+                'order_reference' => $out['order_reference'] ?? null,
+                'amount' => $amount,
+                'clickpesa' => $out['response'] ?? null,
+                'expires_at' => optional($intent->expires_at)->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Poll ClickPesa for a payment intent. On success, create SpecialHireOrder (paid) and return it.
+     */
+    public function syncIntentPayment(Request $request, int $intentId)
+    {
+        $user = Auth::user();
+        $intent = SpecialHirePaymentIntent::where('customer_user_id', $user->id)->find($intentId);
+        if (! $intent) {
+            return response()->json(['success' => false, 'message' => 'Payment session not found'], 404);
+        }
+
+        if ($intent->status === 'consumed' && $intent->special_hire_order_id) {
+            $order = SpecialHireOrder::with('coaster')->find($intent->special_hire_order_id);
+            if ($order) {
+                $payload = $order->toArray();
+                $payload['hire_next_step'] = $order->customerHireNextStep();
+
+                return response()->json(['success' => true, 'data' => $payload]);
+            }
+        }
+
+        if ($intent->isExpired() || $intent->status === 'expired') {
+            $intent->update(['status' => 'expired']);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment session expired. Start payment again.',
+            ], 400);
+        }
+
+        $ref = $request->input('reference') ?: $intent->clickpesa_ref;
+        if (! $ref) {
+            return response()->json(['success' => false, 'message' => 'No payment reference to check'], 422);
+        }
+
+        $cp = new ClickPesaController();
+        $verify = $cp->verifyTransaction($ref);
+        $statusStr = is_object($verify) && isset($verify->status) ? (string) $verify->status : '';
+        $lower = strtolower(trim($statusStr));
+        $isPaid = $lower === 'success' || ClickPesaController::clickPesaPaidStatus($statusStr);
+        if (! $isPaid) {
+            $message = is_string($verify) ? $verify : 'Payment not completed yet';
+            if (is_object($verify) && isset($verify->status)) {
+                if ($lower === 'api_error' && isset($verify->message)) {
+                    $message = 'Could not verify with ClickPesa yet. Try again shortly. '
+                        .(is_string($verify->message) ? $verify->message : '');
+                } elseif (in_array($lower, ['pending', 'initiated', 'processing'], true)) {
+                    $message = 'Payment is still processing. Approve on your phone if prompted, then tap Sync again.';
+                }
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => trim($message) !== '' ? trim($message) : 'Payment not completed yet',
+                'data' => ['intent_id' => $intent->id],
+            ], 400);
+        }
+
+        try {
+            $order = app(SpecialHireOrderPaymentService::class)
+                ->finalizePaidIntent($intent, $verify, $ref);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $payload = $order->toArray();
+        $payload['hire_next_step'] = $order->customerHireNextStep();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment confirmed. Hire saved.',
+            'data' => $payload,
         ]);
     }
 

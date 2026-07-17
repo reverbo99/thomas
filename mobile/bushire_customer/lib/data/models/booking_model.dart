@@ -197,17 +197,23 @@ class TrackInfo {
   }
 }
 
-/// USSD / ClickPesa initiate response from pay-deposit / pay-balance.
+/// USSD / ClickPesa initiate response from prepare-payment / pay-deposit / pay-balance.
 class PaymentInitResult {
   const PaymentInitResult({
     this.message,
     this.orderReference,
     this.clickpesa,
+    this.intentId,
+    this.amount,
+    this.booking,
   });
 
   final String? message;
   final String? orderReference;
   final dynamic clickpesa;
+  final int? intentId;
+  final num? amount;
+  final BookingModel? booking;
 
   factory PaymentInitResult.fromJson(
     Map<String, dynamic> json, {
@@ -217,6 +223,11 @@ class PaymentInitResult {
       message: message ?? json['message']?.toString(),
       orderReference: json['order_reference']?.toString(),
       clickpesa: json['clickpesa'],
+      intentId: _asIntOrNull(json['intent_id']),
+      amount: _asNumOrNull(json['amount']),
+      booking: json['booking'] is Map
+          ? BookingModel.fromJson(Map<String, dynamic>.from(json['booking']))
+          : null,
     );
   }
 }

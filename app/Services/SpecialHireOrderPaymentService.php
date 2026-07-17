@@ -3,9 +3,13 @@
 namespace App\Services;
 
 use App\Http\Controllers\ClickPesaController;
+use App\Http\Controllers\SmsController;
 use App\Models\AdminWallet;
+use App\Models\Coaster;
 use App\Models\SpecialHireOrder;
+use App\Models\SpecialHirePaymentIntent;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -196,5 +200,207 @@ class SpecialHireOrderPaymentService
         }
 
         return ['ok' => true, 'response' => $resp, 'order_reference' => $ref];
+    }
+
+    /**
+     * Start ClickPesa USSD for a payment intent (no SpecialHireOrder yet).
+     *
+     * @return array{ok: bool, error?: string, response?: object, order_reference?: string}
+     */
+    public function initiateIntentUssd(
+        SpecialHirePaymentIntent $intent,
+        string $phone,
+        string $firstName,
+        string $lastName,
+        string $email
+    ): array {
+        $amount = (float) $intent->amount;
+        if ($amount <= 0) {
+            return ['ok' => false, 'error' => 'Invalid payment amount'];
+        }
+
+        $minTzs = (float) env('CLICKPESA_MIN_AMOUNT_TZS', 908);
+        if ($amount < $minTzs) {
+            return ['ok' => false, 'error' => "Amount must be at least {$minTzs} TZS for ClickPesa mobile money."];
+        }
+
+        $suffix = (string) random_int(1000, 999999);
+        $orderId = 'SHPAY'.$intent->id.'T'.$suffix;
+
+        $cp = new ClickPesaController();
+        $resp = $cp->createCheckoutSession([
+            'amount' => (int) round($amount),
+            'order_id' => $orderId,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'phone' => $phone,
+            'email' => $email,
+            'redirect_url' => route('clickpesa.callback'),
+            'cancel_url' => route('clickpesa.cancel'),
+        ]);
+
+        if (is_string($resp)) {
+            return ['ok' => false, 'error' => $resp];
+        }
+
+        $ref = isset($resp->orderReference)
+            ? preg_replace('/[^a-zA-Z0-9]/', '', (string) $resp->orderReference)
+            : preg_replace('/[^a-zA-Z0-9]/', '', $orderId);
+
+        $intent->update([
+            'clickpesa_ref' => $ref,
+            'phone' => $phone,
+        ]);
+
+        return ['ok' => true, 'response' => $resp, 'order_reference' => $ref];
+    }
+
+    /**
+     * After ClickPesa verifies paid: create the hire order (already paid) and notify driver.
+     * Idempotent if intent already consumed.
+     */
+    public function finalizePaidIntent(SpecialHirePaymentIntent $intent, object $verifyResponse, ?string $gatewayReference = null): SpecialHireOrder
+    {
+        return DB::transaction(function () use ($intent, $verifyResponse, $gatewayReference) {
+            $intent = SpecialHirePaymentIntent::query()->whereKey($intent->id)->lockForUpdate()->firstOrFail();
+
+            if ($intent->status === 'consumed' && $intent->special_hire_order_id) {
+                return SpecialHireOrder::query()->with('coaster')->findOrFail($intent->special_hire_order_id);
+            }
+
+            if ($intent->status === 'expired' || $intent->isExpired()) {
+                $intent->update(['status' => 'expired']);
+                throw new \RuntimeException('Payment session expired. Start payment again.');
+            }
+
+            $sanitizedRef = preg_replace(
+                '/[^a-zA-Z0-9]/',
+                '',
+                (string) ($gatewayReference ?? $verifyResponse->reference ?? $intent->clickpesa_ref ?? '')
+            );
+
+            $payload = $intent->payload ?? [];
+            $coaster = Coaster::with(['pricing', 'driver'])->findOrFail($intent->coaster_id);
+            $customer = User::query()->findOrFail($intent->customer_user_id);
+
+            $winStart = Carbon::parse($payload['hire_date'])->startOfDay();
+            $winEnd = Carbon::parse($payload['return_date'] ?? $payload['hire_date'])->startOfDay();
+            if ($coaster->hasHireScheduleConflict($winStart, $winEnd)) {
+                throw new \RuntimeException('This vehicle is no longer available for the selected hire dates.');
+            }
+
+            $distanceKm = (float) ($payload['distance_km'] ?? 0);
+            $totalAmount = round((float) ($payload['total_amount'] ?? $intent->amount), 2);
+            $priceData = $coaster->pricing
+                ? $coaster->pricing->calculatePrice($distanceKm, $payload['hire_date'], $payload['hire_time'])
+                : ['breakdown' => [
+                    'km_amount' => 0,
+                    'surcharge_percent' => 0,
+                    'surcharge_amount' => 0,
+                ]];
+            $breakdown = $priceData['breakdown'] ?? $priceData;
+
+            $owner = User::query()->find($coaster->user_id);
+            $pct = $owner ? (float) ($owner->special_hire_platform_percent ?? 0) : 0.0;
+            $pct = max(0, min(100, $pct));
+            $platformFee = round($totalAmount * ($pct / 100), 2);
+
+            $collected = (float) ($verifyResponse->amount ?? $totalAmount);
+            if ($totalAmount > 0 && $collected + 1 < $totalAmount * 0.95) {
+                Log::warning('Special hire intent amount mismatch', [
+                    'intent_id' => $intent->id,
+                    'expected' => $totalAmount,
+                    'collected' => $collected,
+                ]);
+            }
+
+            $order = SpecialHireOrder::create([
+                'user_id' => $coaster->user_id,
+                'customer_user_id' => $customer->id,
+                'coaster_id' => $coaster->id,
+                'customer_name' => $customer->name,
+                'customer_phone' => $payload['customer_phone'] ?? $intent->phone,
+                'customer_email' => $customer->email,
+                'pickup_location' => $payload['pickup_location'],
+                'pickup_latitude' => $payload['pickup_latitude'] ?? null,
+                'pickup_longitude' => $payload['pickup_longitude'] ?? null,
+                'dropoff_location' => $payload['dropoff_location'],
+                'dropoff_latitude' => $payload['dropoff_latitude'] ?? null,
+                'dropoff_longitude' => $payload['dropoff_longitude'] ?? null,
+                'hire_date' => $payload['hire_date'],
+                'hire_time' => $payload['hire_time'],
+                'return_date' => $payload['return_date'] ?? null,
+                'return_time' => $payload['return_time'] ?? null,
+                'passengers_count' => $payload['passengers_count'],
+                'purpose' => $payload['purpose'] ?? null,
+                'notes' => $payload['notes'] ?? null,
+                'distance_km' => $distanceKm,
+                'base_price' => 0,
+                'price_per_km' => $coaster->pricing->price_per_km ?? 0,
+                'km_amount' => $breakdown['km_amount'] ?? 0,
+                'surcharge_percent' => $breakdown['surcharge_percent'] ?? 0,
+                'surcharge_amount' => $breakdown['surcharge_amount'] ?? 0,
+                'total_amount' => $totalAmount,
+                'deposit_amount' => $totalAmount,
+                'balance_amount' => 0,
+                'deposit_paid_at' => now(),
+                'payment_method' => (string) ($verifyResponse->payment_method ?? 'clickpesa'),
+                'clickpesa_deposit_ref' => $sanitizedRef ?: $intent->clickpesa_ref,
+                'payment_status' => 'paid',
+                'order_status' => 'confirmed',
+                'platform_commission_percent' => $pct,
+                'platform_commission_amount' => $platformFee,
+            ]);
+
+            if ($platformFee > 0) {
+                $wallet = AdminWallet::query()->find(1);
+                if ($wallet) {
+                    $wallet->increment('balance', $platformFee);
+                }
+            }
+
+            $intent->update([
+                'status' => 'consumed',
+                'paid_at' => now(),
+                'special_hire_order_id' => $order->id,
+                'clickpesa_ref' => $sanitizedRef ?: $intent->clickpesa_ref,
+            ]);
+
+            $this->notifyDriverOfNewHire($order->fresh('coaster'));
+
+            return $order->fresh('coaster');
+        });
+    }
+
+    public function notifyDriverOfNewHire(SpecialHireOrder $order): void
+    {
+        $order->loadMissing('coaster.driver');
+        $coaster = $order->coaster;
+        $driver = $coaster?->driver;
+        if (! $driver) {
+            return;
+        }
+
+        $phone = $driver->contact ?: $driver->phone;
+        if ($phone) {
+            $msg = 'HISGC: New special hire '.$order->order_code.' on '.($coaster->name ?? 'your vehicle').'. Open the Driver app to Accept or Decline.';
+            app(SmsController::class)->sms_send($phone, $msg);
+        }
+
+        try {
+            app(\App\Services\FcmService::class)->sendToUser(
+                $driver,
+                'New hire request',
+                'New special hire '.$order->order_code.' on '.($coaster->name ?? 'your vehicle').'. Tap to Accept or Decline.',
+                [
+                    'type' => 'hire_request',
+                    'order_id' => (string) $order->id,
+                    'order_code' => (string) $order->order_code,
+                ],
+                'bushire_driver'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('FCM driver notify failed: '.$e->getMessage());
+        }
     }
 }

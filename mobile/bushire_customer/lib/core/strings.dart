@@ -113,7 +113,7 @@ abstract final class AppStrings {
   static const String confirmTitle = 'Confirm booking';
   static const String confirmBooking = confirmTitle;
   static const String confirmSubtitle =
-      'Review details, pay with ClickPesa, then enter passenger names.';
+      'Pay with ClickPesa first. Your hire is saved only after payment succeeds, then enter passenger names.';
   static const String confirmCta = 'Confirm booking';
   static const String payWithClickPesa = 'Pay with ClickPesa';
   static const String confirmAndPay = 'Confirm & pay';
@@ -230,7 +230,7 @@ abstract final class AppStrings {
   static String passengersOverCapacity(int capacity) =>
       'Cannot exceed coaster capacity of $capacity';
   static const String passengersSeatsLaterHint =
-      'After ClickPesa payment you will enter a name for each seat.';
+      'After successful ClickPesa payment your hire is saved, then you enter a name for each seat.';
 
   /// Friendly labels for `BookingModel.hireNextStep`.
   static const String nextStepPayDeposit = 'Pay deposit';

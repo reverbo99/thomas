@@ -11,6 +11,10 @@ abstract final class ApiEndpoints {
   static const calculatePrice = '/calculate-price';
 
   static const bookings = '/bookings';
+  /// Pay-first: ClickPesa without creating hire.
+  static const preparePayment = '/bookings/prepare-payment';
+  static String syncIntentPayment(int intentId) =>
+      '/bookings/payment-intents/$intentId/sync';
   static String booking(int id) => '/bookings/$id';
   static String cancelBooking(int id) => '/bookings/$id/cancel';
   static String trackBooking(int id) => '/bookings/$id/track';
