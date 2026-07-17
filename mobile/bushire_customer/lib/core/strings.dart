@@ -53,7 +53,7 @@ abstract final class AppStrings {
   static const String anyDate = 'Any date';
   static const String anyTime = 'Any time';
   static const String filterBothRequired =
-      'Set both date and time to check availability for that slot.';
+      'Set a date to check availability. Time is optional.';
   static const String myTrips = 'My trips';
   static const String tripsTitle = 'My trips';
   static const String profile = 'Profile';
@@ -217,7 +217,12 @@ abstract final class AppStrings {
   static const String resendPaymentPrompt = 'Re-send payment prompt';
 
   static const String lastSeen = 'Last seen';
+  static const String locationMayBeOutdated = 'Location may be outdated';
   static const String locationUnavailable = 'Location not available yet';
+  static const String trackPollingHint =
+      'Updates every 20 seconds while in progress';
+  static const String trackMapEmptyHint =
+      'Driver location will appear on the map once shared';
   static const String pollingActive = 'Refreshing location…';
   static const String pollingStopped = 'Polling stopped';
 

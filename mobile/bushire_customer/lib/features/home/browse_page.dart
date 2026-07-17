@@ -12,7 +12,7 @@ import '../booking/coaster_detail_page.dart';
 
 /// Book tab: list coasters so the customer can start a special-hire booking.
 ///
-/// Calls `GET /api/special-hire/customer/coasters` (optional `date`+`time`).
+/// Calls `GET /api/special-hire/customer/coasters` (optional `date`, `time`).
 /// Google Maps is stubbed — markers shown as lat/lng on cards.
 class BrowsePage extends StatefulWidget {
   const BrowsePage({super.key});
@@ -34,11 +34,11 @@ class _BrowsePageState extends State<BrowsePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  /// Backend availability filter requires both date and time.
-  bool get _hasFullFilter => _date != null && _time != null;
+  /// Schedule-conflict availability runs when a hire date is selected.
+  bool get _hasDateFilter => _date != null;
 
-  bool get _hasPartialFilter =>
-      (_date != null) != (_time != null); // XOR
+  /// Time without date does not trigger the backend schedule check.
+  bool get _timeWithoutDate => _time != null && _date == null;
 
   String? get _dateStr {
     final d = _date;
@@ -62,10 +62,9 @@ class _BrowsePageState extends State<BrowsePage> {
     });
     try {
       final repo = AppScope.of(context).coasterRepository;
-      // Only send date+time together — API ignores a lone param.
       final list = await repo.listCoasters(
-        date: _hasFullFilter ? _dateStr : null,
-        time: _hasFullFilter ? _timeStr : null,
+        date: _dateStr,
+        time: _timeStr,
       );
       if (!mounted) return;
       setState(() {
@@ -217,7 +216,7 @@ class _BrowsePageState extends State<BrowsePage> {
                 ],
               ),
             ),
-            if (_hasPartialFilter)
+            if (_timeWithoutDate)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
@@ -273,8 +272,8 @@ class _BrowsePageState extends State<BrowsePage> {
       );
     }
     if (_items.isEmpty) {
-      // API returns the full bookable fleet even when date+time are set
-      // (those only mark busy). An empty list means the server sent [].
+      // API returns the full bookable fleet even when date is set
+      // (that only marks busy). An empty list means the server sent [].
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -294,7 +293,7 @@ class _BrowsePageState extends State<BrowsePage> {
               ),
               const SizedBox(height: 8),
               Text(
-                _hasFullFilter
+                _hasDateFilter
                     ? AppStrings.emptyCoastersHint
                     : AppStrings.noCoastersHint,
                 textAlign: TextAlign.center,

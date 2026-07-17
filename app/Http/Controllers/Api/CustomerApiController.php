@@ -204,25 +204,17 @@ class CustomerApiController extends Controller
         $query = Coaster::with(['pricing', 'driver'])
             ->whereIn('status', ['available', 'on_hire']);
 
-        // If date and time provided, check availability
-        if ($request->has('date') && $request->has('time')) {
-            $date = $request->date;
-            $time = $request->time;
-
-            $query->with(['orders' => function ($q) use ($date, $time) {
-                $q->where('hire_date', $date)
-                    ->where('hire_time', '<=', $time)
-                    ->whereIn('order_status', ['confirmed', 'in_progress']);
-            }]);
-        }
-
         $coasters = $query->get()->map(function ($coaster) use ($request) {
             $isAvailable = true;
             $availabilityStatus = 'available'; // green
 
-            // Check if coaster has active orders at requested time
-            if ($request->has('date') && $request->has('time')) {
-                if ($coaster->orders->count() > 0) {
+            // If a date is provided, availability is driven by the full hire
+            // schedule (pending/confirmed/in_progress, multi-day aware) so it
+            // matches the conflict check enforced at booking time.
+            if ($request->has('date')) {
+                $winStart = Carbon::parse($request->date)->startOfDay();
+                $winEnd = Carbon::parse($request->input('return_date', $request->date))->startOfDay();
+                if ($coaster->hasHireScheduleConflict($winStart, $winEnd)) {
                     $isAvailable = false;
                     $availabilityStatus = 'busy'; // red
                 }
@@ -282,7 +274,7 @@ class CustomerApiController extends Controller
     /**
      * Get single coaster details.
      */
-    public function getCoaster($id)
+    public function getCoaster(Request $request, $id)
     {
         $coaster = Coaster::with(['pricing', 'driver'])->find($id);
 
@@ -293,7 +285,16 @@ class CustomerApiController extends Controller
             ], 404);
         }
 
-        $isAvailable = $coaster->status === 'available';
+        // If a date is provided, availability follows the same hire-schedule
+        // conflict check used at booking time (pending/confirmed/in_progress,
+        // multi-day aware). Otherwise fall back to the coaster's status.
+        if ($request->has('date')) {
+            $winStart = Carbon::parse($request->date)->startOfDay();
+            $winEnd = Carbon::parse($request->input('return_date', $request->date))->startOfDay();
+            $isAvailable = !$coaster->hasHireScheduleConflict($winStart, $winEnd);
+        } else {
+            $isAvailable = $coaster->status === 'available';
+        }
         $hasLocation = $coaster->latitude !== null && $coaster->longitude !== null;
         $data = [
             'id' => $coaster->id,

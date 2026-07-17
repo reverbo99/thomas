@@ -388,6 +388,12 @@ class SpecialHireController extends Controller
             return back()->with('error', 'Pricing not set for this coaster.');
         }
 
+        $winStart = Carbon::parse($request->hire_date)->startOfDay();
+        $winEnd = Carbon::parse($request->input('return_date', $request->hire_date))->startOfDay();
+        if ($coaster->hasHireScheduleConflict($winStart, $winEnd)) {
+            return back()->with('error', 'This vehicle is not available for the selected hire dates.');
+        }
+
         // Calculate price
         $priceData = $pricing->calculatePrice(
             $request->distance_km,

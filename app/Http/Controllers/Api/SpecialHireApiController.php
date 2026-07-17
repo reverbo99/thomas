@@ -498,6 +498,15 @@ class SpecialHireApiController extends Controller
             ], 400);
         }
 
+        $winStart = Carbon::parse($request->hire_date)->startOfDay();
+        $winEnd = Carbon::parse($request->input('return_date', $request->hire_date))->startOfDay();
+        if ($coaster->hasHireScheduleConflict($winStart, $winEnd)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This vehicle is not available for the selected hire dates.',
+            ], 422);
+        }
+
         // Calculate distance if coordinates provided
         $distanceKm = 0;
         if ($request->pickup_latitude && $request->pickup_longitude && 

@@ -15,8 +15,8 @@ class CoasterRepository {
 
   /// GET `/coasters` — optional availability check.
   ///
-  /// Backend only applies hire-window availability when **both** [date]
-  /// (`YYYY-MM-DD`) and [time] (`HH:MM`) are present; sending one alone is ignored.
+  /// Backend applies schedule-conflict availability when [date] (`YYYY-MM-DD`)
+  /// is present; [time] (`HH:MM`) is optional and sent when non-empty.
   Future<List<CoasterModel>> getCoasters({
     String? date,
     String? time,
@@ -24,8 +24,10 @@ class CoasterRepository {
     final query = <String, String>{};
     final d = date;
     final t = time;
-    if (d != null && d.isNotEmpty && t != null && t.isNotEmpty) {
+    if (d != null && d.isNotEmpty) {
       query['date'] = d;
+    }
+    if (t != null && t.isNotEmpty) {
       query['time'] = t;
     }
 
