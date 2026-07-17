@@ -55,7 +55,7 @@ void main() {
     await tester.tap(find.byType(PrimaryButton));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Welcome'), findsOneWidget);
+    expect(find.textContaining('Hello'), findsOneWidget);
     expect(find.text(AppStrings.assignedCoaster), findsOneWidget);
     expect(find.text('Luxury Coaster A'), findsOneWidget);
     expect(find.text(AppStrings.hireRequests), findsOneWidget);

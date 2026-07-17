@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import '../../core/strings.dart';
 import 'api_endpoints.dart';
 import 'api_exception.dart';
 
@@ -93,13 +96,52 @@ class ApiClient {
     late http.Response response;
     try {
       response = await request();
-    } on TimeoutException {
-      throw ApiException(message: 'Request timed out');
-    } catch (e) {
-      throw ApiException(message: 'Network error: $e');
+    } on TimeoutException catch (e, st) {
+      developer.log(
+        'API request timed out: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: AppStrings.requestTimedOut);
+    } on SocketException catch (e, st) {
+      developer.log(
+        'API socket failure: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: _networkFailureMessage(e));
+    } on http.ClientException catch (e, st) {
+      developer.log(
+        'API client failure: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: _networkFailureMessage(e));
+    } catch (e, st) {
+      developer.log(
+        'API network failure: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: _networkFailureMessage(e));
     }
 
     return _parseResponse(response);
+  }
+
+  static String _networkFailureMessage(Object error) {
+    final text = error.toString().toLowerCase();
+    final isDns = text.contains('failed host lookup') ||
+        text.contains('no address associated with hostname') ||
+        (error is SocketException && error.osError?.errorCode == 7);
+    if (isDns) {
+      return AppStrings.apiHostUnreachable(ApiConfig.apiBaseUrl);
+    }
+    return AppStrings.networkUnavailable;
   }
 
   Future<dynamic> _parseResponse(http.Response response) async {

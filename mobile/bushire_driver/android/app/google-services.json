@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "717968965047",
+    "project_id": "highlink-b410f",
+    "storage_bucket": "highlink-b410f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:717968965047:android:1efa6d7d57e59fec9c7c32",
+        "android_client_info": {
+          "package_name": "com.bushire.bushire_driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9wvJtVaMDCaH0PgfegoeYeU8X-x4goQI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

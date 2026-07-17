@@ -29,6 +29,13 @@ For every conversation and task, apply these defaults whenever relevant work app
 - Use `bushirecustomerapiagent` for Sanctum/HTTP client, DTOs, repositories, and `/api/special-hire/customer` integration.
 - Do not use web `customeragent` / `newuiagent` for Bushire Flutter work unless the task is specifically about the Laravel API backend or shared docs.
 
+## Bushire driver Flutter app (`mobile/bushire_driver`)
+
+- Use `bushiredriveragent` for Bushire driver app product flow, screens, navigation, hire accept/decline, trip start/complete, location ping UX.
+- Use `bushiredriveruiagent` for Flutter UI/theme/widgets in the Bushire driver app (teal theme; distinct from customer orange).
+- Use `bushiredriverapiagent` for Sanctum/HTTP client, DTOs, repositories, and `/api/special-hire/driver` integration.
+- Do not use bushirecustomer* agents for driver app work (and vice versa) unless intentionally sharing a pattern.
+
 ## Enforcement behavior
 
 1. When a task clearly matches one of the categories above, delegate to that subagent immediately.

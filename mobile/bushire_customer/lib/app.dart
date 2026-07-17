@@ -21,11 +21,16 @@ class BushireCustomerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Bushire Customer',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      home: home ?? AuthGate(authRepository: authRepository),
-    );
+    if (home != null) {
+      return MaterialApp(
+        title: 'Bushire Customer',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        home: home,
+      );
+    }
+
+    // AuthGate owns MaterialApp + AppScope (via builder) when logged in.
+    return AuthGate(authRepository: authRepository);
   }
 }

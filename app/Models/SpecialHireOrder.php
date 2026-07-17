@@ -276,9 +276,11 @@ class SpecialHireOrder extends Model
     }
 
     /**
-     * Customer-app hire flow: optional deposit → driver accept (owner_accepted_at) → balance (ClickPesa) → passenger names → done.
-     * When deposit_amount is null or zero, the deposit step is skipped (full amount on balance).
-     * Legacy rows (no split amounts) use payment_status only.
+     * Customer-app hire flow: optional deposit → (if balance > 0) driver accept → balance → passenger names → done.
+     * When deposit_amount is null or zero, the deposit step is skipped.
+     * When balance_amount is null or zero, wait_owner / pay_balance are skipped
+     * (full payment via deposit → enter_passengers).
+     * Legacy rows (both amounts null) use payment_status only.
      *
      * @return string pay_deposit|wait_owner|pay_balance|enter_passengers|done|legacy_pending
      */
@@ -292,18 +294,67 @@ class SpecialHireOrder extends Model
         if ($depositRequired && ! $this->deposit_paid_at) {
             return 'pay_deposit';
         }
-        if (! $this->owner_accepted_at) {
+
+        $balanceRequired = (float) ($this->balance_amount ?? 0) > 0;
+        if ($balanceRequired && ! $this->owner_accepted_at) {
             return 'wait_owner';
         }
-        if (! $this->balance_paid_at) {
+        if ($balanceRequired && ! $this->balance_paid_at) {
             return 'pay_balance';
         }
+
         $names = is_array($this->passenger_seats) ? $this->passenger_seats : [];
         if (count($names) < (int) $this->passengers_count) {
             return 'enter_passengers';
         }
 
         return 'done';
+    }
+
+    /**
+     * Ensure the order can collect the full hire amount as ClickPesa deposit now
+     * (confirm-booking / mobile pay-at-create flow).
+     *
+     * Older creates used deposit=null and balance=total → next step wait_owner,
+     * which blocked pay-deposit. Converts unpaid orders to deposit=total, balance=0.
+     *
+     * @return bool true when the order was updated
+     */
+    public function ensureUpfrontDepositPayment(): bool
+    {
+        if ($this->deposit_paid_at || $this->balance_paid_at) {
+            return false;
+        }
+        if (in_array($this->order_status, ['cancelled', 'completed'], true)) {
+            return false;
+        }
+
+        $total = round((float) ($this->total_amount ?? 0), 2);
+        if ($total <= 0) {
+            return false;
+        }
+
+        $deposit = (float) ($this->deposit_amount ?? 0);
+        $balance = (float) ($this->balance_amount ?? 0);
+
+        // Already configured for full upfront deposit.
+        if ($deposit >= $total - 0.01 && $balance <= 0.01 && ! $this->deposit_paid_at) {
+            return false;
+        }
+
+        // Only rewrite when nothing has been collected and deposit is missing
+        // (legacy: deposit null/0, full amount on balance → wait_owner).
+        if ($deposit > 0.01 && $this->customerHireNextStep() === 'pay_deposit') {
+            return false;
+        }
+
+        $this->update([
+            'deposit_amount' => $total,
+            'balance_amount' => 0,
+        ]);
+        $this->refresh();
+
+        return true;
     }
 
     /**

@@ -550,10 +550,79 @@ class DriverApiController extends Controller
     }
 
     /**
+     * Register (or refresh) an FCM device token for push notifications.
+     */
+    public function registerDeviceToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string|max:512',
+            'platform' => 'nullable|string|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = Auth::user();
+
+        // A physical device has one token; make sure it points at this user.
+        \App\Models\DeviceToken::updateOrCreate(
+            ['token' => $request->token],
+            [
+                'user_id' => $user->id,
+                'platform' => $request->input('platform', 'android'),
+                'app' => 'bushire_driver',
+                'last_used_at' => now(),
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Device registered for notifications',
+        ]);
+    }
+
+    /**
+     * Remove an FCM device token (called on logout / disable notifications).
+     */
+    public function deleteDeviceToken(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string|max:512',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        \App\Models\DeviceToken::where('token', $request->token)
+            ->where('user_id', Auth::id())
+            ->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Device unregistered',
+        ]);
+    }
+
+    /**
      * Logout driver.
      */
     public function logout(Request $request)
     {
+        // Best-effort: drop this device's push token if the app sent it.
+        if ($request->filled('device_token')) {
+            \App\Models\DeviceToken::where('token', $request->device_token)
+                ->where('user_id', $request->user()->id)
+                ->delete();
+        }
+
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([

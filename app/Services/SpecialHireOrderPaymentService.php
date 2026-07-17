@@ -38,11 +38,41 @@ class SpecialHireOrderPaymentService
                         'collected' => $collected,
                     ]);
                 }
-                $order->update([
+                $fullPaidViaDeposit = (float) ($order->balance_amount ?? 0) <= 0;
+                $depositUpdate = [
                     'deposit_paid_at' => now(),
                     'payment_method' => 'clickpesa',
                     'clickpesa_deposit_ref' => $sanitizedRef ?: $order->clickpesa_deposit_ref,
-                ]);
+                ];
+                if ($fullPaidViaDeposit) {
+                    $owner = User::query()->find($order->user_id);
+                    $pct = $order->platform_commission_percent;
+                    if ($pct === null && $owner) {
+                        $pct = (float) ($owner->special_hire_platform_percent ?? 0);
+                    }
+                    $pct = max(0, min(100, (float) $pct));
+                    $platformFee = round(((float) $order->total_amount) * ($pct / 100), 2);
+
+                    $depositUpdate['payment_status'] = 'paid';
+                    $depositUpdate['platform_commission_percent'] = $pct;
+                    $depositUpdate['platform_commission_amount'] = $platformFee;
+                    if ($order->order_status !== 'cancelled') {
+                        $depositUpdate['order_status'] = 'confirmed';
+                    }
+                }
+                $order->update($depositUpdate);
+
+                if ($fullPaidViaDeposit) {
+                    $platformFee = (float) ($order->fresh()->platform_commission_amount ?? 0);
+                    if ($platformFee > 0) {
+                        $wallet = AdminWallet::query()->find(1);
+                        if ($wallet) {
+                            $wallet->increment('balance', $platformFee);
+                        }
+                    }
+                    $order->refresh();
+                    $order->markCompletedIfHireFlowDone();
+                }
 
                 return;
             }

@@ -4,16 +4,14 @@ import '../../core/di/app_scope.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/order_model.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/hire_request_card.dart';
 
 /// Pending hire requests with Accept / Decline.
 class HireRequestsPage extends StatefulWidget {
-  const HireRequestsPage({
-    super.key,
-    this.onRequestsChanged,
-  });
+  const HireRequestsPage({super.key, this.onRequestsChanged});
 
   /// Called with the current pending count after load / accept / decline.
   final ValueChanged<int>? onRequestsChanged;
@@ -87,15 +85,15 @@ class HireRequestsPageState extends State<HireRequestsPage> {
     try {
       await AppScope.of(context).orderRepository.acceptHireRequest(order.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.hireAccepted)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(AppStrings.hireAccepted)));
       await _load();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
@@ -106,9 +104,7 @@ class HireRequestsPageState extends State<HireRequestsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text(AppStrings.declineHire),
-        content: Text(
-          '${AppStrings.declineHireConfirm}\n\n${order.title}',
-        ),
+        content: Text('${AppStrings.declineHireConfirm}\n\n${order.title}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -130,15 +126,15 @@ class HireRequestsPageState extends State<HireRequestsPage> {
     try {
       await AppScope.of(context).orderRepository.declineHireRequest(order.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.hireDeclined)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(AppStrings.hireDeclined)));
       await _load();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
@@ -148,9 +144,8 @@ class HireRequestsPageState extends State<HireRequestsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.hireRequests)),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: _buildBody(),
+      body: AppGradientBackground(
+        child: RefreshIndicator(onRefresh: _load, child: _buildBody()),
       ),
     );
   }

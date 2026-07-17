@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/strings.dart';
+import '../../widgets/app_gradient_background.dart';
+import '../../widgets/hero_header_card.dart';
 
-/// Legacy quick-actions home kept for widget tests / deep links.
-/// Production shell uses [BrowsePage] as the Home tab.
+/// Home tab: welcome + quick actions into Book / Trips / Profile.
 class DashboardPage extends StatelessWidget {
   const DashboardPage({
     super.key,
@@ -45,8 +46,6 @@ class DashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final firstName = userName.trim().split(RegExp(r'\s+')).first;
 
     return Scaffold(
@@ -60,47 +59,41 @@ class DashboardPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          children: [
-            Text(
-              '${AppStrings.welcome}, $firstName',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+      body: AppGradientBackground(
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            children: [
+              HeroHeaderCard(
+                greeting: '${AppStrings.welcome}, $firstName',
+                subtitle: userEmail != null && userEmail!.isNotEmpty
+                    ? userEmail
+                    : null,
+                icon: Icons.directions_bus_rounded,
               ),
-            ),
-            if (userEmail != null && userEmail!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                userEmail!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              const SizedBox(height: 24),
+              _QuickActionCard(
+                icon: Icons.directions_bus_outlined,
+                title: AppStrings.bookTab,
+                subtitle: AppStrings.browseHint,
+                onTap: onBrowseCoasters,
+              ),
+              const SizedBox(height: 10),
+              _QuickActionCard(
+                icon: Icons.confirmation_number_outlined,
+                title: AppStrings.myTrips,
+                subtitle: 'View bookings and track rides',
+                onTap: onMyTrips,
+              ),
+              const SizedBox(height: 10),
+              _QuickActionCard(
+                icon: Icons.person_outline,
+                title: AppStrings.profile,
+                subtitle: 'Update your account details',
+                onTap: onProfile,
               ),
             ],
-            const SizedBox(height: 28),
-            _QuickActionCard(
-              icon: Icons.map_outlined,
-              title: AppStrings.browseTitle,
-              subtitle: AppStrings.browseHint,
-              onTap: onBrowseCoasters,
-            ),
-            const SizedBox(height: 10),
-            _QuickActionCard(
-              icon: Icons.confirmation_number_outlined,
-              title: AppStrings.myTrips,
-              subtitle: 'View bookings and track rides',
-              onTap: onMyTrips,
-            ),
-            const SizedBox(height: 10),
-            _QuickActionCard(
-              icon: Icons.person_outline,
-              title: AppStrings.profile,
-              subtitle: 'Update your account details',
-              onTap: onProfile,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -137,7 +130,7 @@ class _QuickActionCard extends StatelessWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: colorScheme.onPrimaryContainer),
               ),

@@ -28,12 +28,32 @@ abstract final class AppStrings {
   static const String passwordMismatch = 'Passwords do not match';
   static const String fieldRequired = 'This field is required';
 
+  /// Shown when DNS/host lookup or other low-level network failures occur.
+  static const String networkUnavailable =
+      "Can't reach the server. Check your internet connection and try again.";
+
+  /// DNS / Failed host lookup — includes configured [ApiConfig.apiBaseUrl] at runtime.
+  static String apiHostUnreachable(String apiBaseUrl) =>
+      "Can't resolve API host ($apiBaseUrl). "
+      'Use a reachable host or rebuild with '
+      '--dart-define=API_BASE_URL=<url>';
+
+  static const String requestTimedOut =
+      'Request timed out. Check your connection and try again.';
+
   static const String welcome = 'Welcome';
   static const String homeTab = 'Home';
+  static const String bookTab = 'Book';
   static const String tripsTab = 'My trips';
   static const String profileTab = 'Profile';
-  static const String browseTitle = 'Browse coasters';
-  static const String browseHint = 'Available special hire vehicles';
+  /// Book tab app bar — customer starts a coaster hire from this list.
+  static const String browseTitle = 'Book a coaster';
+  static const String browseHint =
+      'Choose a coaster to start your special hire booking';
+  static const String anyDate = 'Any date';
+  static const String anyTime = 'Any time';
+  static const String filterBothRequired =
+      'Set both date and time to check availability for that slot.';
   static const String myTrips = 'My trips';
   static const String tripsTitle = 'My trips';
   static const String profile = 'Profile';
@@ -57,12 +77,16 @@ abstract final class AppStrings {
   static const String filterTime = 'Time';
   static const String applyFilters = 'Apply';
   static const String clearFilters = 'Clear';
-  static const String noCoasters = 'No coasters found';
-  static const String noCoastersHint = 'Try another date or time.';
-  static const String emptyCoasters = 'No coasters found for this time.';
+  static const String noCoasters = 'No coasters available';
+  static const String noCoastersHint =
+      'No vehicles are available right now. Please refresh and try again.';
+  /// Date/time only marks busy vs available — it does not remove coasters.
+  static const String emptyCoastersHint =
+      'No vehicles are available for this date and time. Try again later.';
+  static const String locationPending = 'Location not shared yet';
   static const String emptyTrips = 'No trips yet. Book a coaster to get started.';
   static const String noTrips = 'No trips yet';
-  static const String noTripsHint = 'Book a coaster from the Home tab.';
+  static const String noTripsHint = 'Book a coaster from the Book tab.';
   static const String allStatuses = 'All';
 
   static const String plate = 'Plate';
@@ -89,10 +113,27 @@ abstract final class AppStrings {
   static const String confirmTitle = 'Confirm booking';
   static const String confirmBooking = confirmTitle;
   static const String confirmSubtitle =
-      'Review details, then send your booking request.';
+      'Review details, pay with ClickPesa, then enter passenger names.';
   static const String confirmCta = 'Confirm booking';
+  static const String payWithClickPesa = 'Pay with ClickPesa';
+  static const String confirmAndPay = 'Confirm & pay';
+  static const String waitingForPayment =
+      'Waiting for payment… Approve the prompt on your phone.';
+  static const String paymentPollingHint =
+      'We check payment status automatically. You can also tap Check payment.';
+  static const String checkPayment = 'Check payment';
+  static const String paymentStillPending =
+      'Payment not confirmed yet. Keep waiting or try Check payment again.';
+  static const String paymentPollTimedOut =
+      'Still waiting for payment confirmation. Tap Check payment or re-send the prompt.';
+  static const String enterPassengerNames = 'Enter passenger names';
+  static const String enterPassengerNamesHint =
+      'Add a name for each seat, then finish your booking.';
+  static const String finishBooking = 'Finish booking';
+  static const String paymentReceived = 'Payment received';
+  static const String bookingConfirmed = 'Booking confirmed';
   static const String bookingCreated = 'Booking created';
-  static const String bookingSuccess = bookingCreated;
+  static const String bookingSuccess = bookingConfirmed;
   static const String viewTrips = 'View my trips';
   static const String summary = 'Summary';
   static const String coasterDetail = 'Coaster details';
@@ -103,7 +144,30 @@ abstract final class AppStrings {
   static const String hireDate = 'Hire date';
   static const String hireDateLabel = hireDate;
   static const String hireTimeLabel = 'Hire time';
+  static const String startDateLabel = 'Start date';
+  static const String startTimeLabel = 'Start time';
   static const String returnDate = 'Return';
+  static const String returnDateLabel = 'Return date';
+  static const String returnTimeLabel = 'Return time';
+  static const String departureSchedule = 'Departure';
+  static const String departureScheduleHint = 'When the hire starts';
+  static const String returnSchedule = 'Return';
+  static const String returnScheduleHint = 'Optional — multi-day hire end';
+  static const String returnDateOptional = returnDateLabel;
+  static const String returnTimeOptional = returnTimeLabel;
+  static const String clearReturn = 'Clear';
+  static const String mapPreviewHint =
+      'Search pickup and drop-off to preview the route on the map';
+  static const String calculatingRoute = 'Routing…';
+  static const String routeDistancePending = 'Select both points';
+  static const String routeSection = 'Route';
+  static const String scheduleSection = 'Schedule';
+  static const String detailsSection = 'Trip details';
+  static const String bookingStepHint = 'Step 1 of 3 — route & schedule';
+  static const String selectPlaceHint = 'Pick a suggestion from the list';
+  static const String routeSectionTitle = 'Pickup & drop-off';
+  static const String routeSectionHint =
+      'Type an address to search OpenStreetMap, or tap the crosshair for your live location.';
   static const String passengersCount = 'Passengers';
   static const String passengersCountLabel = passengersCount;
   static const String passengers = passengersCount;
@@ -149,7 +213,8 @@ abstract final class AppStrings {
   static const String paymentMethodHint =
       'A ClickPesa USSD prompt will be sent to this number.';
   static const String paymentSentHint =
-      'Payment request sent. Approve on your phone, then sync.';
+      'Payment request sent. Approve on your phone — we sync in the background.';
+  static const String resendPaymentPrompt = 'Re-send payment prompt';
 
   static const String lastSeen = 'Last seen';
   static const String locationUnavailable = 'Location not available yet';
@@ -158,4 +223,44 @@ abstract final class AppStrings {
 
   static const String editProfile = 'Edit profile';
   static const String calculatePrice = 'Calculate price';
+
+  /// Passenger cap hint shown under the passengers field on the booking form.
+  static String passengersCapacityHint(int capacity) =>
+      'Max $capacity passenger${capacity == 1 ? '' : 's'} for this coaster';
+  static String passengersOverCapacity(int capacity) =>
+      'Cannot exceed coaster capacity of $capacity';
+  static const String passengersSeatsLaterHint =
+      'After ClickPesa payment you will enter a name for each seat.';
+
+  /// Friendly labels for `BookingModel.hireNextStep`.
+  static const String nextStepPayDeposit = 'Pay deposit';
+  static const String nextStepWaitOwner = 'Waiting for owner to accept';
+  static const String nextStepPayBalance = 'Pay balance';
+  static const String nextStepEnterPassengers = 'Enter passenger / seat names';
+  static const String nextStepDone = 'All set';
+
+  static String nextStepLabel(String? step) {
+    switch (step) {
+      case 'pay_deposit':
+        return nextStepPayDeposit;
+      case 'wait_owner':
+        return nextStepWaitOwner;
+      case 'pay_balance':
+        return nextStepPayBalance;
+      case 'enter_passengers':
+        return nextStepEnterPassengers;
+      case 'done':
+        return nextStepDone;
+      default:
+        return step == null || step.isEmpty
+            ? ''
+            : step.replaceAll('_', ' ');
+    }
+  }
+
+  static const String seatsSavedTitle = 'Seats';
+  static const String seatUnnamed = 'Unnamed';
+  static String seatNumberLabel(int n) => 'Seat $n';
+  static const String passengersCountMissing =
+      'Passenger count missing — reopen from trip details after refresh.';
 }

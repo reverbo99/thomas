@@ -189,13 +189,18 @@ class CustomerApiController extends Controller
     }
 
     /**
-     * Get all coasters with availability status (for map view).
+     * Get bookable coasters with availability status (list + optional map).
+     *
+     * Lat/lng are optional: operators count "Active Coasters" by status=available
+     * without requiring a GPS ping. Hiding null coordinates emptied the customer
+     * list for newly created / not-yet-tracked vehicles.
      */
     public function getCoasters(Request $request)
     {
+        // Bookable fleet: available + currently on hire (shown as busy).
+        // Maintenance is not bookable and is excluded.
         $query = Coaster::with(['pricing', 'driver'])
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude');
+            ->whereIn('status', ['available', 'on_hire']);
 
         // If date and time provided, check availability
         if ($request->has('date') && $request->has('time')) {
@@ -221,11 +226,13 @@ class CustomerApiController extends Controller
                 }
             } else {
                 // Check current status
-                if ($coaster->status === 'on_hire' || $coaster->status === 'maintenance') {
+                if ($coaster->status === 'on_hire') {
                     $isAvailable = false;
                     $availabilityStatus = 'busy'; // red
                 }
             }
+
+            $hasLocation = $coaster->latitude !== null && $coaster->longitude !== null;
 
             $data = [
                 'id' => $coaster->id,
@@ -238,6 +245,7 @@ class CustomerApiController extends Controller
                 'image_url' => $coaster->image_url,
                 'latitude' => $coaster->latitude,
                 'longitude' => $coaster->longitude,
+                'has_location' => $hasLocation,
                 'is_available' => $isAvailable,
                 'availability_status' => $availabilityStatus,
                 'status' => $coaster->status,
@@ -283,6 +291,8 @@ class CustomerApiController extends Controller
             ], 404);
         }
 
+        $isAvailable = $coaster->status === 'available';
+        $hasLocation = $coaster->latitude !== null && $coaster->longitude !== null;
         $data = [
             'id' => $coaster->id,
             'name' => $coaster->name,
@@ -292,6 +302,11 @@ class CustomerApiController extends Controller
             'color' => $coaster->color,
             'features' => $coaster->features,
             'image_url' => $coaster->image_url,
+            'latitude' => $coaster->latitude,
+            'longitude' => $coaster->longitude,
+            'has_location' => $hasLocation,
+            'is_available' => $isAvailable,
+            'availability_status' => $isAvailable ? 'available' : 'busy',
             'status' => $coaster->status,
             'pricing' => $coaster->pricing,
         ];
@@ -335,6 +350,7 @@ class CustomerApiController extends Controller
             'hire_date' => 'required|date',
             'hire_time' => 'required',
             'return_date' => 'nullable|date|after_or_equal:hire_date',
+            'return_time' => 'nullable',
         ]);
 
         if ($validator->fails()) {
@@ -363,7 +379,8 @@ class CustomerApiController extends Controller
         }
 
         $haversineKm = null;
-        if ($request->pickup_latitude !== null && $request->dropoff_latitude !== null) {
+        if ($request->pickup_latitude !== null && $request->dropoff_latitude !== null
+            && $request->pickup_longitude !== null && $request->dropoff_longitude !== null) {
             $haversineKm = SpecialHirePricing::calculateDistance(
                 $request->pickup_latitude,
                 $request->pickup_longitude,
@@ -372,8 +389,13 @@ class CustomerApiController extends Controller
             );
         }
 
-        $distanceKm = $request->distance_km;
-        if ($request->input('distance_mode') === 'route'
+        // Prefer explicit client/OSM `distance_km` when provided. Optional
+        // `distance_mode=route` + `routed_distance_km` is a validated alternate.
+        // Haversine from coordinates is the last fallback.
+        $distanceKm = null;
+        if ($request->filled('distance_km')) {
+            $distanceKm = (float) $request->distance_km;
+        } elseif ($request->input('distance_mode') === 'route'
             && $request->filled('routed_distance_km')
             && $haversineKm !== null) {
             $routed = (float) $request->routed_distance_km;
@@ -505,9 +527,9 @@ class CustomerApiController extends Controller
         $owner = User::query()->find($coaster->user_id);
         $platformPct = $owner ? (float) ($owner->special_hire_platform_percent ?? 0) : 0.0;
 
-        // Full hire amount is collected once (after owner acceptance + passenger names) — no upfront deposit.
-        $depositAmount = null;
-        $balanceAmount = round($totalAmount, 2);
+        // Full hire amount collected at booking (ClickPesa deposit); no remaining balance.
+        $depositAmount = round((float) $totalAmount, 2);
+        $balanceAmount = 0;
 
         $order = SpecialHireOrder::create([
             'user_id' => $coaster->user_id, // Admin/Owner
@@ -543,6 +565,10 @@ class CustomerApiController extends Controller
             'payment_status' => 'pending',
         ]);
 
+        // Guarantee pay_deposit is available for confirm-booking ClickPesa push.
+        $order->ensureUpfrontDepositPayment();
+        $order = $order->fresh();
+
         $coaster->load('driver');
         $driver = $coaster->driver;
         if ($driver) {
@@ -550,6 +576,23 @@ class CustomerApiController extends Controller
             if ($phone) {
                 $msg = 'HISGC: New special hire '.$order->order_code.' on '.($coaster->name ?? 'your vehicle').'. Open the Driver app to Accept or Decline.';
                 app(SmsController::class)->sms_send($phone, $msg);
+            }
+
+            // Realtime push to the driver app (works even when it's closed).
+            try {
+                app(\App\Services\FcmService::class)->sendToUser(
+                    $driver,
+                    'New hire request',
+                    'New special hire '.$order->order_code.' on '.($coaster->name ?? 'your vehicle').'. Tap to Accept or Decline.',
+                    [
+                        'type' => 'hire_request',
+                        'order_id' => (string) $order->id,
+                        'order_code' => (string) $order->order_code,
+                    ],
+                    'bushire_driver'
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('FCM driver notify failed: '.$e->getMessage());
             }
         }
 
@@ -625,7 +668,10 @@ class CustomerApiController extends Controller
     }
 
     /**
-     * Customer: start ClickPesa USSD for 10% deposit.
+     * Customer: start ClickPesa USSD for the hire deposit (full amount at booking).
+     *
+     * Heals legacy orders that stored the full amount on balance (wait_owner)
+     * so confirm-booking pay-push works without waiting for the driver.
      */
     public function specialHirePayDeposit(Request $request, int $id)
     {
@@ -634,8 +680,20 @@ class CustomerApiController extends Controller
         if (!$order) {
             return response()->json(['success' => false, 'message' => 'Booking not found'], 404);
         }
+
+        $order->ensureUpfrontDepositPayment();
+        $order = $order->fresh();
+
         if ($order->customerHireNextStep() !== 'pay_deposit') {
-            return response()->json(['success' => false, 'message' => 'Deposit is not required at this step'], 400);
+            return response()->json([
+                'success' => false,
+                'message' => 'Deposit is not required at this step',
+                'data' => [
+                    'hire_next_step' => $order->customerHireNextStep(),
+                    'deposit_amount' => $order->deposit_amount,
+                    'balance_amount' => $order->balance_amount,
+                ],
+            ], 400);
         }
 
         $request->validate(['phone' => 'required|string|max:20']);
@@ -662,12 +720,15 @@ class CustomerApiController extends Controller
             'data' => [
                 'order_reference' => $out['order_reference'] ?? null,
                 'clickpesa' => $out['response'] ?? null,
+                'hire_next_step' => $order->customerHireNextStep(),
             ],
         ]);
     }
 
     /**
-     * Customer: submit passenger seat names after owner accepted (must match passengers_count).
+     * Customer: submit passenger seat names when hire_next_step is enter_passengers
+     * (after deposit when balance is 0, or after balance paid when split payment).
+     * Must match passengers_count.
      */
     public function specialHirePassengers(Request $request, int $id)
     {

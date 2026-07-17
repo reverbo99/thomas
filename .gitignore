@@ -5,6 +5,8 @@
 /public/storage
 storage/*.key
 public/*.key
+# Firebase Admin SDK service-account key (SECRET — never commit)
+/storage/app/firebase
 /vendor
 .env
 .env.backup

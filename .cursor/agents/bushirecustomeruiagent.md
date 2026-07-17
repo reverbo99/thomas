@@ -124,6 +124,34 @@ lib/core/theme/app_colors.dart
 
 ---
 
+## Design reference (TripWay-style mockup)
+
+A reference mockup (3 screens, coach/bus travel app — not our exact product but useful for pattern-matching booking UX) shows patterns worth reusing for Bushire Customer screens. Adapt colors to the Bushire orange seed, not the mockup's blue/yellow.
+
+**1. Search results / trip list screen**
+- Header: back arrow + route title ("Paris to Marseille") + subtitle date.
+- Horizontal date-tab row (3 pill/rounded tabs, selected tab filled with brand color) for quick date switching — map to coaster search results filtered by date.
+- Section label ("Outbound trip") + secondary "Filters" chip button on the same row.
+- Trip cards in a vertical list, each showing: departure time — mode icon + duration/"Direct" label — arrival time, origin/destination stop names, a type tag ("Coach Direct"), price "per person" right-aligned in brand color, and a scarcity/urgency caption ("Seats filling fast", "Only 3 Seats left").
+- Reusable as: `CoasterCard`/`TripResultCard` — map time/duration/price/urgency fields to Bushire's coaster + price_per_km + availability data.
+
+**2. Home / dashboard screen**
+- Personalized greeting header ("Hello, Arnold") with current location chip + notification bell + avatar.
+- Full-bleed hero image/banner (vehicle photo) behind a floating search card.
+- Search card: "From"/"To" fields with a swap icon between them, then departing/return date fields side by side, then one full-width primary CTA button ("Search").
+- "Popular Routes" section with a "See more" link, followed by a small embedded map preview with a pin.
+- Bottom nav bar (home / tickets / map-pin / profile) — matches our existing bottom-nav convention in `main_shell.dart`.
+- Reusable as: home/browse screen hero + quick-search card pattern, and a "Popular Routes"-style shortcut list above the map.
+
+**3. Booking / passenger-details wizard screen**
+- App title bar with back arrow ("TripWay") and a compact route summary card at top (From/To + swap icon) so the user always sees what they're booking.
+- Numbered step sections stacked vertically, each with a step number chip, a bold title, and a muted subtitle: "1 Passenger Details / Required Information" → grouped input fields (Adult: First Name, Last Name); "2 Seat Selection / Book your seat in a few taps" → tappable row "Select your seats" with a price hint ("From €3.20") and chevron; "3 Extras / Other services" → tappable row "Additional Luggage" with price hint ("From €6.20") and chevron.
+- Reusable as: our booking wizard's step layout — swap Seat Selection/Luggage rows for Bushire's actual optional add-ons (e.g. luggage fee, extra stops), keep the "step chip + title + subtitle + price-hinted tappable row" pattern for `booking_form_page.dart`.
+
+Treat this as a layout/pattern reference only — do not copy its color palette, "TripWay" branding, or seat-ticket booking model (Bushire hires whole coasters, it doesn't sell individual seats).
+
+---
+
 ## Key files
 
 ```

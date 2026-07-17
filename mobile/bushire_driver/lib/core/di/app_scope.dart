@@ -34,28 +34,26 @@ class AppServices {
     }
   }
 
-  /// Sync badge from profile and start/stop GPS based on active trips.
+  /// Sync badge from profile and start location sharing for the assigned coaster.
   Future<void> refreshSessionSideEffects() async {
+    var hasCoaster = true;
     try {
       final profile = await authRepository.getProfile();
       setPendingHireCount(profile.pendingHireRequests);
+      hasCoaster = profile.coaster != null;
     } catch (_) {
-      // Keep last badge value.
+      // Keep last badge value; assume a coaster may be assigned.
     }
-    await syncLocationTracking();
+    await syncLocationTracking(hasCoaster: hasCoaster);
   }
 
-  /// Start ~30s GPS while any order is `in_progress`; stop otherwise.
-  Future<void> syncLocationTracking() async {
-    try {
-      final active = await orderRepository.hasActiveTrip();
-      if (active) {
-        await locationTracker.start();
-      } else {
-        locationTracker.stop();
-      }
-    } catch (_) {
-      // Leave tracker state unchanged on transient errors.
+  /// Continuously share GPS while the driver is signed in with an assigned
+  /// coaster (foreground service keeps it alive when backgrounded).
+  Future<void> syncLocationTracking({bool hasCoaster = true}) async {
+    if (hasCoaster) {
+      await locationTracker.start();
+    } else {
+      locationTracker.stop();
     }
   }
 

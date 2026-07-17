@@ -4,16 +4,34 @@ import 'package:flutter/services.dart';
 import '../../core/di/app_scope.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
+import '../../data/geo/geo_math.dart';
+import '../../data/geo/geo_point.dart';
+import '../../data/geo/osrm_service.dart';
+import '../../data/geo/place_result.dart';
 import '../../data/models/coaster_model.dart';
+import '../../widgets/app_gradient_background.dart';
+import '../../widgets/datetime_range_cards.dart';
+import '../../widgets/hero_header_card.dart';
 import '../../widgets/primary_button.dart';
+import '../../widgets/route_map_preview.dart';
+import '../../widgets/route_places_card.dart';
 import 'booking_draft.dart';
 import 'price_preview_page.dart';
 
 /// Pickup/drop, schedule, passengers → calculate price → preview.
 class BookingFormPage extends StatefulWidget {
-  const BookingFormPage({super.key, required this.coaster});
+  const BookingFormPage({
+    super.key,
+    required this.coaster,
+    this.initialHireDate,
+    this.initialHireTime,
+  });
 
   final CoasterModel coaster;
+
+  /// Pre-fill from Book tab date/time filters when the customer already chose them.
+  final DateTime? initialHireDate;
+  final TimeOfDay? initialHireTime;
 
   @override
   State<BookingFormPage> createState() => _BookingFormPageState();
@@ -23,14 +41,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _pickup = TextEditingController();
   final _dropoff = TextEditingController();
-  final _pickupLat = TextEditingController();
-  final _pickupLng = TextEditingController();
-  final _dropoffLat = TextEditingController();
-  final _dropoffLng = TextEditingController();
-  final _distance = TextEditingController();
   final _passengers = TextEditingController(text: '1');
   final _purpose = TextEditingController();
   final _notes = TextEditingController();
+  final _osrm = OsrmService();
+
+  PlaceResult? _pickupPlace;
+  PlaceResult? _dropoffPlace;
+  List<GeoPoint> _routePoints = const [];
+  double? _distanceKm;
+  bool _usedRoadRoute = false;
+  bool _routing = false;
+  int _routeGeneration = 0;
 
   DateTime? _hireDate;
   TimeOfDay? _hireTime;
@@ -39,23 +61,23 @@ class _BookingFormPageState extends State<BookingFormPage> {
   bool _loading = false;
   String? _error;
 
+  int? get _capacity => widget.coaster.capacity;
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _hireDate = DateTime(now.year, now.month, now.day);
-    _hireTime = TimeOfDay.now();
+    final seeded = widget.initialHireDate;
+    _hireDate = seeded != null
+        ? DateTime(seeded.year, seeded.month, seeded.day)
+        : DateTime(now.year, now.month, now.day);
+    _hireTime = widget.initialHireTime ?? TimeOfDay.now();
   }
 
   @override
   void dispose() {
     _pickup.dispose();
     _dropoff.dispose();
-    _pickupLat.dispose();
-    _pickupLng.dispose();
-    _dropoffLat.dispose();
-    _dropoffLng.dispose();
-    _distance.dispose();
     _passengers.dispose();
     _purpose.dispose();
     _notes.dispose();
@@ -71,12 +93,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
       '${t.hour.toString().padLeft(2, '0')}:'
       '${t.minute.toString().padLeft(2, '0')}';
 
-  double? _optDouble(String text) {
-    final t = text.trim();
-    if (t.isEmpty) return null;
-    return double.tryParse(t);
-  }
-
   BookingDraft _draft() {
     return BookingDraft(
       coaster: widget.coaster,
@@ -85,16 +101,91 @@ class _BookingFormPageState extends State<BookingFormPage> {
       hireDate: _fmtDate(_hireDate!),
       hireTime: _fmtTime(_hireTime!),
       passengersCount: int.tryParse(_passengers.text.trim()) ?? 1,
-      pickupLatitude: _optDouble(_pickupLat.text),
-      pickupLongitude: _optDouble(_pickupLng.text),
-      dropoffLatitude: _optDouble(_dropoffLat.text),
-      dropoffLongitude: _optDouble(_dropoffLng.text),
-      distanceKm: num.tryParse(_distance.text.trim()),
+      pickupLatitude: _pickupPlace?.latitude,
+      pickupLongitude: _pickupPlace?.longitude,
+      dropoffLatitude: _dropoffPlace?.latitude,
+      dropoffLongitude: _dropoffPlace?.longitude,
+      distanceKm: _distanceKm,
+      routedDistanceKm: _usedRoadRoute ? _distanceKm : null,
+      distanceMode: _usedRoadRoute ? 'route' : 'straight',
       returnDate: _returnDate == null ? null : _fmtDate(_returnDate!),
       returnTime: _returnTime == null ? null : _fmtTime(_returnTime!),
       purpose: _purpose.text.trim().isEmpty ? null : _purpose.text.trim(),
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
+  }
+
+  void _onPickupSelected(PlaceResult? place) {
+    setState(() => _pickupPlace = place);
+    _refreshRoute();
+  }
+
+  void _onDropoffSelected(PlaceResult? place) {
+    setState(() => _dropoffPlace = place);
+    _refreshRoute();
+  }
+
+  void _onSwapPlaces() {
+    final swappedPickup = _dropoffPlace;
+    final swappedDropoff = _pickupPlace;
+    setState(() {
+      _pickupPlace = swappedPickup;
+      _dropoffPlace = swappedDropoff;
+    });
+    _refreshRoute();
+  }
+
+  Future<void> _refreshRoute() async {
+    final from = _pickupPlace;
+    final to = _dropoffPlace;
+    if (from == null || to == null) {
+      setState(() {
+        _distanceKm = null;
+        _routePoints = const [];
+        _usedRoadRoute = false;
+        _routing = false;
+      });
+      return;
+    }
+
+    final gen = ++_routeGeneration;
+    setState(() => _routing = true);
+
+    final routed = await _osrm.route(
+      fromLat: from.latitude,
+      fromLng: from.longitude,
+      toLat: to.latitude,
+      toLng: to.longitude,
+    );
+
+    if (!mounted || gen != _routeGeneration) return;
+
+    if (routed != null) {
+      setState(() {
+        _distanceKm = routed.distanceKm;
+        _routePoints = routed.geometry;
+        _usedRoadRoute = true;
+        _routing = false;
+      });
+      return;
+    }
+
+    // Fallback: straight-line distance when OSRM is unreachable.
+    final km = GeoMath.haversineKm(
+      from.latitude,
+      from.longitude,
+      to.latitude,
+      to.longitude,
+    );
+    setState(() {
+      _distanceKm = km;
+      _routePoints = [
+        GeoPoint(latitude: from.latitude, longitude: from.longitude),
+        GeoPoint(latitude: to.latitude, longitude: to.longitude),
+      ];
+      _usedRoadRoute = false;
+      _routing = false;
+    });
   }
 
   Future<void> _submit() async {
@@ -103,10 +194,25 @@ class _BookingFormPageState extends State<BookingFormPage> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_hireDate == null || _hireTime == null) return;
 
+    if (_pickupPlace == null || _dropoffPlace == null) {
+      setState(() => _error = AppStrings.selectPlaceHint);
+      return;
+    }
+    if (_distanceKm == null || _distanceKm! <= 0) {
+      setState(() => _error = 'Could not calculate route distance');
+      return;
+    }
+
     final draft = _draft();
+    final services = AppScope.maybeOf(context);
+    if (services == null) {
+      setState(() => _error = 'Session not ready. Go back and open Book again.');
+      return;
+    }
+
     setState(() => _loading = true);
     try {
-      final quote = await AppScope.of(context).coasterRepository.calculatePrice(
+      final quote = await services.coasterRepository.calculatePrice(
             coasterId: draft.coaster.id,
             hireDate: draft.hireDate,
             hireTime: draft.hireTime,
@@ -115,7 +221,10 @@ class _BookingFormPageState extends State<BookingFormPage> {
             dropoffLatitude: draft.dropoffLatitude,
             dropoffLongitude: draft.dropoffLongitude,
             distanceKm: draft.distanceKm,
+            routedDistanceKm: draft.routedDistanceKm,
+            distanceMode: draft.distanceMode,
             returnDate: draft.returnDate,
+            returnTime: draft.returnTime,
           );
       draft.quote = quote;
       if (!mounted) return;
@@ -136,291 +245,213 @@ class _BookingFormPageState extends State<BookingFormPage> {
     }
   }
 
-  Future<void> _pickHireDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _hireDate ?? now,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (picked != null) setState(() => _hireDate = picked);
-  }
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-  Future<void> _pickHireTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _hireTime ?? TimeOfDay.now(),
+    return Scaffold(
+      appBar: AppBar(title: const Text(AppStrings.bookingForm)),
+      body: AppGradientBackground(
+        child: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              children: [
+                HeroHeaderCard(
+                  greeting: widget.coaster.name,
+                  subtitle: AppStrings.bookingStepHint,
+                  icon: Icons.edit_road_rounded,
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Material(
+                    color: colorScheme.errorContainer.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: colorScheme.error,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                _SectionLabel(
+                  icon: Icons.route_rounded,
+                  label: AppStrings.routeSectionTitle,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  AppStrings.routeSectionHint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                RoutePlacesCard(
+                  pickupController: _pickup,
+                  dropoffController: _dropoff,
+                  enabled: !_loading,
+                  pickupLabel: AppStrings.pickupLabel,
+                  dropoffLabel: AppStrings.dropoffLabel,
+                  onPickupSelected: _onPickupSelected,
+                  onDropoffSelected: _onDropoffSelected,
+                  onSwap: _onSwapPlaces,
+                  pickupValidator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  dropoffValidator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                RouteMapPreview(
+                  pickup: _pickupPlace,
+                  dropoff: _dropoffPlace,
+                  routePoints: _routePoints,
+                  distanceKm: _distanceKm,
+                  routing: _routing,
+                ),
+                const SizedBox(height: 20),
+                _SectionLabel(
+                  icon: Icons.event_available_rounded,
+                  label: AppStrings.scheduleSection,
+                ),
+                const SizedBox(height: 10),
+                DateTimeRangeCards(
+                  hireDate: _hireDate,
+                  hireTime: _hireTime,
+                  returnDate: _returnDate,
+                  returnTime: _returnTime,
+                  enabled: !_loading,
+                  onHireDateChanged: (d) => setState(() {
+                    _hireDate = d;
+                    if (_returnDate != null && _returnDate!.isBefore(d)) {
+                      _returnDate = d;
+                    }
+                  }),
+                  onHireTimeChanged: (t) => setState(() => _hireTime = t),
+                  onReturnDateChanged: (d) => setState(() => _returnDate = d),
+                  onReturnTimeChanged: (t) => setState(() {
+                    _returnTime = t;
+                    _returnDate ??= _hireDate;
+                  }),
+                  onClearReturn: () => setState(() {
+                    _returnDate = null;
+                    _returnTime = null;
+                  }),
+                ),
+                const SizedBox(height: 20),
+                _SectionLabel(
+                  icon: Icons.groups_outlined,
+                  label: AppStrings.detailsSection,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _passengers,
+                  enabled: !_loading,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: AppStrings.passengersCountLabel,
+                    prefixIcon: const Icon(Icons.groups_outlined),
+                    helperText: _capacity == null
+                        ? null
+                        : AppStrings.passengersCapacityHint(_capacity!),
+                  ),
+                  validator: (v) {
+                    final n = int.tryParse(v?.trim() ?? '');
+                    if (n == null || n < 1) return 'Enter at least 1';
+                    final cap = _capacity;
+                    if (cap != null && n > cap) {
+                      return AppStrings.passengersOverCapacity(cap);
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  AppStrings.passengersSeatsLaterHint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _purpose,
+                  enabled: !_loading,
+                  decoration: const InputDecoration(
+                    labelText: AppStrings.purposeLabel,
+                    prefixIcon: Icon(Icons.flag_outlined),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _notes,
+                  enabled: !_loading,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: AppStrings.notesLabel,
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                PrimaryButton(
+                  label: AppStrings.calculatePrice,
+                  isLoading: _loading,
+                  icon: Icons.calculate_outlined,
+                  onPressed: _loading || _routing ? null : _submit,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
-    if (picked != null) setState(() => _hireTime = picked);
   }
+}
 
-  Future<void> _pickReturnDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _returnDate ?? _hireDate ?? now,
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (picked != null) setState(() => _returnDate = picked);
-  }
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.icon, required this.label});
 
-  Future<void> _pickReturnTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _returnTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) setState(() => _returnTime = picked);
-  }
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.bookingForm)),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            children: [
-              Text(
-                widget.coaster.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Step 1 of 3 — route & schedule',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
-              ],
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _pickup,
-                enabled: !_loading,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: AppStrings.pickupLabel,
-                  prefixIcon: Icon(Icons.trip_origin),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _dropoff,
-                enabled: !_loading,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: AppStrings.dropoffLabel,
-                  prefixIcon: Icon(Icons.place_outlined),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Optional coordinates — or enter distance below',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _pickupLat,
-                      enabled: !_loading,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                        signed: true,
-                      ),
-                      decoration: const InputDecoration(labelText: 'Pickup lat'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _pickupLng,
-                      enabled: !_loading,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                        signed: true,
-                      ),
-                      decoration: const InputDecoration(labelText: 'Pickup lng'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _dropoffLat,
-                      enabled: !_loading,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                        signed: true,
-                      ),
-                      decoration:
-                          const InputDecoration(labelText: 'Drop-off lat'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _dropoffLng,
-                      enabled: !_loading,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                        signed: true,
-                      ),
-                      decoration:
-                          const InputDecoration(labelText: 'Drop-off lng'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _distance,
-                enabled: !_loading,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                ],
-                decoration: const InputDecoration(
-                  labelText: AppStrings.distanceLabel,
-                  prefixIcon: Icon(Icons.straighten),
-                ),
-                validator: (v) {
-                  final hasCoords = _pickupLat.text.trim().isNotEmpty &&
-                      _pickupLng.text.trim().isNotEmpty &&
-                      _dropoffLat.text.trim().isNotEmpty &&
-                      _dropoffLng.text.trim().isNotEmpty;
-                  if (hasCoords) return null;
-                  final n = double.tryParse(v?.trim() ?? '');
-                  if (n == null || n <= 0) return 'Enter distance or coordinates';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loading ? null : _pickHireDate,
-                      icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                      label: Text(
-                        _hireDate == null
-                            ? AppStrings.hireDateLabel
-                            : _fmtDate(_hireDate!),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loading ? null : _pickHireTime,
-                      icon: const Icon(Icons.schedule_outlined, size: 18),
-                      label: Text(
-                        _hireTime == null
-                            ? AppStrings.hireTimeLabel
-                            : _fmtTime(_hireTime!),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loading ? null : _pickReturnDate,
-                      icon: const Icon(Icons.event_outlined, size: 18),
-                      label: Text(
-                        _returnDate == null
-                            ? 'Return date'
-                            : _fmtDate(_returnDate!),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loading ? null : _pickReturnTime,
-                      icon: const Icon(Icons.schedule, size: 18),
-                      label: Text(
-                        _returnTime == null
-                            ? 'Return time'
-                            : _fmtTime(_returnTime!),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passengers,
-                enabled: !_loading,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: AppStrings.passengersCountLabel,
-                  prefixIcon: Icon(Icons.groups_outlined),
-                ),
-                validator: (v) {
-                  final n = int.tryParse(v?.trim() ?? '');
-                  if (n == null || n < 1) return 'Enter at least 1';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _purpose,
-                enabled: !_loading,
-                decoration: const InputDecoration(
-                  labelText: AppStrings.purposeLabel,
-                  prefixIcon: Icon(Icons.flag_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _notes,
-                enabled: !_loading,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: AppStrings.notesLabel,
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 24),
-              PrimaryButton(
-                label: AppStrings.calculatePrice,
-                isLoading: _loading,
-                icon: Icons.calculate_outlined,
-                onPressed: _loading ? null : _submit,
-              ),
-            ],
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: colorScheme.primary),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
           ),
         ),
-      ),
+      ],
     );
   }
 }

@@ -18,6 +18,7 @@ abstract final class AppStrings {
   static const String passwordTooShort = 'Password must be at least 6 characters';
 
   static const String welcome = 'Welcome';
+  static const String hello = 'Hello';
   static const String homeTitle = 'Dashboard';
   static const String homeTab = 'Home';
   static const String requestsTab = 'Requests';
@@ -51,6 +52,10 @@ abstract final class AppStrings {
   static const String profile = 'Profile';
   static const String profileHint = 'Account and password';
   static const String quickActions = 'Quick actions';
+  static const String seeAll = 'See all';
+  static const String viewHireRequests = 'View hire requests';
+  static const String viewOrders = 'View orders';
+  static const String notifications = 'Notifications';
 
   static const String pendingRequests = 'Pending requests';
   static const String logoutConfirm = 'Sign out of Bushire Driver?';

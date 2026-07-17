@@ -29,68 +29,89 @@ class OrderCard extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      order.orderCode ?? order.title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colorScheme.primaryContainer,
+                ),
+                child: Icon(
+                  Icons.route_outlined,
+                  color: colorScheme.onPrimaryContainer,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            order.orderCode ?? order.title,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (order.totalAmount != null)
+                          Text(
+                            AppFormat.tzs(order.totalAmount),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-                  if (order.totalAmount != null)
+                    if (!compact) ...[
+                      const SizedBox(height: 4),
+                      Text(order.title, style: theme.textTheme.bodyMedium),
+                    ],
+                    if (order.routeSummary.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        order.routeSummary,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 4),
                     Text(
-                      AppFormat.tzs(order.totalAmount),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.primary,
+                      order.whenLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                ],
-              ),
-              if (!compact) ...[
-                const SizedBox(height: 4),
-                Text(order.title, style: theme.textTheme.bodyMedium),
-              ],
-              if (order.routeSummary.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  order.routeSummary,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                    if (!compact && order.passengersCount != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${order.passengersCount} ${AppStrings.passengers}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        StatusChip.order(order.orderStatus),
+                        StatusChip.payment(order.paymentStatus),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 4),
-              Text(
-                order.whenLabel,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (!compact && order.passengersCount != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '${order.passengersCount} ${AppStrings.passengers}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  StatusChip.order(order.orderStatus),
-                  StatusChip.payment(order.paymentStatus),
-                ],
               ),
             ],
           ),

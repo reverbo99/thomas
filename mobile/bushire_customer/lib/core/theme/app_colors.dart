@@ -16,4 +16,10 @@ abstract final class AppColors {
 
   /// Confirmed trip chip.
   static const Color confirmed = Color(0xFF00897B);
+
+  /// Soft page-background gradient — top stop (very light orange tint).
+  static const Color gradientStart = Color(0xFFFFF3E9);
+
+  /// Soft page-background gradient — bottom stop (near white).
+  static const Color gradientEnd = Color(0xFFFFFFFF);
 }

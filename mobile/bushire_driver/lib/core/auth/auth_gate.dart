@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../data/api/api_exception.dart';
@@ -6,6 +8,7 @@ import '../../data/repositories/auth_repository.dart';
 import '../../features/auth/login_page.dart';
 import '../di/app_scope.dart';
 import '../navigation/main_shell.dart';
+import '../notifications/push_service.dart';
 
 /// Session snapshot for greetings / profile.
 class AuthSession {
@@ -106,6 +109,8 @@ class _AuthGateState extends State<AuthGate> {
           _bootstrapping = false;
         });
       }
+      // Keep the backend's push token current for this signed-in driver.
+      unawaited(PushService.instance.registerWith(_auth));
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -121,6 +126,7 @@ class _AuthGateState extends State<AuthGate> {
       final auth = await _auth.login(email: email, password: password);
       final session = AuthSession.fromUser(auth.user);
       if (mounted) setState(() => _session = session);
+      unawaited(PushService.instance.registerWith(_auth));
       return LoginResult(userName: session.userName, email: session.email);
     } on ApiException catch (e) {
       throw Exception(e.message);
@@ -129,6 +135,7 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _handleLogout() async {
     _services.stopAll();
+    await PushService.instance.unregister(_auth);
     try {
       await _auth.logout();
     } finally {

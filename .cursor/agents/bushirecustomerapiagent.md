@@ -26,7 +26,7 @@ Defer **screens / product flow** to **bushirecustomeragent**. Defer **widgets / 
 | Role middleware | `auth:sanctum` + `api.role:customer` |
 | Success shape | `{ "success": true, "data": ..., "message":? }` |
 | Error shape | `{ "success": false, "message": "...", "errors":? }` |
-| Production host (docs) | `https://ticket.hisgc.net` |
+| Production host | `https://ticket.hisgc.net` |
 
 Configure base URL via flavor/env (`--dart-define` or `.env` package) — never hardcode only localhost in release builds. Local WAMP example: `http://10.0.2.2` (Android emulator) or machine LAN IP.
 

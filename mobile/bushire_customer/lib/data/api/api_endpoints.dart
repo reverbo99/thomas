@@ -22,9 +22,14 @@ abstract final class ApiEndpoints {
 
 /// Base URL configuration via `--dart-define=API_BASE_URL=...`.
 ///
-/// Defaults to production. Override for local WAMP/emulator if needed:
-/// - Android emulator: `http://10.0.2.2/thomas/public`
+/// Defaults to production (`https://ticket.hisgc.net`).
+/// Override for local WAMP/emulator if needed:
+/// - Android emulator → WAMP: `http://10.0.2.2/thomas/public`
+/// - Physical device → LAN IP: `http://192.168.x.x/thomas/public`
 /// - iOS simulator / desktop: `http://127.0.0.1/thomas/public`
+///
+/// Example:
+/// `flutter run --dart-define=API_BASE_URL=http://10.0.2.2/thomas/public`
 abstract final class ApiConfig {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',

@@ -89,6 +89,20 @@ class ApiClient {
     });
   }
 
+  Future<dynamic> delete(
+    String path, {
+    Map<String, dynamic>? body,
+    bool auth = true,
+  }) {
+    return _send(() async {
+      return _http.delete(
+        _uri(path),
+        headers: await _headers(auth: auth),
+        body: body == null ? null : jsonEncode(body),
+      );
+    });
+  }
+
   Future<dynamic> _send(Future<http.Response> Function() request) async {
     late http.Response response;
     try {

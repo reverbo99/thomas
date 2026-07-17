@@ -16,6 +16,8 @@ abstract final class ApiEndpoints {
   static const history = '/history';
   static const schedule = '/schedule';
   static const location = '/location';
+
+  static const deviceToken = '/device-token';
 }
 
 /// Base URL configuration via `--dart-define=API_BASE_URL=...`.

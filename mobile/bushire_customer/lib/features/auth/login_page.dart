@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/strings.dart';
-import '../../data/api/api_exception.dart';
+import '../../core/ui_errors.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/primary_button.dart';
 
 /// Result returned by [LoginPage.onLogin] after a successful sign-in.
@@ -68,14 +69,6 @@ class _LoginPageState extends State<LoginPage> {
     return null;
   }
 
-  String _formatError(Object e) {
-    if (e is ApiException) return e.message;
-    if (e is Exception) {
-      return e.toString().replaceFirst('Exception: ', '');
-    }
-    return e.toString();
-  }
-
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     setState(() => _bannerError = null);
@@ -89,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
         _passwordController.text,
       );
     } catch (e) {
-      final message = _formatError(e);
+      final message = formatUiError(e);
       if (!mounted) return;
       setState(() => _bannerError = message);
       ScaffoldMessenger.of(context)
@@ -106,13 +99,18 @@ class _LoginPageState extends State<LoginPage> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      body: SafeArea(
+      body: AppGradientBackground(
+        child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
+              child: Card(
+                margin: EdgeInsets.zero,
+                child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -256,9 +254,12 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ],
                 ),
+                ),
+              ),
               ),
             ),
           ),
+        ),
         ),
       ),
     );

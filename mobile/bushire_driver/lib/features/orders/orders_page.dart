@@ -4,17 +4,16 @@ import '../../core/di/app_scope.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/order_model.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/order_card.dart';
+import '../../widgets/pill_tab_selector.dart';
 import 'order_detail_page.dart';
 
 /// Orders tab with sub-views: All | Schedule | History.
 class OrdersPage extends StatefulWidget {
-  const OrdersPage({
-    super.key,
-    this.initialSubTab = allTab,
-  });
+  const OrdersPage({super.key, this.initialSubTab = allTab});
 
   static const int allTab = 0;
   static const int scheduleTab = 1;
@@ -94,9 +93,7 @@ class OrdersPageState extends State<OrdersPage>
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.statusCode == 404
-            ? AppStrings.noCoasterAssigned
-            : e.message;
+        _error = e.statusCode == 404 ? AppStrings.noCoasterAssigned : e.message;
         _items = const [];
         _loading = false;
       });
@@ -111,68 +108,63 @@ class OrdersPageState extends State<OrdersPage>
 
   Future<void> _openDetail(OrderModel order) async {
     final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => OrderDetailPage(orderId: order.id),
-      ),
+      MaterialPageRoute(builder: (_) => OrderDetailPage(orderId: order.id)),
     );
     if (changed == true && mounted) await _load();
   }
 
+  static const _statusFilters = <String?>[
+    null,
+    'confirmed',
+    'in_progress',
+    'pending',
+    'completed',
+    'cancelled',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.orders),
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: const [
-            Tab(text: AppStrings.filterAll),
-            Tab(text: AppStrings.schedule),
-            Tab(text: AppStrings.history),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          if (_tabs.index == OrdersPage.allTab)
-            SizedBox(
-              height: 48,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                children: [
-                  null,
-                  'confirmed',
-                  'in_progress',
-                  'pending',
-                  'completed',
-                  'cancelled',
-                ].map((f) {
-                  final selected = _statusFilter == f;
-                  final label = f == null
-                      ? AppStrings.filterAll
-                      : f.replaceAll('_', ' ');
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(label),
-                      selected: selected,
-                      onSelected: (_) {
-                        setState(() => _statusFilter = f);
-                        _load();
-                      },
-                    ),
-                  );
-                }).toList(),
+      appBar: AppBar(title: const Text(AppStrings.orders)),
+      body: AppGradientBackground(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: PillTabSelector(
+                labels: const [
+                  AppStrings.filterAll,
+                  AppStrings.schedule,
+                  AppStrings.history,
+                ],
+                selectedIndex: _tabs.index,
+                onChanged: (i) => _tabs.animateTo(i),
               ),
             ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: _buildList(),
+            if (_tabs.index == OrdersPage.allTab)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: PillTabSelector(
+                  scrollable: true,
+                  labels: _statusFilters
+                      .map(
+                        (f) => f == null
+                            ? AppStrings.filterAll
+                            : f.replaceAll('_', ' '),
+                      )
+                      .toList(),
+                  selectedIndex: _statusFilters.indexOf(_statusFilter),
+                  onChanged: (i) {
+                    setState(() => _statusFilter = _statusFilters[i]);
+                    _load();
+                  },
+                ),
+              ),
+            Expanded(
+              child: RefreshIndicator(onRefresh: _load, child: _buildList()),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -207,23 +199,20 @@ class OrdersPageState extends State<OrdersPage>
               icon: _tabs.index == OrdersPage.historyTab
                   ? Icons.history
                   : _tabs.index == OrdersPage.scheduleTab
-                      ? Icons.calendar_month_outlined
-                      : Icons.route_outlined,
+                  ? Icons.calendar_month_outlined
+                  : Icons.route_outlined,
               title: _tabs.index == OrdersPage.historyTab
                   ? AppStrings.noHistory
                   : _tabs.index == OrdersPage.scheduleTab
-                      ? AppStrings.noSchedule
-                      : AppStrings.noOrders,
+                  ? AppStrings.noSchedule
+                  : AppStrings.noOrders,
             ),
           )
         else
           ..._items.map(
             (o) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: OrderCard(
-                order: o,
-                onTap: () => _openDetail(o),
-              ),
+              child: OrderCard(order: o, onTap: () => _openDetail(o)),
             ),
           ),
       ],

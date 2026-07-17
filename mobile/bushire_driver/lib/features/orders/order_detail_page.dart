@@ -5,6 +5,7 @@ import '../../core/format.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/order_model.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/phone_tile.dart';
 import '../../widgets/primary_button.dart';
@@ -39,8 +40,9 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       _error = null;
     });
     try {
-      final order =
-          await AppScope.of(context).orderRepository.getOrder(widget.orderId);
+      final order = await AppScope.of(
+        context,
+      ).orderRepository.getOrder(widget.orderId);
       if (!mounted) return;
       setState(() {
         _order = order;
@@ -66,21 +68,22 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
     if (order == null) return;
     setState(() => _acting = true);
     try {
-      final updated =
-          await AppScope.of(context).orderRepository.startTrip(order.id);
+      final updated = await AppScope.of(
+        context,
+      ).orderRepository.startTrip(order.id);
       _changed = true;
       if (!mounted) return;
       setState(() => _order = updated);
       await AppScope.of(context).locationTracker.start();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.tripStarted)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(AppStrings.tripStarted)));
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _acting = false);
     }
@@ -110,21 +113,22 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
 
     setState(() => _acting = true);
     try {
-      final updated =
-          await AppScope.of(context).orderRepository.completeTrip(order.id);
+      final updated = await AppScope.of(
+        context,
+      ).orderRepository.completeTrip(order.id);
       _changed = true;
       if (!mounted) return;
       setState(() => _order = updated);
       await AppScope.of(context).syncLocationTracking();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.tripCompleted)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(AppStrings.tripCompleted)));
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _acting = false);
     }
@@ -146,11 +150,13 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             onPressed: () => Navigator.of(context).pop(_changed),
           ),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _order == null
-                ? _errorBody()
-                : _detailBody(_order!),
+        body: AppGradientBackground(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _order == null
+              ? _errorBody()
+              : _detailBody(_order!),
+        ),
       ),
     );
   }
@@ -267,14 +273,14 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Card(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Column(children: children),
           ),
         ),

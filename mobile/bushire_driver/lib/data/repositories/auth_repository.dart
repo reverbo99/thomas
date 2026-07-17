@@ -127,6 +127,19 @@ class AuthRepository {
     return user;
   }
 
+  /// POST `/device-token` — register this device for push notifications.
+  Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {
+    await _api.post(
+      ApiEndpoints.deviceToken,
+      body: {'token': token, 'platform': platform},
+    );
+  }
+
+  /// DELETE `/device-token` — stop push to this device.
+  Future<void> deleteDeviceToken(String token) async {
+    await _api.delete(ApiEndpoints.deviceToken, body: {'token': token});
+  }
+
   /// POST `/logout` then clear local session.
   Future<void> logout() async {
     try {

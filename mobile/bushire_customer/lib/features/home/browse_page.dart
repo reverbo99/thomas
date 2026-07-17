@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../core/di/app_scope.dart';
-import '../../core/format.dart';
 import '../../core/strings.dart';
-import '../../core/theme/app_colors.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/coaster_model.dart';
-import '../../widgets/status_chip.dart';
+import '../../widgets/app_gradient_background.dart';
+import '../../widgets/coaster_card.dart';
+import '../../widgets/pill_tab_selector.dart';
+import '../booking/booking_form_page.dart';
 import '../booking/coaster_detail_page.dart';
 
-/// Home tab: coaster list with optional date/time availability filter.
+/// Book tab: list coasters so the customer can start a special-hire booking.
+///
+/// Calls `GET /api/special-hire/customer/coasters` (optional `date`+`time`).
 /// Google Maps is stubbed — markers shown as lat/lng on cards.
 class BrowsePage extends StatefulWidget {
   const BrowsePage({super.key});
@@ -30,6 +33,12 @@ class _BrowsePageState extends State<BrowsePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
+
+  /// Backend availability filter requires both date and time.
+  bool get _hasFullFilter => _date != null && _time != null;
+
+  bool get _hasPartialFilter =>
+      (_date != null) != (_time != null); // XOR
 
   String? get _dateStr {
     final d = _date;
@@ -53,7 +62,11 @@ class _BrowsePageState extends State<BrowsePage> {
     });
     try {
       final repo = AppScope.of(context).coasterRepository;
-      final list = await repo.listCoasters(date: _dateStr, time: _timeStr);
+      // Only send date+time together — API ignores a lone param.
+      final list = await repo.listCoasters(
+        date: _hasFullFilter ? _dateStr : null,
+        time: _hasFullFilter ? _timeStr : null,
+      );
       if (!mounted) return;
       setState(() {
         _items = list;
@@ -98,7 +111,26 @@ class _BrowsePageState extends State<BrowsePage> {
   void _openDetail(CoasterModel c) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => CoasterDetailPage(coasterId: c.id, preview: c),
+        builder: (_) => CoasterDetailPage(
+          coasterId: c.id,
+          preview: c,
+          initialHireDate: _date,
+          initialHireTime: _time,
+        ),
+      ),
+    );
+  }
+
+  /// Starts the booking flow (form → price → confirm → POST /bookings).
+  void _startBooking(CoasterModel c) {
+    if (!c.canBook) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingFormPage(
+          coaster: c,
+          initialHireDate: _date,
+          initialHireTime: _time,
+        ),
       ),
     );
   }
@@ -118,59 +150,102 @@ class _BrowsePageState extends State<BrowsePage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDate,
-                    icon: const Icon(Icons.calendar_today, size: 18),
-                    label: Text(_dateStr ?? 'Any date'),
+      body: AppGradientBackground(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  AppStrings.browseHint,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickTime,
-                    icon: const Icon(Icons.schedule, size: 18),
-                    label: Text(_timeStr ?? 'Any time'),
-                  ),
-                ),
-                if (_date != null || _time != null) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    tooltip: 'Clear filters',
-                    onPressed: () {
-                      setState(() {
-                        _date = null;
-                        _time = null;
-                      });
-                      _load();
-                    },
-                    icon: const Icon(Icons.clear),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                AppStrings.mapPlaceholder,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(child: _buildBody(theme)),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: PillTabSelector(
+                      labels: [AppStrings.anyDate, _dateStr ?? 'Pick date'],
+                      icons: const [Icons.event_busy, Icons.calendar_today],
+                      selectedIndex: _date == null ? 0 : 1,
+                      onChanged: (i) {
+                        if (i == 0) {
+                          setState(() => _date = null);
+                          _load();
+                        } else {
+                          _pickDate();
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: PillTabSelector(
+                      labels: [AppStrings.anyTime, _timeStr ?? 'Pick time'],
+                      icons: const [Icons.schedule_outlined, Icons.schedule],
+                      selectedIndex: _time == null ? 0 : 1,
+                      onChanged: (i) {
+                        if (i == 0) {
+                          setState(() => _time = null);
+                          _load();
+                        } else {
+                          _pickTime();
+                        }
+                      },
+                    ),
+                  ),
+                  if (_date != null || _time != null) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: AppStrings.clearFilters,
+                      onPressed: () {
+                        setState(() {
+                          _date = null;
+                          _time = null;
+                        });
+                        _load();
+                      },
+                      icon: const Icon(Icons.clear),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_hasPartialFilter)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    AppStrings.filterBothRequired,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.tertiary,
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  AppStrings.mapPlaceholder,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(child: _buildBody(theme)),
+          ],
+        ),
       ),
     );
   }
@@ -198,7 +273,44 @@ class _BrowsePageState extends State<BrowsePage> {
       );
     }
     if (_items.isEmpty) {
-      return const Center(child: Text(AppStrings.emptyCoasters));
+      // API returns the full bookable fleet even when date+time are set
+      // (those only mark busy). An empty list means the server sent [].
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.directions_bus_outlined,
+                size: 48,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                AppStrings.noCoasters,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _hasFullFilter
+                    ? AppStrings.emptyCoastersHint
+                    : AppStrings.noCoastersHint,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _load,
+                child: const Text(AppStrings.retry),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return RefreshIndicator(
@@ -210,74 +322,16 @@ class _BrowsePageState extends State<BrowsePage> {
         itemBuilder: (context, index) {
           final c = _items[index];
           final available = c.canBook;
-          return Card(
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => _openDetail(c),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.airport_shuttle_rounded,
-                          color: available
-                              ? AppColors.success
-                              : AppColors.danger,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            c.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        StatusChip.availability(
-                          c.availabilityStatus ??
-                              (available ? 'available' : 'busy'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (c.plateNumber != null)
-                      Text('${c.plateNumber} · ${c.capacity ?? '—'} seats'),
-                    if (c.pricing != null)
-                      Text(
-                        '${AppFormat.tzs(c.pricing!.pricePerKm)} / km'
-                        ' · min ${AppFormat.km(c.pricing!.minKm)}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    if (c.latitude != null && c.longitude != null)
-                      Text(
-                        '${c.latitude!.toStringAsFixed(4)}, '
-                        '${c.longitude!.toStringAsFixed(4)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    if (c.driver?.hasInfo == true) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Driver: ${c.driver!.name}'
-                        '${c.driver!.phone != null ? ' · ${c.driver!.phone}' : ''}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: available ? () => _openDetail(c) : null,
-                        child: Text(
-                          available ? AppStrings.bookNow : AppStrings.unavailable,
-                        ),
-                      ),
-                    ),
-                  ],
+          return CoasterCard(
+            coaster: c,
+            onTap: () => _openDetail(c),
+            showLocation: true,
+            trailingAction: Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: available ? () => _startBooking(c) : null,
+                child: Text(
+                  available ? AppStrings.bookNow : AppStrings.unavailable,
                 ),
               ),
             ),

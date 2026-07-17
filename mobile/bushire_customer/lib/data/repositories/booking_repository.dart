@@ -2,6 +2,7 @@ import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../api/api_exception.dart';
 import '../models/booking_model.dart';
+import '../models/booking_requests.dart';
 import '../models/price_quote.dart';
 
 /// Bookings, pricing, payments, passengers, and tracking.
@@ -13,6 +14,10 @@ class BookingRepository {
   final ApiClient _api;
 
   /// POST `/calculate-price`
+  ///
+  /// Backend keys: `pickup_latitude` / `pickup_longitude` /
+  /// `dropoff_latitude` / `dropoff_longitude`, `hire_date` / `hire_time`,
+  /// optional `return_date` / `return_time`, and `distance_km` (or coords).
   Future<PriceQuote> calculatePrice({
     required int coasterId,
     required String hireDate,
@@ -25,38 +30,33 @@ class BookingRepository {
     num? routedDistanceKm,
     String? distanceMode,
     String? returnDate,
+    String? returnTime,
   }) async {
-    final body = <String, dynamic>{
-      'coaster_id': coasterId,
-      'hire_date': hireDate,
-      'hire_time': hireTime,
-    };
+    final request = CalculatePriceRequest(
+      coasterId: coasterId,
+      hireDate: hireDate,
+      hireTime: hireTime,
+      pickupLatitude: pickupLatitude,
+      pickupLongitude: pickupLongitude,
+      dropoffLatitude: dropoffLatitude,
+      dropoffLongitude: dropoffLongitude,
+      distanceKm: distanceKm,
+      routedDistanceKm: routedDistanceKm,
+      distanceMode: distanceMode,
+      returnDate: returnDate,
+      returnTime: returnTime,
+    );
 
-    final hasCoords = pickupLatitude != null &&
-        pickupLongitude != null &&
-        dropoffLatitude != null &&
-        dropoffLongitude != null;
-
-    if (hasCoords) {
-      body['pickup_latitude'] = pickupLatitude;
-      body['pickup_longitude'] = pickupLongitude;
-      body['dropoff_latitude'] = dropoffLatitude;
-      body['dropoff_longitude'] = dropoffLongitude;
-    }
-    if (distanceKm != null) body['distance_km'] = distanceKm;
-    if (routedDistanceKm != null) body['routed_distance_km'] = routedDistanceKm;
-    if (distanceMode != null) body['distance_mode'] = distanceMode;
-    if (returnDate != null && returnDate.isNotEmpty) {
-      body['return_date'] = returnDate;
-    }
-
-    if (!hasCoords && distanceKm == null) {
+    if (!request.hasCoordinates && distanceKm == null) {
       throw ApiException(
         message: 'Provide coordinates or distance_km for price calculation',
       );
     }
 
-    final data = await _api.post(ApiEndpoints.calculatePrice, body: body);
+    final data = await _api.post(
+      ApiEndpoints.calculatePrice,
+      body: request.toJson(),
+    );
     if (data is! Map) {
       throw ApiException(message: 'Unexpected price response');
     }
@@ -64,6 +64,10 @@ class BookingRepository {
   }
 
   /// POST `/bookings` — [distanceKm] and [totalAmount] are required by the API.
+  ///
+  /// Place names go in [pickupLocation] / [dropoffLocation]; optional lat/lng
+  /// use `pickup_latitude` etc. Start = [hireDate]+[hireTime]; return =
+  /// [returnDate]+[returnTime].
   Future<BookingModel> createBooking({
     required int coasterId,
     required String pickupLocation,
@@ -84,32 +88,31 @@ class BookingRepository {
     String? phone,
     String? contact,
   }) async {
-    final body = <String, dynamic>{
-      'coaster_id': coasterId,
-      'pickup_location': pickupLocation,
-      'dropoff_location': dropoffLocation,
-      'hire_date': hireDate,
-      'hire_time': hireTime,
-      'passengers_count': passengersCount,
-      'distance_km': distanceKm,
-      'total_amount': totalAmount,
-    };
-    if (pickupLatitude != null) body['pickup_latitude'] = pickupLatitude;
-    if (pickupLongitude != null) body['pickup_longitude'] = pickupLongitude;
-    if (dropoffLatitude != null) body['dropoff_latitude'] = dropoffLatitude;
-    if (dropoffLongitude != null) body['dropoff_longitude'] = dropoffLongitude;
-    if (returnDate != null && returnDate.isNotEmpty) {
-      body['return_date'] = returnDate;
-    }
-    if (returnTime != null && returnTime.isNotEmpty) {
-      body['return_time'] = returnTime;
-    }
-    if (purpose != null && purpose.isNotEmpty) body['purpose'] = purpose;
-    if (notes != null && notes.isNotEmpty) body['notes'] = notes;
-    if (phone != null && phone.isNotEmpty) body['phone'] = phone;
-    if (contact != null && contact.isNotEmpty) body['contact'] = contact;
+    final request = CreateBookingRequest(
+      coasterId: coasterId,
+      pickupLocation: pickupLocation,
+      dropoffLocation: dropoffLocation,
+      hireDate: hireDate,
+      hireTime: hireTime,
+      passengersCount: passengersCount,
+      distanceKm: distanceKm,
+      totalAmount: totalAmount,
+      pickupLatitude: pickupLatitude,
+      pickupLongitude: pickupLongitude,
+      dropoffLatitude: dropoffLatitude,
+      dropoffLongitude: dropoffLongitude,
+      returnDate: returnDate,
+      returnTime: returnTime,
+      purpose: purpose,
+      notes: notes,
+      phone: phone,
+      contact: contact,
+    );
 
-    final data = await _api.post(ApiEndpoints.bookings, body: body);
+    final data = await _api.post(
+      ApiEndpoints.bookings,
+      body: request.toJson(),
+    );
     if (data is! Map) {
       throw ApiException(message: 'Unexpected booking response');
     }

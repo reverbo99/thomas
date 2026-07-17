@@ -47,7 +47,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Welcome'), findsOneWidget);
-    expect(find.text(AppStrings.browseTitle), findsOneWidget);
+    expect(find.text(AppStrings.bookTab), findsOneWidget);
     expect(find.text(AppStrings.myTrips), findsOneWidget);
     expect(find.text(AppStrings.profile), findsOneWidget);
   });

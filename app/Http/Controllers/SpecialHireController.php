@@ -805,8 +805,10 @@ class SpecialHireController extends Controller
     public function createDriver()
     {
         $coasters = Coaster::byUser(Auth::id())->orderBy('name')->get();
+        // Only coasters without a linked driver account are selectable.
+        $assignableCoasters = $coasters->whereNull('driver_user_id')->values();
 
-        return view('special_hire.drivers.create', compact('coasters'));
+        return view('special_hire.drivers.create', compact('coasters', 'assignableCoasters'));
     }
 
     public function storeDriver(Request $request)
@@ -828,6 +830,7 @@ class SpecialHireController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'phone' => $request->phone,
+            'contact' => $request->phone,
             'password' => Hash::make($request->password),
             'role' => 'driver',
             'status' => 'accept',

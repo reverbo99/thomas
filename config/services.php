@@ -44,4 +44,13 @@ return [
         'callback_secret' => env('AIRTEL_CALLBACK_SECRET'),
     ],
 
+    'fcm' => [
+        // Absolute path to the Firebase Admin SDK service-account JSON.
+        // Defaults to storage/app/firebase/firebase-admin.json (gitignored).
+        'credentials' => env('FCM_CREDENTIALS', storage_path('app/firebase/firebase-admin.json')),
+        'project_id' => env('FCM_PROJECT_ID', 'highlink-b410f'),
+        // Optional CA bundle for HTTPS verification on dev hosts lacking one.
+        'ca_bundle' => env('FCM_CA_BUNDLE'),
+    ],
+
 ];

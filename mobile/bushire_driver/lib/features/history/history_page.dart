@@ -4,6 +4,7 @@ import '../../core/di/app_scope.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/order_model.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/order_card.dart';
@@ -57,9 +58,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _open(OrderModel order) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OrderDetailPage(orderId: order.id),
-      ),
+      MaterialPageRoute(builder: (_) => OrderDetailPage(orderId: order.id)),
     );
     if (mounted) await _load();
   }
@@ -68,9 +67,8 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.history)),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: _buildBody(),
+      body: AppGradientBackground(
+        child: RefreshIndicator(onRefresh: _load, child: _buildBody()),
       ),
     );
   }
@@ -101,10 +99,7 @@ class _HistoryPageState extends State<HistoryPage> {
         if (_items.isEmpty && _error == null)
           const Padding(
             padding: EdgeInsets.only(top: 48),
-            child: EmptyState(
-              icon: Icons.history,
-              title: AppStrings.noHistory,
-            ),
+            child: EmptyState(icon: Icons.history, title: AppStrings.noHistory),
           )
         else
           ..._items.map(

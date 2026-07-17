@@ -1,6 +1,7 @@
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../api/api_exception.dart';
+import '../models/booking_requests.dart';
 import '../models/coaster_model.dart';
 import '../models/price_quote.dart';
 
@@ -12,14 +13,21 @@ class CoasterRepository {
 
   final ApiClient _api;
 
-  /// GET `/coasters` — optional [date] (`YYYY-MM-DD`) + [time] (`HH:MM`).
+  /// GET `/coasters` — optional availability check.
+  ///
+  /// Backend only applies hire-window availability when **both** [date]
+  /// (`YYYY-MM-DD`) and [time] (`HH:MM`) are present; sending one alone is ignored.
   Future<List<CoasterModel>> getCoasters({
     String? date,
     String? time,
   }) async {
     final query = <String, String>{};
-    if (date != null && date.isNotEmpty) query['date'] = date;
-    if (time != null && time.isNotEmpty) query['time'] = time;
+    final d = date;
+    final t = time;
+    if (d != null && d.isNotEmpty && t != null && t.isNotEmpty) {
+      query['date'] = d;
+      query['time'] = t;
+    }
 
     final data = await _api.get(
       ApiEndpoints.coasters,
@@ -54,7 +62,8 @@ class CoasterRepository {
 
   /// POST `/calculate-price` (also available on [BookingRepository]).
   ///
-  /// Provide either all four coordinates OR [distanceKm].
+  /// Provide either all four coordinates OR [distanceKm]. When both are set,
+  /// client OSM distance is preferred (see [CalculatePriceRequest.toJson]).
   Future<PriceQuote> calculatePrice({
     required int coasterId,
     required String hireDate,
@@ -67,38 +76,33 @@ class CoasterRepository {
     num? routedDistanceKm,
     String? distanceMode,
     String? returnDate,
+    String? returnTime,
   }) async {
-    final body = <String, dynamic>{
-      'coaster_id': coasterId,
-      'hire_date': hireDate,
-      'hire_time': hireTime,
-    };
+    final request = CalculatePriceRequest(
+      coasterId: coasterId,
+      hireDate: hireDate,
+      hireTime: hireTime,
+      pickupLatitude: pickupLatitude,
+      pickupLongitude: pickupLongitude,
+      dropoffLatitude: dropoffLatitude,
+      dropoffLongitude: dropoffLongitude,
+      distanceKm: distanceKm,
+      routedDistanceKm: routedDistanceKm,
+      distanceMode: distanceMode,
+      returnDate: returnDate,
+      returnTime: returnTime,
+    );
 
-    final hasCoords = pickupLatitude != null &&
-        pickupLongitude != null &&
-        dropoffLatitude != null &&
-        dropoffLongitude != null;
-
-    if (hasCoords) {
-      body['pickup_latitude'] = pickupLatitude;
-      body['pickup_longitude'] = pickupLongitude;
-      body['dropoff_latitude'] = dropoffLatitude;
-      body['dropoff_longitude'] = dropoffLongitude;
-    }
-    if (distanceKm != null) body['distance_km'] = distanceKm;
-    if (routedDistanceKm != null) body['routed_distance_km'] = routedDistanceKm;
-    if (distanceMode != null) body['distance_mode'] = distanceMode;
-    if (returnDate != null && returnDate.isNotEmpty) {
-      body['return_date'] = returnDate;
-    }
-
-    if (!hasCoords && distanceKm == null) {
+    if (!request.hasCoordinates && distanceKm == null) {
       throw ApiException(
         message: 'Provide coordinates or distance_km for price calculation',
       );
     }
 
-    final data = await _api.post(ApiEndpoints.calculatePrice, body: body);
+    final data = await _api.post(
+      ApiEndpoints.calculatePrice,
+      body: request.toJson(),
+    );
     if (data is! Map) {
       throw ApiException(message: 'Unexpected price response');
     }

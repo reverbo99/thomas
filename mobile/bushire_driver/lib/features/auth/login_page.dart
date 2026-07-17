@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/primary_button.dart';
 
@@ -16,10 +17,7 @@ class LoginResult {
 /// Email + password login. No self-register — inject [onLogin]
 /// (wired by [AuthGate] → [AuthRepository.login]).
 class LoginPage extends StatefulWidget {
-  const LoginPage({
-    super.key,
-    required this.onLogin,
-  });
+  const LoginPage({super.key, required this.onLogin});
 
   /// Called after local validation passes. Prefer throwing with a
   /// user-readable [Exception.message], or return a [LoginResult].
@@ -102,15 +100,15 @@ class _LoginPageState extends State<LoginPage> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
-                key: _formKey,
+      body: AppGradientBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Icon(
@@ -134,74 +132,90 @@ class _LoginPageState extends State<LoginPage> {
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 36),
-                    Text(
-                      AppStrings.loginTitle,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      AppStrings.loginSubtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (_bannerError != null) ...[
-                      const SizedBox(height: 16),
-                      ErrorBanner(
-                        message: _bannerError!,
-                        onDismiss: () => setState(() => _bannerError = null),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _emailController,
-                      focusNode: _emailFocus,
-                      enabled: !_isLoading,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(
-                        labelText: AppStrings.emailLabel,
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                      validator: _validateEmail,
-                      onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _passwordController,
-                      focusNode: _passwordFocus,
-                      enabled: !_isLoading,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.password],
-                      decoration: InputDecoration(
-                        labelText: AppStrings.passwordLabel,
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
+                    const SizedBox(height: 28),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                AppStrings.loginTitle,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                AppStrings.loginSubtitle,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              if (_bannerError != null) ...[
+                                const SizedBox(height: 16),
+                                ErrorBanner(
+                                  message: _bannerError!,
+                                  onDismiss: () =>
+                                      setState(() => _bannerError = null),
+                                ),
+                              ],
+                              const SizedBox(height: 20),
+                              TextFormField(
+                                controller: _emailController,
+                                focusNode: _emailFocus,
+                                enabled: !_isLoading,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.email],
+                                decoration: const InputDecoration(
+                                  labelText: AppStrings.emailLabel,
+                                  prefixIcon: Icon(Icons.email_outlined),
+                                ),
+                                validator: _validateEmail,
+                                onFieldSubmitted: (_) =>
+                                    _passwordFocus.requestFocus(),
+                              ),
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _passwordController,
+                                focusNode: _passwordFocus,
+                                enabled: !_isLoading,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.done,
+                                autofillHints: const [AutofillHints.password],
+                                decoration: InputDecoration(
+                                  labelText: AppStrings.passwordLabel,
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : () => setState(
+                                            () => _obscurePassword =
+                                                !_obscurePassword,
+                                          ),
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
                                   ),
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
+                                ),
+                                validator: _validatePassword,
+                                onFieldSubmitted: (_) => _submit(),
+                              ),
+                              const SizedBox(height: 24),
+                              PrimaryButton(
+                                label: AppStrings.loginCta,
+                                isLoading: _isLoading,
+                                onPressed: _isLoading ? null : _submit,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      validator: _validatePassword,
-                      onFieldSubmitted: (_) => _submit(),
-                    ),
-                    const SizedBox(height: 24),
-                    PrimaryButton(
-                      label: AppStrings.loginCta,
-                      isLoading: _isLoading,
-                      onPressed: _isLoading ? null : _submit,
                     ),
                     const SizedBox(height: 16),
                     Text(

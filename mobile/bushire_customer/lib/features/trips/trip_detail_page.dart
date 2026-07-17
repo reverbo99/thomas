@@ -5,6 +5,7 @@ import '../../core/format.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/booking_model.dart';
+import '../../widgets/next_step_hint.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/status_chip.dart';
 import '../payments/pay_balance_page.dart';
@@ -176,12 +177,7 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       if (t.hireNextStep != null &&
                           t.hireNextStep!.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Text(
-                          'Next: ${t.hireNextStep!.replaceAll('_', ' ')}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
+                        NextStepHint(step: t.hireNextStep, showLabel: true),
                       ],
                       const SizedBox(height: 16),
                       Card(
@@ -228,6 +224,36 @@ class _TripDetailPageState extends State<TripDetailPage> {
                           ),
                         ),
                       ),
+                      if (t.passengerSeats != null &&
+                          t.passengerSeats!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  AppStrings.seatsSavedTitle,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                for (var i = 0; i < t.passengerSeats!.length; i++)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Text(
+                                      'Seat ${i + 1}: '
+                                      '${t.passengerSeats![i].isEmpty ? AppStrings.seatUnnamed : t.passengerSeats![i]}',
+                                      style: theme.textTheme.bodyMedium,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       if (t.needsDeposit)
                         Padding(
@@ -276,7 +302,9 @@ class _TripDetailPageState extends State<TripDetailPage> {
                       if (t.needsPassengers)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
-                          child: OutlinedButton.icon(
+                          child: PrimaryButton(
+                            label: AppStrings.managePassengers,
+                            icon: Icons.groups_outlined,
                             onPressed: () {
                               Navigator.of(context)
                                   .push(
@@ -286,8 +314,6 @@ class _TripDetailPageState extends State<TripDetailPage> {
                                   )
                                   .then((_) => _reload());
                             },
-                            icon: const Icon(Icons.groups_outlined),
-                            label: const Text(AppStrings.passengers),
                           ),
                         ),
                       if (t.canTrack ||

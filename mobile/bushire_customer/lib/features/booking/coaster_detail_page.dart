@@ -14,10 +14,16 @@ class CoasterDetailPage extends StatefulWidget {
     super.key,
     required this.coasterId,
     this.preview,
+    this.initialHireDate,
+    this.initialHireTime,
   });
 
   final int coasterId;
   final CoasterModel? preview;
+
+  /// Optional hire window from Book tab filters (pre-fills the booking form).
+  final DateTime? initialHireDate;
+  final TimeOfDay? initialHireTime;
 
   @override
   State<CoasterDetailPage> createState() => _CoasterDetailPageState();
@@ -46,7 +52,9 @@ class _CoasterDetailPageState extends State<CoasterDetailPage> {
           .getCoaster(widget.coasterId);
       if (!mounted) return;
       setState(() {
-        _coaster = c;
+        // Detail API omits is_available / availability_status / lat-lng;
+        // keep list preview fields so Book CTA stays correct.
+        _coaster = c.mergedWithPreview(widget.preview);
         _loading = false;
       });
     } catch (e) {
@@ -65,7 +73,11 @@ class _CoasterDetailPageState extends State<CoasterDetailPage> {
     if (c == null || !c.canBook) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => BookingFormPage(coaster: c),
+        builder: (_) => BookingFormPage(
+          coaster: c,
+          initialHireDate: widget.initialHireDate,
+          initialHireTime: widget.initialHireTime,
+        ),
       ),
     );
   }
@@ -108,43 +120,66 @@ class _CoasterDetailPageState extends State<CoasterDetailPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    if (c.plateNumber != null) Text('Plate: ${c.plateNumber}'),
-                    if (c.model != null) Text('Model: ${c.model}'),
-                    if (c.color != null) Text('Color: ${c.color}'),
-                    if (c.capacity != null) Text('Capacity: ${c.capacity}'),
-                    if (c.features != null && c.features!.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text('Features', style: theme.textTheme.titleSmall),
-                      Text(c.features!),
-                    ],
-                    if (c.pricing != null) ...[
-                      const SizedBox(height: 16),
-                      Text('Pricing', style: theme.textTheme.titleSmall),
-                      Text('${AppFormat.tzs(c.pricing!.pricePerKm)} per km'),
-                      Text('Minimum: ${AppFormat.km(c.pricing!.minKm)}'),
-                      Text(
-                        'Weekend +${c.pricing!.weekendSurchargePercent}% · '
-                        'Night +${c.pricing!.nightSurchargePercent}%',
-                      ),
-                    ],
-                    if (c.driver?.hasInfo == true) ...[
-                      const SizedBox(height: 16),
-                      Text('Driver', style: theme.textTheme.titleSmall),
-                      Text(c.driver!.name),
-                      if (c.driver!.phone != null) Text(c.driver!.phone!),
-                    ],
-                    if (c.latitude != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        AppStrings.mapPlaceholder,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (c.plateNumber != null)
+                              Text('Plate: ${c.plateNumber}'),
+                            if (c.model != null) Text('Model: ${c.model}'),
+                            if (c.color != null) Text('Color: ${c.color}'),
+                            if (c.capacity != null)
+                              Text('Capacity: ${c.capacity}'),
+                            if (c.features != null &&
+                                c.features!.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text('Features', style: theme.textTheme.titleSmall),
+                              Text(c.features!),
+                            ],
+                            if (c.pricing != null) ...[
+                              const SizedBox(height: 16),
+                              Text('Pricing', style: theme.textTheme.titleSmall),
+                              Text(
+                                  '${AppFormat.tzs(c.pricing!.pricePerKm)} per km'),
+                              Text('Minimum: ${AppFormat.km(c.pricing!.minKm)}'),
+                              Text(
+                                'Weekend +${c.pricing!.weekendSurchargePercent}% · '
+                                'Night +${c.pricing!.nightSurchargePercent}%',
+                              ),
+                            ],
+                            if (c.driver?.hasInfo == true) ...[
+                              const SizedBox(height: 16),
+                              Text('Driver', style: theme.textTheme.titleSmall),
+                              Text(c.driver!.name),
+                              if (c.driver!.phone != null) Text(c.driver!.phone!),
+                            ],
+                            if (c.latitude != null) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                AppStrings.mapPlaceholder,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              Text(
+                                '${c.latitude!.toStringAsFixed(5)}, '
+                                '${c.longitude!.toStringAsFixed(5)}',
+                              ),
+                            ],
+                          ],
                         ),
                       ),
+                    ),
+                    if (!c.canBook) ...[
+                      const SizedBox(height: 12),
                       Text(
-                        '${c.latitude!.toStringAsFixed(5)}, '
-                        '${c.longitude!.toStringAsFixed(5)}',
+                        AppStrings.unavailableBookHint,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 28),

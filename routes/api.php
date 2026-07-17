@@ -174,6 +174,10 @@ Route::prefix('special-hire/driver')->group(function () {
         // Location Tracking
         Route::post('/location', [DriverApiController::class, 'updateLocation']);
 
+        // Push notifications (FCM device token registration)
+        Route::post('/device-token', [DriverApiController::class, 'registerDeviceToken']);
+        Route::delete('/device-token', [DriverApiController::class, 'deleteDeviceToken']);
+
         // Logout
         Route::post('/logout', [DriverApiController::class, 'logout']);
     });

@@ -4,6 +4,7 @@ import '../../core/di/app_scope.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/order_model.dart';
+import '../../widgets/app_gradient_background.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/order_card.dart';
@@ -57,9 +58,7 @@ class _SchedulePageState extends State<SchedulePage> {
 
   Future<void> _open(OrderModel order) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OrderDetailPage(orderId: order.id),
-      ),
+      MaterialPageRoute(builder: (_) => OrderDetailPage(orderId: order.id)),
     );
     if (mounted) await _load();
   }
@@ -68,9 +67,8 @@ class _SchedulePageState extends State<SchedulePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.schedule)),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: _buildBody(),
+      body: AppGradientBackground(
+        child: RefreshIndicator(onRefresh: _load, child: _buildBody()),
       ),
     );
   }

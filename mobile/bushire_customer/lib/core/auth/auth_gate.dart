@@ -7,6 +7,7 @@ import '../../features/auth/login_page.dart';
 import '../../features/auth/register_page.dart';
 import '../di/app_scope.dart';
 import '../navigation/main_shell.dart';
+import '../theme/app_theme.dart';
 
 /// Session snapshot for greetings / profile.
 class AuthSession {
@@ -27,6 +28,10 @@ class AuthSession {
 
 /// Bootstrap: restore token → [MainShell]; otherwise Login (+ Register).
 ///
+/// Owns [MaterialApp]. When logged in, [AppScope] is installed via
+/// [MaterialApp.builder] so pushed routes (booking, trip detail, …) inherit
+/// repositories — wrapping only [home] leaves sibling routes without scope.
+///
 /// Single auth gate — do not nest another [AuthGate].
 class AuthGate extends StatefulWidget {
   const AuthGate({
@@ -44,6 +49,7 @@ class _AuthGateState extends State<AuthGate> {
   AuthSession? _session;
   bool _bootstrapping = true;
   late final AppServices _services;
+  final _navigatorKey = GlobalKey<NavigatorState>();
 
   AuthRepository get _auth => widget.authRepository;
 
@@ -138,7 +144,7 @@ class _AuthGateState extends State<AuthGate> {
       final session = AuthSession.fromUser(auth.user);
       if (mounted) {
         // Pop register route if pushed, then show shell.
-        Navigator.of(context).popUntil((r) => r.isFirst);
+        _navigatorKey.currentState?.popUntil((r) => r.isFirst);
         setState(() => _session = session);
       }
       return RegisterResult(userName: session.userName, email: session.email);
@@ -156,35 +162,61 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   void _openRegister() {
-    Navigator.of(context).push(
+    _navigatorKey.currentState?.push(
       MaterialPageRoute<void>(
         builder: (_) => RegisterPage(
           onRegister: _handleRegister,
-          onLoginTap: () => Navigator.of(context).pop(),
+          onLoginTap: () => _navigatorKey.currentState?.pop(),
         ),
       ),
+    );
+  }
+
+  /// [wrapWithScope] puts [AppScope] in [MaterialApp.builder] so *every*
+  /// pushed route (booking form, trip detail, …) can call [AppScope.of].
+  /// Wrapping only [home] leaves sibling routes without repositories.
+  Widget _materialApp({
+    required Widget home,
+    bool wrapWithScope = false,
+  }) {
+    return MaterialApp(
+      navigatorKey: _navigatorKey,
+      title: 'Bushire Customer',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      builder: wrapWithScope
+          ? (context, child) => AppScope(
+                services: _services,
+                child: child ?? const SizedBox.shrink(),
+              )
+          : null,
+      home: home,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_bootstrapping) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return _materialApp(
+        home: const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
     final session = _session;
     if (session == null) {
-      return LoginPage(
-        onLogin: _handleLogin,
-        onRegisterTap: _openRegister,
+      return _materialApp(
+        home: LoginPage(
+          onLogin: _handleLogin,
+          onRegisterTap: _openRegister,
+        ),
       );
     }
 
-    return AppScope(
-      services: _services,
-      child: MainShell(onLogout: _handleLogout),
+    return _materialApp(
+      wrapWithScope: true,
+      home: MainShell(onLogout: _handleLogout),
     );
   }
 }

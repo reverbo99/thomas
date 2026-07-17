@@ -14,4 +14,18 @@ abstract final class AppColors {
 
   /// Active / in-progress trip chip.
   static const Color activeTrip = Color(0xFF0277BD);
+
+  /// Soft teal-tinted gradient used behind main screens.
+  static const Color gradientStart = Color(0xFFEAF6F6);
+  static const Color gradientMid = Color(0xFFF3FAFA);
+  static const Color gradientEnd = Color(0xFFFFFFFF);
+
+  /// TripWay-style navy heading (not a second brand — body hierarchy only).
+  static const Color heading = Color(0xFF1B2B34);
+
+  /// Muted secondary body text.
+  static const Color mutedText = Color(0xFF6B7C85);
+
+  /// Elevated white card / floating nav surface.
+  static const Color cardSurface = Color(0xFFFFFFFF);
 }

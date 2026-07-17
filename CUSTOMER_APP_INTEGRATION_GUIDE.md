@@ -307,5 +307,5 @@ Where surcharge_percent can be:
 
 **Last Updated:** December 20, 2025  
 **API Version:** 1.0  
-**Base URL:** `https://ticket.hisgc.net`
+**Base URL:** `https://ticket.hisgc.co.tz`
 

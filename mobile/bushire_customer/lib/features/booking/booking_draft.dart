@@ -15,6 +15,8 @@ class BookingDraft {
     this.dropoffLatitude,
     this.dropoffLongitude,
     this.distanceKm,
+    this.routedDistanceKm,
+    this.distanceMode,
     this.returnDate,
     this.returnTime,
     this.purpose,
@@ -33,6 +35,10 @@ class BookingDraft {
   final double? dropoffLatitude;
   final double? dropoffLongitude;
   final num? distanceKm;
+  /// OSRM road distance when available (sent as `routed_distance_km`).
+  final num? routedDistanceKm;
+  /// `route` or `straight` — matches API `distance_mode`.
+  final String? distanceMode;
   final String? returnDate;
   final String? returnTime;
   final String? purpose;
