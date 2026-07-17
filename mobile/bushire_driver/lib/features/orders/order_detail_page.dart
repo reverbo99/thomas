@@ -39,10 +39,17 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
       _loading = true;
       _error = null;
     });
+    final services = AppScope.maybeOf(context);
+    if (services == null) {
+      if (!mounted) return;
+      setState(() {
+        _error = AppStrings.appScopeMissing;
+        _loading = false;
+      });
+      return;
+    }
     try {
-      final order = await AppScope.of(
-        context,
-      ).orderRepository.getOrder(widget.orderId);
+      final order = await services.orderRepository.getOrder(widget.orderId);
       if (!mounted) return;
       setState(() {
         _order = order;

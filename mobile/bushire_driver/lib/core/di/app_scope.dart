@@ -84,6 +84,19 @@ class AppScope extends InheritedWidget {
     return context.dependOnInheritedWidgetOfExactType<AppScope>()?.services;
   }
 
+  /// Push [page] wrapped in the same [AppScope] as [context].
+  ///
+  /// Routes pushed under [MaterialApp]'s root navigator are siblings of the
+  /// authenticated shell, so they lose [AppScope] unless we re-wrap them.
+  static Future<T?> pushScoped<T>(BuildContext context, Widget page) {
+    final services = of(context);
+    return Navigator.of(context).push<T>(
+      MaterialPageRoute(
+        builder: (_) => AppScope(services: services, child: page),
+      ),
+    );
+  }
+
   @override
   bool updateShouldNotify(AppScope oldWidget) => services != oldWidget.services;
 }

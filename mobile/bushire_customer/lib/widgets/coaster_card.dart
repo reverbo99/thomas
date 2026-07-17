@@ -37,7 +37,7 @@ class CoasterCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -46,14 +46,14 @@ class CoasterCard extends StatelessWidget {
                 height: 56,
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   Icons.airport_shuttle_rounded,
                   color: colorScheme.onPrimaryContainer,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,9 +63,7 @@ class CoasterCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             coaster.name,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: theme.textTheme.titleMedium,
                           ),
                         ),
                         StatusChip.availability(
@@ -105,13 +103,13 @@ class CoasterCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: colorScheme.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(999),
+                                color: colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '${AppFormat.tzs(price)} / km',
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.primary,
+                                  color: colorScheme.onPrimaryContainer,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),

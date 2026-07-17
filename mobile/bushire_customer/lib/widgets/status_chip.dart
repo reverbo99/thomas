@@ -62,41 +62,42 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg) = switch (tone) {
-      StatusTone.success => (
-          AppColors.success.withValues(alpha: 0.15),
-          AppColors.success,
-        ),
-      StatusTone.danger => (
-          AppColors.danger.withValues(alpha: 0.15),
-          AppColors.danger,
-        ),
-      StatusTone.warning => (
-          AppColors.warning.withValues(alpha: 0.2),
-          const Color(0xFF6D4C00),
-        ),
-      StatusTone.confirmed => (
-          AppColors.confirmed.withValues(alpha: 0.15),
-          AppColors.confirmed,
-        ),
+      StatusTone.success => (AppColors.successSoft, const Color(0xFF166534)),
+      StatusTone.danger => (AppColors.dangerSoft, const Color(0xFF991B1B)),
+      StatusTone.warning => (AppColors.warningSoft, AppColors.warningInk),
+      StatusTone.confirmed => (AppColors.confirmedSoft, const Color(0xFF155E75)),
       StatusTone.neutral => (
-          Theme.of(context).colorScheme.surfaceContainerHighest,
+          Theme.of(context).colorScheme.surfaceContainerHigh,
           Theme.of(context).colorScheme.onSurfaceVariant,
         ),
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: fg.withValues(alpha: 0.18)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: fg,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
       ),
     );
   }

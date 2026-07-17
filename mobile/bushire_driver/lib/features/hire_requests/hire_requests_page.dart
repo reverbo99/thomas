@@ -142,8 +142,9 @@ class HireRequestsPageState extends State<HireRequestsPage> {
   }
 
   Future<void> _openDetail(OrderModel order) async {
-    final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => OrderDetailPage(orderId: order.id)),
+    final changed = await AppScope.pushScoped<bool>(
+      context,
+      OrderDetailPage(orderId: order.id),
     );
     if (changed == true && mounted) await _load();
   }

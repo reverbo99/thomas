@@ -7,9 +7,10 @@ import '../../core/format.dart';
 import '../../core/strings.dart';
 import '../../data/api/api_exception.dart';
 import '../../data/models/track_info.dart';
+import '../../widgets/live_track_map.dart';
 import '../../widgets/status_chip.dart';
 
-/// Location text + last seen; polls every 20s while in progress.
+/// Live OSM map of the driver + coordinates / last seen; polls every 20s.
 class TrackPage extends StatefulWidget {
   const TrackPage({
     super.key,
@@ -35,8 +36,12 @@ class _TrackPageState extends State<TrackPage> {
   @override
   void initState() {
     super.initState();
-    _refresh(initial: true);
-    _timer = Timer.periodic(widget.pollInterval, (_) => _refresh());
+    // Defer AppScope.of(context) until after initState (InheritedWidget rule).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refresh(initial: true);
+      _timer = Timer.periodic(widget.pollInterval, (_) => _refresh());
+    });
   }
 
   @override
@@ -101,7 +106,7 @@ class _TrackPageState extends State<TrackPage> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                 children: [
                   Text(
-                    'Updates every 20 seconds while in progress',
+                    AppStrings.trackPollingHint,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -114,34 +119,12 @@ class _TrackPageState extends State<TrackPage> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  Container(
-                    height: 160,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color:
-                            colorScheme.outlineVariant.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 40,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          AppStrings.mapPlaceholder,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
+                  LiveTrackMap(
+                    latitude: info?.latitude,
+                    longitude: info?.longitude,
+                    label: info?.plateNumber ?? info?.coasterName,
+                    stale: info != null &&
+                        _isStale(info.lastLocationUpdate),
                   ),
                   const SizedBox(height: 16),
                   if (info?.orderStatus != null)
@@ -174,7 +157,7 @@ class _TrackPageState extends State<TrackPage> {
                           ],
                           if (!hasLocation)
                             Text(
-                              'Location not available yet',
+                              AppStrings.locationUnavailable,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
                               ),
@@ -197,7 +180,7 @@ class _TrackPageState extends State<TrackPage> {
                           if (_isStale(info?.lastLocationUpdate)) ...[
                             const SizedBox(height: 8),
                             Text(
-                              'Location may be outdated',
+                              AppStrings.locationMayBeOutdated,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.error,
                               ),

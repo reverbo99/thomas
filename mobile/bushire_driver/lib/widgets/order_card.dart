@@ -55,16 +55,14 @@ class OrderCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             order.orderCode ?? order.title,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: theme.textTheme.titleMedium,
                           ),
                         ),
                         if (order.totalAmount != null)
                           Text(
                             AppFormat.tzs(order.totalAmount),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
                               color: colorScheme.primary,
                             ),
                           ),
@@ -72,14 +70,19 @@ class OrderCard extends StatelessWidget {
                     ),
                     if (!compact) ...[
                       const SizedBox(height: 4),
-                      Text(order.title, style: theme.textTheme.bodyMedium),
+                      Text(
+                        order.title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                     if (order.routeSummary.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         order.routeSummary,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -89,7 +92,7 @@ class OrderCard extends StatelessWidget {
                     Text(
                       order.whenLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     if (!compact && order.passengersCount != null) ...[
@@ -97,7 +100,7 @@ class OrderCard extends StatelessWidget {
                       Text(
                         '${order.passengersCount} ${AppStrings.passengers}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],

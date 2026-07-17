@@ -253,10 +253,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     title: AppStrings.schedule,
                     subtitle: AppStrings.scheduleHint,
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SchedulePage(),
-                        ),
+                      AppScope.pushScoped(
+                        context,
+                        const SchedulePage(),
                       );
                     },
                   ),
@@ -266,10 +265,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     title: AppStrings.history,
                     subtitle: AppStrings.historyHint,
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const HistoryPage(),
-                        ),
+                      AppScope.pushScoped(
+                        context,
+                        const HistoryPage(),
                       );
                     },
                   ),

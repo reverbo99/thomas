@@ -57,8 +57,9 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _open(OrderModel order) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => OrderDetailPage(orderId: order.id)),
+    await AppScope.pushScoped(
+      context,
+      OrderDetailPage(orderId: order.id),
     );
     if (mounted) await _load();
   }

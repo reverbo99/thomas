@@ -53,9 +53,7 @@ class HireRequestCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     request.title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: theme.textTheme.titleMedium,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -84,7 +82,9 @@ class HireRequestCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       request.routeSummary,
-                      style: theme.textTheme.bodyMedium,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -99,7 +99,12 @@ class HireRequestCard extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 8),
-                Text(request.whenLabel, style: theme.textTheme.bodyMedium),
+                Text(
+                  request.whenLabel,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
             if (request.passengersCount != null) ...[
@@ -114,7 +119,9 @@ class HireRequestCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${request.passengersCount} ${AppStrings.passengers}',
-                    style: theme.textTheme.bodyMedium,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -123,9 +130,9 @@ class HireRequestCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 AppFormat.tzs(request.totalAmount),
-                style: theme.textTheme.titleSmall?.copyWith(
+                style: theme.textTheme.titleMedium?.copyWith(
                   color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],

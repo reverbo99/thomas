@@ -40,6 +40,7 @@ dependencies:
   latlong2: ^0.10.1
   geolocator: ^14.0.2
   intl: ^0.20.2
+  google_fonts: ^8.2.0
 
 dev_dependencies:
   flutter_test:
@@ -51,6 +52,14 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# App launcher icon generation. Run: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

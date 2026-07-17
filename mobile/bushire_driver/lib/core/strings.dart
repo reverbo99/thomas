@@ -114,4 +114,6 @@ abstract final class AppStrings {
   static const String phoneLabel = phone;
   static const String emailReadOnly = 'Email cannot be changed here';
   static const String order = 'Order';
+  static const String appScopeMissing =
+      'App services unavailable. Go back and try again.';
 }

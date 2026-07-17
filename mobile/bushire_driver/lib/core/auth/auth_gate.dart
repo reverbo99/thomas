@@ -47,6 +47,7 @@ class _AuthGateState extends State<AuthGate> {
   AuthSession? _session;
   bool _bootstrapping = true;
   late final AppServices _services;
+  final GlobalKey<NavigatorState> _shellNavKey = GlobalKey<NavigatorState>();
 
   AuthRepository get _auth => widget.authRepository;
 
@@ -156,13 +157,23 @@ class _AuthGateState extends State<AuthGate> {
       return LoginPage(onLogin: _handleLogin);
     }
 
+    // Nested navigator so pushed pages (e.g. OrderDetail) stay under AppScope.
+    // Root MaterialApp routes are siblings of AuthGate home and would lose scope.
     return AppScope(
       services: _services,
-      child: MainShell(
-        onLogout: _handleLogout,
-        initialUserName: session.userName,
-        initialEmail: session.email,
-        initialPendingRequests: _services.pendingHireCount.value,
+      child: Navigator(
+        key: _shellNavKey,
+        onGenerateRoute: (settings) {
+          return MaterialPageRoute<void>(
+            settings: settings,
+            builder: (_) => MainShell(
+              onLogout: _handleLogout,
+              initialUserName: session.userName,
+              initialEmail: session.email,
+              initialPendingRequests: _services.pendingHireCount.value,
+            ),
+          );
+        },
       ),
     );
   }
