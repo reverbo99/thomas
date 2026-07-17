@@ -63,6 +63,9 @@ class SpecialHireOrderPaymentService
                     if ($order->order_status !== 'cancelled') {
                         $depositUpdate['order_status'] = 'confirmed';
                     }
+                    if (! $order->owner_accepted_at) {
+                        $depositUpdate['owner_accepted_at'] = now();
+                    }
                 }
                 $order->update($depositUpdate);
 
@@ -74,8 +77,6 @@ class SpecialHireOrderPaymentService
                             $wallet->increment('balance', $platformFee);
                         }
                     }
-                    $order->refresh();
-                    $order->markCompletedIfHireFlowDone();
                 }
 
                 return;
@@ -106,7 +107,7 @@ class SpecialHireOrderPaymentService
                 $pct = max(0, min(100, (float) $pct));
                 $platformFee = round(((float) $order->total_amount) * ($pct / 100), 2);
 
-                $order->update([
+                $balanceUpdate = [
                     'balance_paid_at' => now(),
                     'payment_status' => 'paid',
                     'order_status' => 'confirmed',
@@ -114,7 +115,11 @@ class SpecialHireOrderPaymentService
                     'clickpesa_balance_ref' => $sanitizedRef ?: $order->clickpesa_balance_ref,
                     'platform_commission_percent' => $pct,
                     'platform_commission_amount' => $platformFee,
-                ]);
+                ];
+                if (! $order->owner_accepted_at) {
+                    $balanceUpdate['owner_accepted_at'] = now();
+                }
+                $order->update($balanceUpdate);
 
                 if ($platformFee > 0) {
                     $wallet = AdminWallet::query()->find(1);
@@ -122,9 +127,6 @@ class SpecialHireOrderPaymentService
                         $wallet->increment('balance', $platformFee);
                     }
                 }
-
-                $order->refresh();
-                $order->markCompletedIfHireFlowDone();
             }
         });
     }
@@ -348,6 +350,7 @@ class SpecialHireOrderPaymentService
                 'clickpesa_deposit_ref' => $sanitizedRef ?: $intent->clickpesa_ref,
                 'payment_status' => 'paid',
                 'order_status' => 'confirmed',
+                'owner_accepted_at' => now(),
                 'platform_commission_percent' => $pct,
                 'platform_commission_amount' => $platformFee,
             ]);

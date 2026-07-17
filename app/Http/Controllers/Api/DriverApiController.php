@@ -101,8 +101,8 @@ class DriverApiController extends Controller
         $pendingHireRequests = 0;
         if ($coaster) {
             $pendingHireRequests = SpecialHireOrder::where('coaster_id', $coaster->id)
-                ->whereNull('owner_accepted_at')
-                ->where('order_status', 'pending')
+                ->where('payment_status', 'paid')
+                ->whereNotIn('order_status', ['completed', 'cancelled'])
                 ->count();
         }
 
@@ -235,7 +235,7 @@ class DriverApiController extends Controller
     }
 
     /**
-     * Hire bookings on this driver's coaster waiting for driver accept/decline.
+     * Paid special-hire orders on this driver's coaster that are not completed or cancelled.
      */
     public function hirePendingBookings(Request $request)
     {
@@ -251,8 +251,8 @@ class DriverApiController extends Controller
         }
 
         $orders = SpecialHireOrder::where('coaster_id', $coaster->id)
-            ->whereNull('owner_accepted_at')
-            ->where('order_status', 'pending')
+            ->where('payment_status', 'paid')
+            ->whereNotIn('order_status', ['completed', 'cancelled'])
             ->with(['coaster', 'customer'])
             ->orderByDesc('created_at')
             ->paginate($request->get('per_page', 20));

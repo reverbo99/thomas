@@ -389,22 +389,13 @@ class SpecialHireOrder extends Model
     }
 
     /**
-     * When the customer hire flow is finished (paid + passenger names when required), set order completed.
-     * Called after balance confirmation or passenger save — no manual "Complete" in admin.
+     * Customer hire paperwork (paid + passengers) must NOT complete the trip.
+     * Only the driver start/complete API sets order_status to in_progress / completed.
+     * Kept as a no-op so legacy call sites remain harmless.
      */
     public function markCompletedIfHireFlowDone(): void
     {
-        if (in_array($this->order_status, ['completed', 'cancelled'], true)) {
-            return;
-        }
-        if ($this->customerHireNextStep() !== 'done') {
-            return;
-        }
-        $this->update(['order_status' => 'completed']);
-        $this->load('coaster');
-        if ($this->coaster && $this->coaster->status === 'on_hire') {
-            $this->coaster->update(['status' => 'available']);
-        }
+        return;
     }
 
     /**

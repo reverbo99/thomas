@@ -8,6 +8,7 @@ import '../../widgets/app_gradient_background.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_banner.dart';
 import '../../widgets/hire_request_card.dart';
+import '../orders/order_detail_page.dart';
 
 /// Pending hire requests with Accept / Decline.
 class HireRequestsPage extends StatefulWidget {
@@ -140,6 +141,13 @@ class HireRequestsPageState extends State<HireRequestsPage> {
     }
   }
 
+  Future<void> _openDetail(OrderModel order) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => OrderDetailPage(orderId: order.id)),
+    );
+    if (changed == true && mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -199,14 +207,17 @@ class HireRequestsPageState extends State<HireRequestsPage> {
         else
           ..._items.map((order) {
             final busy = _busyId == order.id;
+            final canRespond = order.canRespondToHire;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: HireRequestCard(
                 request: order,
+                onTap: () => _openDetail(order),
+                showActions: canRespond,
                 isAccepting: busy && _accepting,
                 isDeclining: busy && !_accepting,
-                onAccept: busy ? null : () => _accept(order),
-                onDecline: busy ? null : () => _decline(order),
+                onAccept: canRespond && !busy ? () => _accept(order) : null,
+                onDecline: canRespond && !busy ? () => _decline(order) : null,
               ),
             );
           }),

@@ -88,6 +88,15 @@ class OrderModel {
   bool get isCompleted => orderStatus?.toLowerCase() == 'completed';
   bool get isCancelled => orderStatus?.toLowerCase() == 'cancelled';
 
+  bool get isPaid => paymentStatus?.toLowerCase() == 'paid';
+
+  /// Accept/Decline when the owner has not yet responded and the hire is still open.
+  bool get canRespondToHire {
+    final accepted = ownerAcceptedAt?.trim();
+    final awaitingAccept = accepted == null || accepted.isEmpty;
+    return awaitingAccept && !isCompleted && !isCancelled;
+  }
+
   /// Driver may start a confirmed trip.
   bool get canStartTrip => isConfirmed;
 

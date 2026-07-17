@@ -6,20 +6,28 @@ import '../data/models/order_model.dart';
 import 'primary_button.dart';
 import 'status_chip.dart';
 
-/// Pending hire request with accept / decline actions.
+/// Hire request / paid hire card with optional accept / decline actions.
 class HireRequestCard extends StatelessWidget {
   const HireRequestCard({
     super.key,
     required this.request,
+    this.onTap,
     this.onAccept,
     this.onDecline,
+    this.showActions,
     this.isAccepting = false,
     this.isDeclining = false,
   });
 
   final OrderModel request;
+
+  /// Opens the order detail (whole card tappable when set).
+  final VoidCallback? onTap;
   final VoidCallback? onAccept;
   final VoidCallback? onDecline;
+
+  /// When null, derived from [OrderModel.canRespondToHire].
+  final bool? showActions;
   final bool isAccepting;
   final bool isDeclining;
 
@@ -28,14 +36,19 @@ class HireRequestCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final busy = isAccepting || isDeclining;
+    final actionsVisible = showActions ?? request.canRespondToHire;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
@@ -45,7 +58,16 @@ class HireRequestCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                StatusChip.order(request.orderStatus),
+                const SizedBox(width: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  alignment: WrapAlignment.end,
+                  children: [
+                    StatusChip.order(request.orderStatus),
+                    StatusChip.payment(request.paymentStatus),
+                  ],
+                ),
               ],
             ),
             if (request.routeSummary.isNotEmpty) ...[
@@ -107,39 +129,42 @@ class HireRequestCard extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: busy ? null : onDecline,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colorScheme.error,
-                      side: BorderSide(color: colorScheme.error),
+            if (actionsVisible) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: busy ? null : onDecline,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.error,
+                        side: BorderSide(color: colorScheme.error),
+                      ),
+                      child: isDeclining
+                          ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colorScheme.error,
+                              ),
+                            )
+                          : const Text(AppStrings.decline),
                     ),
-                    child: isDeclining
-                        ? SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colorScheme.error,
-                            ),
-                          )
-                        : const Text(AppStrings.decline),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: PrimaryButton(
-                    label: AppStrings.accept,
-                    isLoading: isAccepting,
-                    onPressed: busy ? null : onAccept,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: PrimaryButton(
+                      label: AppStrings.accept,
+                      isLoading: isAccepting,
+                      onPressed: busy ? null : onAccept,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
+          ),
         ),
       ),
     );

@@ -42,7 +42,8 @@ abstract final class AppStrings {
   static const String seats = 'seats';
 
   static const String hireRequests = 'Hire requests';
-  static const String hireRequestsHint = 'Accept or decline pending hires';
+  static const String hireRequestsHint =
+      'Open a paid hire to start or complete travel';
   static const String orders = 'Orders';
   static const String ordersHint = 'Active and upcoming trips';
   static const String schedule = 'Schedule';
@@ -60,9 +61,10 @@ abstract final class AppStrings {
   static const String pendingRequests = 'Pending requests';
   static const String logoutConfirm = 'Sign out of Bushire Driver?';
 
-  static const String noHireRequests = 'No pending hire requests';
+  static const String noHireRequests = 'No paid hire requests';
   static const String noHireRequestsHint =
-      'New booking requests for your coaster will show up here.';
+      'Paid hires waiting for travel will show up here. '
+      'Open one to start or complete the trip.';
   static const String hireAccepted = 'Hire accepted';
   static const String hireDeclined = 'Hire declined';
   static const String declineHire = 'Decline hire';

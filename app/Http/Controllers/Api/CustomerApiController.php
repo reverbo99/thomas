@@ -982,8 +982,6 @@ class CustomerApiController extends Controller
 
         $order->update(['passenger_seats' => array_values($request->seat_names)]);
         $order = $order->fresh('coaster');
-        $order->markCompletedIfHireFlowDone();
-        $order = $order->fresh('coaster');
 
         $payload = $order->toArray();
         $payload['hire_next_step'] = $order->customerHireNextStep();

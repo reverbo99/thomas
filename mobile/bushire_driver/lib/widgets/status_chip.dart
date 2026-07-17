@@ -58,7 +58,11 @@ class StatusChip extends StatelessWidget {
       return StatusChip(label: _pretty(status), tone: StatusTone.warning);
     }
     if (s == 'confirmed') {
-      return StatusChip(label: _pretty(status), tone: StatusTone.confirmed);
+      // Paid, awaiting travel — clearer for drivers than raw "confirmed".
+      return const StatusChip(
+        label: 'Wait for travel',
+        tone: StatusTone.confirmed,
+      );
     }
     if (s == 'in_progress') {
       return StatusChip(label: _pretty(status), tone: StatusTone.active);
