@@ -221,10 +221,9 @@
                     <p style="font-size: 11px;">Seat {{ $seatIndex + 1 }} of {{ $seatCount }}</p>
                 @endif
                 <p style="font-weight: bold; font-size: 15px;">{{ $busCompany->name ?? ($data->campany->name ?? 'N/A') }}</p>
+                <p>Registration number: {{ $busOwnerAccount->registration_number ?? 'N/A' }}</p>
                 <p>P. O. Box {{ $busOwnerAccount->box ?? 'N/A' }}</p>
-                <p>Reg. No: {{ $busOwnerAccount->registration_number ?? 'N/A' }}</p>
-                <p>TIN: {{ $busOwnerAccount->tin ?? 'N/A' }}</p>
-                <p>VRN: {{ $busOwnerAccount->vrn ?? 'N/A' }}</p>
+                <p>{{ $busOwnerAccount->city ?? $busOwnerAccount->town ?? 'N/A' }}</p>
             </div>
 
             <div class="divider"></div>
@@ -232,11 +231,11 @@
             <div class="details">
                 <table>
                     <tr>
-                        <td>Traveller Name:</td>
+                        <td>Passenger name:</td>
                         <td>{{ $printPassengerName }}</td>
                     </tr>
                     <tr>
-                        <td>Traveller Contact:</td>
+                        <td>Passenger contact:</td>
                         <td>{{ $printPassengerPhone !== 'N/A' ? $printPassengerPhone : ($contact ?? 'N/A') }}</td>
                     </tr>
                     <tr>
@@ -248,7 +247,11 @@
                         <td>{{ $data->bus->bus_number ?? 'N/A' }}</td>
                     </tr>
                     <tr>
-                        <td>Route:</td>
+                        <td>Bus route:</td>
+                        <td>{{ optional(optional($data->bus)->route)->from ?? optional($data->schedule)->from ?? 'N/A' }} - {{ optional(optional($data->bus)->route)->to ?? optional($data->schedule)->to ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td>Passenger route:</td>
                         <td>{{ $data->pickup_point ?? optional($data->schedule)->from ?? 'N/A' }} - {{ $data->dropping_point ?? optional($data->schedule)->to ?? 'N/A' }}</td>
                     </tr>
                     <tr>
@@ -256,11 +259,11 @@
                         <td>{{ $travelDateFormatted }}</td>
                     </tr>
                     <tr>
-                        <td>Reporting time:</td>
+                        <td>Reporting date and time:</td>
                         <td>{{ $travelDateFormatted }} {{ $reportingTimeStr }}</td>
                     </tr>
                     <tr>
-                        <td>Departure time:</td>
+                        <td>Departure date and time:</td>
                         <td>{{ $travelDateFormatted }} {{ $departureTimeStr }}</td>
                     </tr>
                     <tr>
@@ -275,18 +278,12 @@
                         <td>Bus fare:</td>
                         <td>{{ number_format($breakdownTicketFee, 2) }}</td>
                     </tr>
-                    @if ($breakdownLuggageFee > 0)
-                    <tr>
-                        <td>Luggage amount:</td>
-                        <td>{{ number_format($breakdownLuggageFee, 2) }}</td>
-                    </tr>
-                    @endif
                     <tr>
                         <td>Service fee:</td>
                         <td>{{ number_format($breakdownServiceFee, 2) }}</td>
                     </tr>
                     <tr>
-                        <td>Total amount paid:</td>
+                        <td>Total paid:</td>
                         <td>{{ number_format($printTotalPaid, 2) }}</td>
                     </tr>
                 </table>
@@ -365,16 +362,45 @@
                     </tr>
                     @if ($data->vender_id)
                         <tr>
-                            <td>Vendor Name:</td>
+                            <td>Vendor name:</td>
                             <td>{{ $data->vender->name }}</td>
                         </tr>
                         <tr>
-                            <td>Vendor Number:</td>
+                            <td>Vendor contact number:</td>
                             <td>{{ $data->vender->contact }}</td>
                         </tr>
                     @endif
                 </table>
             </div>
+
+            @if ($data->has_excess_luggage ?? false)
+                @php
+                    $ticketFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
+                    $ticketEstimatedWeight = $data->estimated_weight ?? null;
+                    $ticketEstimatedLuggageFee = $ticketEstimatedWeight !== null ? round((float) $ticketEstimatedWeight * $ticketFeePerKg, 2) : null;
+                @endphp
+                <div class="divider"></div>
+                <div class="details">
+                    <table>
+                        <tr>
+                            <td>Excess luggage:</td>
+                            <td>Yes</td>
+                        </tr>
+                        <tr>
+                            <td>Estimated weight:</td>
+                            <td>{{ $ticketEstimatedWeight !== null ? number_format((float) $ticketEstimatedWeight, 2) . ' kg' : 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td>Fee charge per kg:</td>
+                            <td>{{ number_format($ticketFeePerKg, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Estimated luggage fee:</td>
+                            <td>{{ $ticketEstimatedLuggageFee !== null ? number_format($ticketEstimatedLuggageFee, 2) : 'N/A' }}</td>
+                        </tr>
+                    </table>
+                </div>
+            @endif
 
             @if(!empty($data->tra_status) || !empty($data->tra_rct_num) || !empty($data->tra_vnum) || !empty($data->tra_qr_url))
                 <div class="divider"></div>

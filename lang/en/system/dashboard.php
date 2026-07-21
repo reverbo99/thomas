@@ -14,6 +14,8 @@ return [
     'total_cancelled_amount' => 'Total cancelled amount',
     'luggage_amount' => 'Luggage Amount',
     'total_luggage_amount' => 'Total excess luggage from paid bookings',
+    'special_hire_commission' => 'Special Hire Commission',
+    'view_special_hire_details' => 'View special hire accounts',
     'paid_bookings_today' => ':count paid :label today',
     'paid_bookings_all_time' => ':count paid :label (all time)',
     'weekly_booking_amounts' => 'Weekly Booking Amounts (Paid only)',

@@ -29,6 +29,14 @@
                         'startDate' => $startDate ?? request('start_date'),
                         'endDate' => $endDate ?? request('end_date'),
                         'labelClass' => 'text-white',
+                        'columnFilters' => [
+                            ['name' => 'bus_name', 'type' => 'text', 'label' => __('system.pages.filter_bus_name'), 'value' => request('bus_name')],
+                            ['name' => 'bus_number', 'type' => 'text', 'label' => __('system.pages.filter_plate_number'), 'value' => request('bus_number')],
+                            ['name' => 'departure_date', 'type' => 'date', 'label' => __('system.pages.filter_departure_date'), 'value' => request('departure_date')],
+                            ['name' => 'departure_time', 'type' => 'time', 'label' => __('system.pages.filter_departure_time'), 'value' => request('departure_time')],
+                            ['name' => 'driver', 'type' => 'text', 'label' => __('system.pages.filter_driver'), 'value' => request('driver')],
+                            ['name' => 'conductor', 'type' => 'text', 'label' => __('system.pages.filter_conductor'), 'value' => request('conductor')],
+                        ],
                     ])
                     <div class="relative w-full sm:w-auto">
                         <button type="button"
@@ -70,7 +78,17 @@
                         <tbody class="text-gray-600 text-xs">
                             @if (isset($bookings) && $bookings->count())
                                 @foreach ($bookings as $index => $booking)
-                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition" data-booking-id="{{ $booking->id }}" data-created-at="{{ $booking->created_at->format('Y-m-d') }}">
+                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition" data-booking-id="{{ $booking->id }}" data-created-at="{{ $booking->created_at->format('Y-m-d') }}"
+                                        data-has-excess-luggage="{{ (int) ($booking->has_excess_luggage ?? 0) }}"
+                                        data-excess-luggage-fee="{{ (float) ($booking->excess_luggage_fee ?? 0) }}"
+                                        data-excess-luggage-description="{{ e($booking->excess_luggage_description ?? '') }}"
+                                        data-estimated-weight="{{ $booking->estimated_weight !== null ? (float) $booking->estimated_weight : '' }}"
+                                        data-actual-weight="{{ $booking->actual_weight !== null ? (float) $booking->actual_weight : '' }}"
+                                        data-actual-length="{{ $booking->actual_length !== null ? (float) $booking->actual_length : '' }}"
+                                        data-actual-height="{{ $booking->actual_height !== null ? (float) $booking->actual_height : '' }}"
+                                        data-actual-width="{{ $booking->actual_width !== null ? (float) $booking->actual_width : '' }}"
+                                        data-luggage-refund-amount="{{ $booking->luggage_refund_amount !== null ? (float) $booking->luggage_refund_amount : '' }}"
+                                        data-booking-code="{{ e($booking->booking_code ?? '') }}">
                                         <td class="py-2 px-4 text-center">{{ $index + 1 }}</td>
                                         <td class="py-2 px-4">
                                             <div class="flex flex-col">
@@ -103,7 +121,13 @@
                                                     {{ $booking->pickup_point ?? __('vender/history.na') }}</p>
                                                 <p class="text-gray-500 mb-0">{{ __('vender/history.drop_point') }}
                                                     {{ $booking->dropping_point ?? __('vender/history.na') }}</p>
-                                                
+                                                @if ($booking->has_excess_luggage ?? false)
+                                                    <p class="mb-0">
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">
+                                                            {{ __('vender/luggage.excess_luggage') }}: {{ $currency ?? 'TSH' }} {{ convert_money($booking->excess_luggage_fee ?? 0) }}
+                                                        </span>
+                                                    </p>
+                                                @endif
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">
@@ -198,6 +222,9 @@
                                                             class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Transfer
                                                             Booking</button>
                                                     </form>
+                                                    <button type="button"
+                                                        class="excess-luggage-btn block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                        data-booking-id="{{ $booking->id }}">{{ __('vender/luggage.add_edit_excess_luggage') }}</button>
                                                 </div>
                                             </div>
                                         </td>
@@ -247,6 +274,88 @@
                 </div>
             </div>
         </div>
+
+        <!-- Excess Luggage Modal -->
+        <div id="excessLuggageModal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md mx-4 transform transition-all">
+                <div class="p-4 flex justify-between items-center border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">{{ __('vender/luggage.excess_luggage') }}</h2>
+                    <button type="button" class="text-gray-500 hover:text-gray-700" id="excessLuggageCloseBtn">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="excessLuggageForm" method="POST" action="">
+                    @csrf
+                    <input type="hidden" name="luggage_action" id="excessLuggageActionInput" value="set">
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label for="excessLuggageFeeInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.excess_luggage_fee') }}</label>
+                            <input type="number" step="0.01" min="0" name="excess_luggage_fee" id="excessLuggageFeeInput"
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="excessLuggageDescInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.excess_luggage_description') }}</label>
+                            <textarea name="excess_luggage_description" id="excessLuggageDescInput" rows="2"
+                                placeholder="{{ __('vender/luggage.excess_luggage_description_placeholder') }}"
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                        </div>
+                        <div class="border-t border-gray-100 pt-4">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">{{ __('vender/luggage.weigh_in_section') }}</p>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.estimated_weight') }}</label>
+                                    <p id="excessLuggageEstimatedWeightDisplay" class="mt-1 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-600">—</p>
+                                </div>
+                                <div>
+                                    <label for="excessLuggageActualWeightInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.actual_weight') }}</label>
+                                    <input type="number" step="0.1" min="0" name="actual_weight" id="excessLuggageActualWeightInput"
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3 mt-3">
+                                <div>
+                                    <label for="excessLuggageActualLengthInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.actual_length') }}</label>
+                                    <input type="number" step="0.1" min="0" name="actual_length" id="excessLuggageActualLengthInput"
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                </div>
+                                <div>
+                                    <label for="excessLuggageActualHeightInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.actual_height') }}</label>
+                                    <input type="number" step="0.1" min="0" name="actual_height" id="excessLuggageActualHeightInput"
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                </div>
+                                <div>
+                                    <label for="excessLuggageActualWidthInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.actual_width') }}</label>
+                                    <input type="number" step="0.1" min="0" name="actual_width" id="excessLuggageActualWidthInput"
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label for="excessLuggageRefundInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
+                                <input type="number" step="0.01" name="luggage_refund_amount" id="excessLuggageRefundInput"
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                <p class="text-xs text-gray-500 mt-1">{{ __('vender/luggage.refund_payment_hint') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 flex items-center justify-between border-t border-gray-200 gap-2">
+                        <button type="button" id="excessLuggageRemoveBtn"
+                            class="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hidden">{{ __('vender/luggage.remove') }}</button>
+                        <a href="#" target="_blank" id="excessLuggageReceiptBtn"
+                            class="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 hidden">{{ __('vender/luggage.print_receipt') }}</a>
+                        <div class="flex gap-2 ml-auto">
+                            <button type="button" id="excessLuggageCancelBtn"
+                                class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">{{ __('vender/luggage.cancel') }}</button>
+                            <button type="submit"
+                                class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">{{ __('vender/luggage.save') }}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
 
@@ -256,6 +365,17 @@
         (function() {
             var $ = window.jQuery;
             if (!$ || !$.fn.DataTable) return;
+
+            window.historyCurrency = @json(session('currency', 'Tsh'));
+            window.historyUsdToTzs = @json(app('usdToTzs') ?? 2500);
+
+            function formatHistoryAmount(tzsAmount) {
+                var isUsd = (window.historyCurrency || '').toLowerCase() === 'usd';
+                var rate = window.historyUsdToTzs || 2500;
+                var value = isUsd ? (tzsAmount / rate) : tzsAmount;
+                return parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
             $(function() {
                 var $table = $('#busTable');
                 if (!$table.length || $table.hasClass('dataTable')) return;
@@ -278,6 +398,34 @@
                             next: "{{ __('all.dt_next') }}",
                             previous: "{{ __('all.dt_previous') }}"
                         }
+                    },
+                    footerCallback: function() {
+                        var totalPayment = 0;
+                        var totalDiscount = 0;
+                        var totalVAT = 0;
+                        var grandTotal = 0;
+
+                        this.api()
+                            .rows({ search: 'applied' })
+                            .every(function() {
+                                var rowNode = this.node();
+                                var paymentEl = $(rowNode).find('.payment-amount');
+                                var totalEl = $(rowNode).find('.total-amount');
+                                var amount = parseFloat(paymentEl.data('amount')) || 0;
+                                var vat = parseFloat(paymentEl.data('vat')) || 0;
+                                var discount = parseFloat(paymentEl.data('discount')) || 0;
+                                var total = parseFloat(totalEl.data('total')) || 0;
+
+                                totalPayment += amount + vat;
+                                totalDiscount += discount;
+                                totalVAT += vat;
+                                grandTotal += total;
+                            });
+
+                        $('#totalPayment').text(formatHistoryAmount(totalPayment));
+                        $('#totalDiscount').text(formatHistoryAmount(totalDiscount));
+                        $('#totalVAT').text(formatHistoryAmount(totalVAT));
+                        $('#grandTotal').text(formatHistoryAmount(grandTotal));
                     }
                 });
 
@@ -323,6 +471,68 @@
                 if (e.target === this) {
                     this.classList.add('hidden');
                 }
+            });
+
+            // Excess luggage modal
+            const excessLuggageModal = document.getElementById('excessLuggageModal');
+            const excessLuggageForm = document.getElementById('excessLuggageForm');
+            const excessLuggageFeeInput = document.getElementById('excessLuggageFeeInput');
+            const excessLuggageDescInput = document.getElementById('excessLuggageDescInput');
+            const excessLuggageActionInput = document.getElementById('excessLuggageActionInput');
+            const excessLuggageRemoveBtn = document.getElementById('excessLuggageRemoveBtn');
+            const excessLuggageEstimatedWeightDisplay = document.getElementById('excessLuggageEstimatedWeightDisplay');
+            const excessLuggageActualWeightInput = document.getElementById('excessLuggageActualWeightInput');
+            const excessLuggageActualLengthInput = document.getElementById('excessLuggageActualLengthInput');
+            const excessLuggageActualHeightInput = document.getElementById('excessLuggageActualHeightInput');
+            const excessLuggageActualWidthInput = document.getElementById('excessLuggageActualWidthInput');
+            const excessLuggageRefundInput = document.getElementById('excessLuggageRefundInput');
+            const excessLuggageReceiptBtn = document.getElementById('excessLuggageReceiptBtn');
+            const excessLuggageUrlTemplate = '{{ route('booking.excess_luggage.update', ':id') }}';
+            const excessLuggageReceiptUrlTemplate = '{{ route('excess_luggage.receipt.print', ':id') }}';
+
+            function closeExcessLuggageModal() {
+                excessLuggageModal.classList.add('hidden');
+            }
+
+            $(document).on('click', '.excess-luggage-btn', function() {
+                const bookingId = $(this).data('booking-id');
+                const row = $(this).closest('tr').length ? $(this).closest('tr') : $('tr[data-booking-id="' + bookingId + '"]');
+                const currentFee = parseFloat(row.attr('data-excess-luggage-fee')) || 0;
+                const currentDesc = row.attr('data-excess-luggage-description') || '';
+                const hasLuggage = row.attr('data-has-excess-luggage') === '1';
+                const estimatedWeight = row.attr('data-estimated-weight') || '';
+                const actualWeight = row.attr('data-actual-weight') || '';
+                const actualLength = row.attr('data-actual-length') || '';
+                const actualHeight = row.attr('data-actual-height') || '';
+                const actualWidth = row.attr('data-actual-width') || '';
+                const refundAmount = row.attr('data-luggage-refund-amount') || '';
+
+                excessLuggageForm.setAttribute('action', excessLuggageUrlTemplate.replace(':id', bookingId));
+                excessLuggageActionInput.value = 'set';
+                excessLuggageFeeInput.value = hasLuggage ? currentFee : 2500;
+                excessLuggageDescInput.value = currentDesc;
+                excessLuggageEstimatedWeightDisplay.textContent = estimatedWeight !== '' ? (estimatedWeight + ' kg') : '{{ __('vender/luggage.not_declared') }}';
+                excessLuggageActualWeightInput.value = actualWeight;
+                excessLuggageActualLengthInput.value = actualLength;
+                excessLuggageActualHeightInput.value = actualHeight;
+                excessLuggageActualWidthInput.value = actualWidth;
+                excessLuggageRefundInput.value = refundAmount;
+                excessLuggageRemoveBtn.classList.toggle('hidden', !hasLuggage);
+                excessLuggageReceiptBtn.classList.toggle('hidden', !hasLuggage);
+                excessLuggageReceiptBtn.setAttribute('href', excessLuggageReceiptUrlTemplate.replace(':id', bookingId));
+                excessLuggageModal.classList.remove('hidden');
+            });
+
+            excessLuggageRemoveBtn.addEventListener('click', function() {
+                if (!confirm(@json(__('vender/luggage.confirm_remove')))) return;
+                excessLuggageActionInput.value = 'remove';
+                excessLuggageForm.submit();
+            });
+
+            document.getElementById('excessLuggageCloseBtn').addEventListener('click', closeExcessLuggageModal);
+            document.getElementById('excessLuggageCancelBtn').addEventListener('click', closeExcessLuggageModal);
+            excessLuggageModal.addEventListener('click', function(e) {
+                if (e.target === this) closeExcessLuggageModal();
             });
             });
         })();

@@ -86,6 +86,7 @@ return [
     'excess_luggage' => 'Mizigo ya Ziada (Upeo :dimensions, :weight, Ada: :fee)',
     'excess_luggage_description' => 'Maelezo ya Mizigo ya Ziada',
     'e_g_1_extra_bag_large_box' => 'k.m., begi 1 la ziada, sanduku kubwa',
+    'estimated_weight_kg' => 'Uzito Uliokadiriwa (kg)',
     'age_group' => 'Kikundi cha Umri',
     'adult' => 'Mtu Mzima',
     'child' => 'Mtoto',

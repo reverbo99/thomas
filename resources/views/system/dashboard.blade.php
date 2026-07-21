@@ -145,6 +145,23 @@
                 </div>
                 <p class="text-xs text-cyan-500 mt-2">{{ __('system.dashboard.total_luggage_amount') }}</p>
             </div>
+
+            <a href="{{ route('system.special_hire') }}" class="no-underline">
+                <div class="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-teal-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-teal-600">{{ __('system.dashboard.special_hire_commission') }}</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">{{ $currency }} {{ convert_money($specialHireCommissionTotal) }}</h3>
+                        </div>
+                        <div class="p-3 rounded-lg bg-teal-100 text-teal-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-teal-500 mt-2">{{ __('system.dashboard.view_special_hire_details') }}</p>
+                </div>
+            </a>
         </div>
     @endif
 

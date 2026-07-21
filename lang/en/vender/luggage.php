@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'excess_luggage' => 'Excess Luggage',
+    'add_edit_excess_luggage' => 'Add/Edit Excess Luggage',
+    'excess_luggage_fee' => 'Fee',
+    'excess_luggage_description' => 'Description (optional)',
+    'excess_luggage_description_placeholder' => 'e.g. extra bag, bicycle, box',
+    'save' => 'Save',
+    'remove' => 'Remove',
+    'cancel' => 'Cancel',
+    'saved_success' => 'Excess luggage fee saved.',
+    'removed_success' => 'Excess luggage fee removed.',
+    'confirm_remove' => 'Remove the excess luggage fee from this booking?',
+    'weigh_in_section' => 'Weigh-in reconciliation',
+    'estimated_weight' => 'Estimated weight (declared by customer)',
+    'actual_weight' => 'Actual weight (kg)',
+    'actual_length' => 'Actual length (cm)',
+    'actual_height' => 'Actual height (cm)',
+    'actual_width' => 'Actual width (cm)',
+    'not_declared' => 'Not declared',
+    'refund_payment_amount' => 'Refund / additional payment amount',
+    'refund_payment_hint' => 'Optional. Positive = extra amount collected from the passenger, negative = amount refunded. The excess luggage fee above is not recalculated automatically.',
+    'print_receipt' => 'Print Excess Luggage Receipt',
+];

@@ -33,6 +33,7 @@ use App\Models\RefundPercentage;
 use App\Models\Access;
 use App\Models\CancelledBookings;
 use App\Models\Coaster;
+use App\Models\Parcel;
 use App\Models\SpecialHireOrder;
 use App\Models\SpecialHireWithdrawalRequest;
 use Illuminate\Support\Facades\Schema;
@@ -139,11 +140,12 @@ class SystemController extends Controller
             ->sum('excess_luggage_fee');
         $balance = AdminWallet::sum('balance');
         $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
+        $specialHireCommissionTotal = (float) SpecialHireOrder::where('payment_status', 'paid')->sum('platform_commission_amount');
 
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
-            'service', 'fees', 'luggageTotal', 'bima', 'balance', 'cancelledAmount'
+            'service', 'fees', 'luggageTotal', 'bima', 'balance', 'cancelledAmount', 'specialHireCommissionTotal'
         ));
     }
 
@@ -185,6 +187,8 @@ class SystemController extends Controller
         $owners = User::query()
             ->where('role', 'special_hire')
             ->withCount(['coasters', 'specialHireOrders'])
+            ->withSum(['specialHireOrders as revenue_paid_sum' => fn ($q) => $q->where('payment_status', 'paid')], 'total_amount')
+            ->withSum(['specialHireOrders as commission_paid_sum' => fn ($q) => $q->where('payment_status', 'paid')], 'platform_commission_amount')
             ->orderBy('name')
             ->get();
 
@@ -645,6 +649,145 @@ class SystemController extends Controller
             ->with('success', __('system.messages.platform_percent_saved'));
     }
 
+    /**
+     * Passenger manifest capture for one special-hire order (name, phone, gender,
+     * infant flag) — persisted to the existing passenger_seats JSON column.
+     */
+    public function specialHireOrderPassengersEdit(int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
+        $passengers = is_array($hireOrder->passenger_seats) ? $hireOrder->passenger_seats : [];
+
+        return view('system.special_hire_order_passengers', compact('hireOrder', 'passengers'));
+    }
+
+    public function specialHireOrderPassengersUpdate(Request $request, int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::findOrFail($order);
+
+        $request->validate([
+            'passengers' => 'array',
+            'passengers.*.name' => 'nullable|string|max:150',
+            'passengers.*.phone' => 'nullable|string|max:30',
+            'passengers.*.gender' => 'nullable|in:male,female',
+            'passengers.*.is_infant' => 'nullable|boolean',
+        ]);
+
+        $passengers = collect($request->input('passengers', []))
+            ->filter(fn ($row) => trim((string) ($row['name'] ?? '')) !== '')
+            ->map(fn ($row) => [
+                'name' => trim($row['name']),
+                'phone' => trim((string) ($row['phone'] ?? '')),
+                'gender' => $row['gender'] ?? null,
+                'is_infant' => (bool) ($row['is_infant'] ?? false),
+            ])
+            ->values()
+            ->all();
+
+        $hireOrder->update(['passenger_seats' => $passengers]);
+
+        return redirect()
+            ->route('system.special_hire.order.passengers.edit', $order)
+            ->with('success', __('system.messages.passengers_saved'));
+    }
+
+    public function specialHireOrderManifestPdf(int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::with(['user', 'coaster.driver'])->findOrFail($order);
+        $passengers = is_array($hireOrder->passenger_seats) ? $hireOrder->passenger_seats : [];
+
+        $pdf = Pdf::loadView('print.special_hire_manifest', compact('hireOrder', 'passengers'));
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->download('special_hire_manifest_' . $hireOrder->order_code . '.pdf');
+    }
+
+    public function specialHireOrderCustomerReceiptPdf(int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
+
+        $pdf = Pdf::loadView('print.special_hire_customer_receipt', compact('hireOrder'));
+
+        return $pdf->download('special_hire_receipt_' . $hireOrder->order_code . '.pdf');
+    }
+
+    public function specialHireOrderCommissionReceiptPdf(int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
+
+        $pdf = Pdf::loadView('print.special_hire_commission_receipt', compact('hireOrder'));
+
+        return $pdf->download('special_hire_commission_' . $hireOrder->order_code . '.pdf');
+    }
+
+    /**
+     * Reassign a special-hire order to a different coaster (and, if that
+     * coaster belongs to a different operator, a different owner). This is a
+     * logistics reassignment only — passengers, pricing, commission and
+     * payment records are left untouched, since the payment was already
+     * agreed/settled against the original quote. Blocked once the trip is
+     * completed or cancelled, since there is nothing left to reassign.
+     */
+    public function specialHireOrderTransferEdit(int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
+
+        if (in_array($hireOrder->order_status, ['completed', 'cancelled'], true)) {
+            return redirect()->route('system.special_hire.show', $hireOrder->user_id)
+                ->with('error', __('system.pages.special_hire_transfer_not_allowed'));
+        }
+
+        $coasters = Coaster::with('user')
+            ->where('id', '!=', $hireOrder->coaster_id)
+            ->orderByDesc('status')
+            ->orderBy('name')
+            ->get();
+
+        return view('system.special_hire_order_transfer', compact('hireOrder', 'coasters'));
+    }
+
+    public function specialHireOrderTransferUpdate(Request $request, int $order)
+    {
+        abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
+
+        $hireOrder = SpecialHireOrder::findOrFail($order);
+
+        if (in_array($hireOrder->order_status, ['completed', 'cancelled'], true)) {
+            return redirect()->route('system.special_hire.show', $hireOrder->user_id)
+                ->with('error', __('system.pages.special_hire_transfer_not_allowed'));
+        }
+
+        $request->validate([
+            'new_coaster_id' => 'required|exists:coasters,id|different:' . $hireOrder->coaster_id,
+        ]);
+
+        $newCoaster = Coaster::findOrFail($request->new_coaster_id);
+
+        $hireOrder->update([
+            'coaster_id' => $newCoaster->id,
+            'user_id' => $newCoaster->user_id,
+        ]);
+
+        // If ownership moved to a different operator, land back on that
+        // operator's page; otherwise stay on the original operator's page.
+        return redirect()->route('system.special_hire.show', $newCoaster->user_id)
+            ->with('success', __('system.pages.special_hire_transfer_success', [
+                'coaster' => $newCoaster->name,
+            ]));
+    }
+
     public function pay_request(Request $request)
     {
         $this->requireAccess(Access::LINKS['PAYMENT_REQUEST']);
@@ -1003,6 +1146,9 @@ class SystemController extends Controller
         $pays = PaymentFees::with('campany')->orderByDesc('created_at')->get();
         $levies = \App\Models\GovernmentLevy::with('campany')->orderByDesc('created_at')->get();
         $luggageBookings = $this->paidLuggageBookingsQuery()->with('campany')->orderByDesc('created_at')->get();
+        $cancellations = CancelledBookings::with(['campany', 'booking'])->orderByDesc('created_at')->get();
+        $parcels = $this->commissionableParcelsQuery()->with('bus.campany')->orderByDesc('created_at')->get();
+        $specialHireOrders = $this->paidSpecialHireCommissionQuery()->with('user')->orderByDesc('created_at')->get();
 
         $luggageByCode = $this->luggageFeeMapForBookingCodes(
             $pays->pluck('booking_id')->merge($levies->pluck('booking_id'))->filter()->unique()->values()->all()
@@ -1022,7 +1168,30 @@ class SystemController extends Controller
             return $levy;
         });
 
-        return view('system.payments', compact('balances', 'pays', 'levies', 'luggageBookings'));
+        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+        $parcels = $parcels->map(function ($parcel) use ($parcelCommissionPercent) {
+            $parcel->commission_amount = round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2);
+
+            return $parcel;
+        });
+
+        return view('system.payments', compact('balances', 'pays', 'levies', 'luggageBookings', 'cancellations', 'parcels', 'specialHireOrders'));
+    }
+
+    /**
+     * Parcels eligible for commission income — excludes cancelled parcels since
+     * amount_paid is collected upfront regardless of delivery status.
+     */
+    private function commissionableParcelsQuery()
+    {
+        return Parcel::query()->where('status', '!=', 'cancelled');
+    }
+
+    private function paidSpecialHireCommissionQuery()
+    {
+        return SpecialHireOrder::query()
+            ->where('payment_status', 'paid')
+            ->whereNotNull('platform_commission_amount');
     }
 
     public function systemIncomeReportPdf(Request $request)
@@ -1064,6 +1233,15 @@ class SystemController extends Controller
         $luggageQuery = $this->paidLuggageBookingsQuery()->with('campany')->orderByDesc('created_at');
         $this->applySystemIncomeDateFilter($luggageQuery, $request);
         $luggageBookings = $luggageQuery->get();
+        $cancellationsQuery = CancelledBookings::query()->with('campany', 'booking')->orderByDesc('created_at');
+        $this->applySystemIncomeDateFilter($cancellationsQuery, $request);
+        $cancellations = $cancellationsQuery->get();
+        $parcelQuery = $this->commissionableParcelsQuery()->with('bus.campany')->orderByDesc('created_at');
+        $this->applySystemIncomeDateFilter($parcelQuery, $request);
+        $parcels = $parcelQuery->get();
+        $specialHireQuery = $this->paidSpecialHireCommissionQuery()->with('user')->orderByDesc('created_at');
+        $this->applySystemIncomeDateFilter($specialHireQuery, $request);
+        $specialHireOrders = $specialHireQuery->get();
         $dateFilter = $this->resolveSystemIncomeDateFilter($request);
 
         $luggageByCode = $this->luggageFeeMapForBookingCodes(
@@ -1120,6 +1298,42 @@ class SystemController extends Controller
             );
         });
 
+        $cancellationRows = $cancellations->values()->map(function ($record, $index) {
+            return $this->mapSystemIncomeRow(
+                __('system.pages.cancellation_fees'),
+                $index + 1,
+                $record->campany->name ?? '—',
+                optional($record->booking)->booking_code ?? 'N/A',
+                (float) $record->amount,
+                $record->created_at
+            );
+        });
+
+        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+        $parcelRows = $parcels->values()->map(function ($parcel, $index) use ($parcelCommissionPercent) {
+            $commission = round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2);
+
+            return $this->mapSystemIncomeRow(
+                __('system.pages.parcel_commission_fees'),
+                $index + 1,
+                $parcel->bus->campany->name ?? '—',
+                $parcel->parcel_number ?? 'N/A',
+                $commission,
+                $parcel->created_at
+            );
+        });
+
+        $specialHireRows = $specialHireOrders->values()->map(function ($order, $index) {
+            return $this->mapSystemIncomeRow(
+                __('system.pages.special_hire_commission_fees'),
+                $index + 1,
+                $order->user->name ?? '—',
+                $order->order_code ?? 'N/A',
+                (float) $order->platform_commission_amount,
+                $order->created_at
+            );
+        });
+
         $commissionTotal = (float) $balances->sum('balance');
         $serviceFeeTotal = (float) $pays->sum(function ($record) use ($luggageByCode) {
             $luggageFee = (float) ($luggageByCode[$record->booking_id] ?? 0);
@@ -1132,8 +1346,13 @@ class SystemController extends Controller
             return $this->levyAmountExcludingLuggage((float) $record->amount, $luggageFee);
         });
         $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => booking_luggage_fee($booking));
-        $combinedTotal = $commissionTotal + $serviceFeeTotal + $levyTotal + $luggageTotal;
-        $csvRows = $commissionRows->concat($serviceFeeRows)->concat($levyRows)->concat($luggageRows);
+        $cancellationTotal = (float) $cancellations->sum('amount');
+        $parcelTotal = (float) $parcels->sum(fn ($parcel) => round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2));
+        $specialHireTotal = (float) $specialHireOrders->sum('platform_commission_amount');
+        $combinedTotal = $commissionTotal + $serviceFeeTotal + $levyTotal + $luggageTotal
+            + $cancellationTotal + $parcelTotal + $specialHireTotal;
+        $csvRows = $commissionRows->concat($serviceFeeRows)->concat($levyRows)->concat($luggageRows)
+            ->concat($cancellationRows)->concat($parcelRows)->concat($specialHireRows);
 
         return [
             'headers' => array_keys($csvRows->first() ?? $this->emptySystemIncomeRow()),
@@ -1147,10 +1366,16 @@ class SystemController extends Controller
                 'serviceFeeRows' => $serviceFeeRows->values()->all(),
                 'levyRows' => $levyRows->values()->all(),
                 'luggageRows' => $luggageRows->values()->all(),
+                'cancellationRows' => $cancellationRows->values()->all(),
+                'parcelRows' => $parcelRows->values()->all(),
+                'specialHireRows' => $specialHireRows->values()->all(),
                 'commissionTotal' => $commissionTotal,
                 'serviceFeeTotal' => $serviceFeeTotal,
                 'levyTotal' => $levyTotal,
                 'luggageTotal' => $luggageTotal,
+                'cancellationTotal' => $cancellationTotal,
+                'parcelTotal' => $parcelTotal,
+                'specialHireTotal' => $specialHireTotal,
                 'combinedTotal' => $combinedTotal,
             ],
         ];
@@ -1511,6 +1736,7 @@ class SystemController extends Controller
         }
 
         $this->applyHistoryChannelFilter($query, $request);
+        $this->applyHistoryColumnFilters($query, $request);
 
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();
 
@@ -1570,6 +1796,7 @@ class SystemController extends Controller
         $query = Booking::with(['campany', 'schedule', 'user', 'route', 'vender', 'bus.route', 'campany.busOwnerAccount', 'governmentLeviesOnService']);
         apply_booking_history_date_filter($query, $request);
         $this->applyHistoryChannelFilter($query, $request);
+        $this->applyHistoryColumnFilters($query, $request);
 
         return $query->where('payment_status', 'Paid');
     }
@@ -1591,6 +1818,16 @@ class SystemController extends Controller
                 }
             });
         }
+    }
+
+    /**
+     * Filter booking history by bus name, plate number, departure date/time,
+     * driver name and conductor name. Each is optional and applied only when
+     * present so they compose with the date-range and channel filters.
+     */
+    private function applyHistoryColumnFilters($query, Request $request): void
+    {
+        apply_booking_history_column_filters($query, $request);
     }
 
     public function print(Request $request)
@@ -1871,10 +2108,16 @@ class SystemController extends Controller
             ->orderBy('start', 'asc')
             ->get();
 
+        // Booked seats per schedule so the seat-arrangement modal can show which
+        // seats are taken (keyed by schedule id).
+        $seatMaps = schedule_seat_maps($schedules);
+
         // Build $cars so the view stays unchanged: each row is the bus with its schedule set to this upcoming schedule
-        $cars = $schedules->map(function (Schedule $schedule) {
+        $cars = $schedules->map(function (Schedule $schedule) use ($seatMaps) {
             $bus = $schedule->bus;
             $bus->setRelation('schedule', $schedule);
+            $bus->booked_seat_map = $seatMaps[$schedule->id] ?? [];
+
             return $bus;
         });
 
@@ -2019,6 +2262,9 @@ class SystemController extends Controller
                 'local' => 0,
                 'service' => 0,
                 'service_percentage' => 0,
+                'parcel_commission_percentage' => 0,
+                'excess_luggage_fee_per_kg' => 0,
+                'parcel_fee_per_kg' => 0,
                 'enable_customer_sms_notifications' => true,
                 'enable_customer_email_notifications' => true,
                 'enable_conductor_sms_notifications' => true,
@@ -2042,6 +2288,9 @@ class SystemController extends Controller
                 'local' => 0,
                 'service' => 0,
                 'service_percentage' => 0,
+                'parcel_commission_percentage' => 0,
+                'excess_luggage_fee_per_kg' => 0,
+                'parcel_fee_per_kg' => 0,
                 'test_mode' => false,
                 'enforce_2fa' => true,
                 'enforce_customer_email_verification' => true,
@@ -2056,6 +2305,9 @@ class SystemController extends Controller
             'insurance_policy_foreign' => $request->insurance_policy_foreign,
             'service' => $request->service,
             'service_percentage' => $request->service_percentage,
+            'parcel_commission_percentage' => $request->parcel_commission_percentage,
+            'excess_luggage_fee_per_kg' => $request->excess_luggage_fee_per_kg,
+            'parcel_fee_per_kg' => $request->parcel_fee_per_kg,
             'enable_customer_sms_notifications' => $request->boolean('enable_customer_sms_notifications'),
             'enable_customer_email_notifications' => $request->boolean('enable_customer_email_notifications'),
             'enable_conductor_sms_notifications' => $request->boolean('enable_conductor_sms_notifications'),

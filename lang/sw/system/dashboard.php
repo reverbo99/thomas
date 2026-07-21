@@ -14,6 +14,8 @@ return [
     'total_cancelled_amount' => 'Jumla ya kiasi kilichoghairiwa',
     'luggage_amount' => 'Kiasi cha Mizigo',
     'total_luggage_amount' => 'Jumla ya mizigo ya ziada kutoka uhifadhi uliolipwa',
+    'special_hire_commission' => 'Kamisheni ya Kukodi Maalum',
+    'view_special_hire_details' => 'Ona akaunti za kukodi maalum',
     'paid_bookings_today' => ':count :label zilizolipwa leo',
     'paid_bookings_all_time' => ':count :label zilizolipwa (muda wote)',
     'weekly_booking_amounts' => 'Kiasi cha Uhifadhi wa Kila Wiki (zilizolipwa tu)',

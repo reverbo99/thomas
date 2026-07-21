@@ -70,6 +70,7 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/parcels.amount') }}</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/parcels.current_status') }}</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/parcels.update_status') }}</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/parcels.print_receipt') }}</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -114,10 +115,15 @@
                                     <button type="submit" class="text-indigo-600 hover:text-indigo-900 text-xs font-bold">{{ __('vender/parcels.update') }}</button>
                                 </form>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <a href="{{ route('bus_owner.parcels.print', $parcel->id) }}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                                    <i class="fas fa-print"></i> {{ __('vender/parcels.print_receipt') }}
+                                </a>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">{{ __('vender/parcels.no_parcels_found') }}</td>
+                            <td colspan="8" class="px-6 py-4 text-center text-sm text-gray-500">{{ __('vender/parcels.no_parcels_found') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

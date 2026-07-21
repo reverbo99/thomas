@@ -11,7 +11,11 @@
         $totalServiceFees = (float) $pays->sum(fn ($payment) => (float) ($payment->display_amount ?? $payment->amount));
         $totalLevies = (float) $levies->sum(fn ($levy) => (float) ($levy->display_amount ?? $levy->amount));
         $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => booking_luggage_fee($booking));
-        $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLevies + $totalLuggageFees;
+        $totalCancellationFees = (float) $cancellations->sum('amount');
+        $totalParcelCommission = (float) $parcels->sum(fn ($parcel) => (float) $parcel->commission_amount);
+        $totalSpecialHireCommission = (float) $specialHireOrders->sum('platform_commission_amount');
+        $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLevies + $totalLuggageFees
+            + $totalCancellationFees + $totalParcelCommission + $totalSpecialHireCommission;
     @endphp
 
     <div class="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
@@ -64,6 +68,21 @@
                 <p class="text-xs font-semibold text-amber-800 uppercase tracking-wide">{{ __('system.pages.gov_levy_service') }}</p>
                 <p class="text-xl sm:text-2xl font-bold text-amber-950 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalLevies) }}</p>
                 <p class="text-xs text-amber-700 opacity-90 mt-2 group-hover:underline">{{ __('system.pages.gov_levy_rows', ['count' => $levies->count()]) }}</p>
+            </a>
+            <a href="#income-cancellation" class="group rounded-xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
+                <p class="text-xs font-semibold text-rose-700 uppercase tracking-wide">{{ __('system.pages.cancellation_fees') }}</p>
+                <p class="text-xl sm:text-2xl font-bold text-rose-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalCancellationFees) }}</p>
+                <p class="text-xs text-rose-600 opacity-90 mt-2 group-hover:underline">{{ $cancellations->count() }} {{ __('system.common.entries') }}</p>
+            </a>
+            <a href="#income-parcel" class="group rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2">
+                <p class="text-xs font-semibold text-purple-700 uppercase tracking-wide">{{ __('system.pages.parcel_commission_fees') }}</p>
+                <p class="text-xl sm:text-2xl font-bold text-purple-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalParcelCommission) }}</p>
+                <p class="text-xs text-purple-600 opacity-90 mt-2 group-hover:underline">{{ $parcels->count() }} {{ __('system.common.entries') }}</p>
+            </a>
+            <a href="#income-special-hire" class="group rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">
+                <p class="text-xs font-semibold text-teal-700 uppercase tracking-wide">{{ __('system.pages.special_hire_commission_fees') }}</p>
+                <p class="text-xl sm:text-2xl font-bold text-teal-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalSpecialHireCommission) }}</p>
+                <p class="text-xs text-teal-600 opacity-90 mt-2 group-hover:underline">{{ $specialHireOrders->count() }} {{ __('system.common.entries') }}</p>
             </a>
         </div>
 
@@ -419,6 +438,267 @@
                     </div>
                 </div>
             </section>
+
+            <section id="income-cancellation" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
+                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #e11d48, #f43f5e);">
+                    <div>
+                        <h2 class="text-lg font-semibold">{{ __('system.pages.cancellation_fees') }}</h2>
+                        <p class="text-rose-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.cancellation_fees_desc') }}</p>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <span class="text-xs text-rose-100 uppercase tracking-wide font-medium">{{ __('system.pages.section_total') }}</span>
+                        <div class="text-xl font-bold tabular-nums">{{ $currency }} <span id="cancellationTotal">{{ convert_money($totalCancellationFees) }}</span></div>
+                    </div>
+                </div>
+                <div class="p-4 sm:p-6">
+                    <div class="flex flex-col lg:flex-row gap-4 mb-4 bg-gray-50 rounded-lg border border-gray-100 p-4">
+                        <div class="w-full lg:w-64">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{{ __('system.pages.period') }}</label>
+                            <select id="cancellationTimeFilter" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-sm text-gray-800">
+                                <option value="all">{{ __('system.common.all_time') }}</option>
+                                <option value="day">{{ __('system.sidebar.today') }}</option>
+                                <option value="week">{{ __('system.common.this_week') }}</option>
+                                <option value="month">{{ __('system.common.this_month') }}</option>
+                                <option value="year">{{ __('system.common.this_year') }}</option>
+                                <option value="custom">{{ __('system.common.custom_range') }}</option>
+                            </select>
+                        </div>
+                        <div class="w-full lg:flex-1 hidden" id="cancellationDateRangeGroup">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Custom range</label>
+                            <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-sm" id="cancellationMinDate" placeholder="Start Date">
+                                <span class="text-gray-400 text-sm hidden sm:block pb-2.5">→</span>
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 text-sm" id="cancellationMaxDate" placeholder="End Date">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="cancellationTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="cancellationTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="cancellationTable" data-column="2" placeholder="Booking code">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="cancellationTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="cancellationTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="cancellationTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">Booking code</th>
+                                    <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold whitespace-nowrap">{{ __('system.common.date') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700 text-sm divide-y divide-gray-100 bg-white">
+                                @php $cnl = 1; @endphp
+                                @if($cancellations->count() > 0)
+                                    @foreach ($cancellations as $cancellation)
+                                        <tr class="hover:bg-rose-50 transition-colors">
+                                            <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $cnl++ }}</td>
+                                            <td class="py-2.5 px-4 font-medium text-gray-900">{{ $cancellation->campany->name ?? '—' }}</td>
+                                            <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ optional($cancellation->booking)->booking_code ?? 'N/A' }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $cancellation->amount }}">{{ $currency }} {{ convert_money($cancellation->amount) }}</td>
+                                            <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $cancellation->created_at->format('Y-m-d') }}">{{ $cancellation->created_at->format('d M Y') }}</td>
+                                        </tr>
+                                    @endforeach
+                                @else
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
+                                @endif
+                            </tbody>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="income-parcel" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
+                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #7e22ce, #a855f7);">
+                    <div>
+                        <h2 class="text-lg font-semibold">{{ __('system.pages.parcel_commission_fees') }}</h2>
+                        <p class="text-purple-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.parcel_commission_desc') }}</p>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <span class="text-xs text-purple-100 uppercase tracking-wide font-medium">{{ __('system.pages.section_total') }}</span>
+                        <div class="text-xl font-bold tabular-nums">{{ $currency }} <span id="parcelTotal">{{ convert_money($totalParcelCommission) }}</span></div>
+                    </div>
+                </div>
+                <div class="p-4 sm:p-6">
+                    <div class="flex flex-col lg:flex-row gap-4 mb-4 bg-gray-50 rounded-lg border border-gray-100 p-4">
+                        <div class="w-full lg:w-64">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{{ __('system.pages.period') }}</label>
+                            <select id="parcelTimeFilter" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm text-gray-800">
+                                <option value="all">{{ __('system.common.all_time') }}</option>
+                                <option value="day">{{ __('system.sidebar.today') }}</option>
+                                <option value="week">{{ __('system.common.this_week') }}</option>
+                                <option value="month">{{ __('system.common.this_month') }}</option>
+                                <option value="year">{{ __('system.common.this_year') }}</option>
+                                <option value="custom">{{ __('system.common.custom_range') }}</option>
+                            </select>
+                        </div>
+                        <div class="w-full lg:flex-1 hidden" id="parcelDateRangeGroup">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Custom range</label>
+                            <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm" id="parcelMinDate" placeholder="Start Date">
+                                <span class="text-gray-400 text-sm hidden sm:block pb-2.5">→</span>
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm" id="parcelMaxDate" placeholder="End Date">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="parcelTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="parcelTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="parcelTable" data-column="2" placeholder="{{ __('system.pages.col_parcel_number') }}">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="parcelTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="parcelTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="parcelTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_parcel_number') }}</th>
+                                    <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold whitespace-nowrap">{{ __('system.common.date') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700 text-sm divide-y divide-gray-100 bg-white">
+                                @php $pc = 1; @endphp
+                                @if($parcels->count() > 0)
+                                    @foreach ($parcels as $parcel)
+                                        <tr class="hover:bg-purple-50 transition-colors">
+                                            <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $pc++ }}</td>
+                                            <td class="py-2.5 px-4 font-medium text-gray-900">{{ $parcel->bus->campany->name ?? '—' }}</td>
+                                            <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $parcel->parcel_number ?? 'N/A' }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $parcel->commission_amount }}">{{ $currency }} {{ convert_money($parcel->commission_amount) }}</td>
+                                            <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $parcel->created_at->format('Y-m-d') }}">{{ $parcel->created_at->format('d M Y') }}</td>
+                                        </tr>
+                                    @endforeach
+                                @else
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
+                                @endif
+                            </tbody>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="income-special-hire" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
+                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #0f766e, #14b8a6);">
+                    <div>
+                        <h2 class="text-lg font-semibold">{{ __('system.pages.special_hire_commission_fees') }}</h2>
+                        <p class="text-teal-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.special_hire_commission_desc') }}</p>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <span class="text-xs text-teal-100 uppercase tracking-wide font-medium">{{ __('system.pages.section_total') }}</span>
+                        <div class="text-xl font-bold tabular-nums">{{ $currency }} <span id="specialHireTotal">{{ convert_money($totalSpecialHireCommission) }}</span></div>
+                    </div>
+                </div>
+                <div class="p-4 sm:p-6">
+                    <div class="flex flex-col lg:flex-row gap-4 mb-4 bg-gray-50 rounded-lg border border-gray-100 p-4">
+                        <div class="w-full lg:w-64">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{{ __('system.pages.period') }}</label>
+                            <select id="specialHireTimeFilter" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm text-gray-800">
+                                <option value="all">{{ __('system.common.all_time') }}</option>
+                                <option value="day">{{ __('system.sidebar.today') }}</option>
+                                <option value="week">{{ __('system.common.this_week') }}</option>
+                                <option value="month">{{ __('system.common.this_month') }}</option>
+                                <option value="year">{{ __('system.common.this_year') }}</option>
+                                <option value="custom">{{ __('system.common.custom_range') }}</option>
+                            </select>
+                        </div>
+                        <div class="w-full lg:flex-1 hidden" id="specialHireDateRangeGroup">
+                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Custom range</label>
+                            <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm" id="specialHireMinDate" placeholder="Start Date">
+                                <span class="text-gray-400 text-sm hidden sm:block pb-2.5">→</span>
+                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm" id="specialHireMaxDate" placeholder="End Date">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                    <div class="overflow-x-auto px-4 py-4">
+                        <div class="system-payments-filters mb-3">
+                            <div class="system-payments-filters__grid">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="specialHireTable" data-column="0" placeholder="No.">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="specialHireTable" data-column="1" placeholder="{{ __('system.pages.col_operator') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="specialHireTable" data-column="2" placeholder="{{ __('system.pages.col_order_code') }}">
+                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="specialHireTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
+                                <input type="text" class="system-payments-filters__input search-input" data-table="specialHireTable" data-column="4" placeholder="{{ __('system.common.date') }}">
+                            </div>
+                        </div>
+                        <table id="specialHireTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
+                            <colgroup>
+                                <col class="system-payments-col-no">
+                                <col class="system-payments-col-company">
+                                <col class="system-payments-col-booking">
+                                <col class="system-payments-col-amount">
+                                <col class="system-payments-col-date">
+                            </colgroup>
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
+                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_operator') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_order_code') }}</th>
+                                    <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
+                                    <th class="py-2.5 px-4 text-left font-semibold whitespace-nowrap">{{ __('system.common.date') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700 text-sm divide-y divide-gray-100 bg-white">
+                                @php $sh = 1; @endphp
+                                @if($specialHireOrders->count() > 0)
+                                    @foreach ($specialHireOrders as $order)
+                                        <tr class="hover:bg-teal-50 transition-colors">
+                                            <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $sh++ }}</td>
+                                            <td class="py-2.5 px-4 font-medium text-gray-900">{{ $order->user->name ?? '—' }}</td>
+                                            <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $order->order_code ?? 'N/A' }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $order->platform_commission_amount }}">{{ $currency }} {{ convert_money($order->platform_commission_amount) }}</td>
+                                            <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $order->created_at->format('Y-m-d') }}">{{ $order->created_at->format('d M Y') }}</td>
+                                        </tr>
+                                    @endforeach
+                                @else
+                                    <tr class="payments-empty-row">
+                                        @for ($col = 0; $col < 5; $col++)
+                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
+                                        @endfor
+                                    </tr>
+                                @endif
+                            </tbody>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 
@@ -520,6 +800,30 @@
                 format: 'DD MMM YYYY'
             });
 
+            // Create date inputs for Cancellation Fees Table
+            var cancellationMinDate = new DateTime($('#cancellationMinDate'), {
+                format: 'DD MMM YYYY'
+            });
+            var cancellationMaxDate = new DateTime($('#cancellationMaxDate'), {
+                format: 'DD MMM YYYY'
+            });
+
+            // Create date inputs for Parcel Commission Table
+            var parcelMinDate = new DateTime($('#parcelMinDate'), {
+                format: 'DD MMM YYYY'
+            });
+            var parcelMaxDate = new DateTime($('#parcelMaxDate'), {
+                format: 'DD MMM YYYY'
+            });
+
+            // Create date inputs for Special Hire Commission Table
+            var specialHireMinDate = new DateTime($('#specialHireMinDate'), {
+                format: 'DD MMM YYYY'
+            });
+            var specialHireMaxDate = new DateTime($('#specialHireMaxDate'), {
+                format: 'DD MMM YYYY'
+            });
+
             // Custom date filtering function for all tables
             $.fn.dataTableExt.afnFiltering.push(function (settings, data, dataIndex) {
                 let tableId = settings.sTableId;
@@ -545,6 +849,21 @@
                     minDate = levyMinDate.val();
                     maxDate = levyMaxDate.val();
                     dateStr = data[4]; // Date column for levyTable
+                } else if (tableId === 'cancellationTable') {
+                    filterValue = $('#cancellationTimeFilter').val();
+                    minDate = cancellationMinDate.val();
+                    maxDate = cancellationMaxDate.val();
+                    dateStr = data[4];
+                } else if (tableId === 'parcelTable') {
+                    filterValue = $('#parcelTimeFilter').val();
+                    minDate = parcelMinDate.val();
+                    maxDate = parcelMaxDate.val();
+                    dateStr = data[4];
+                } else if (tableId === 'specialHireTable') {
+                    filterValue = $('#specialHireTimeFilter').val();
+                    minDate = specialHireMinDate.val();
+                    maxDate = specialHireMaxDate.val();
+                    dateStr = data[4];
                 } else {
                     return true;
                 }
@@ -584,11 +903,17 @@
             const commissionTable = initPaymentsTable('#commissionTable', '#commissionTotal');
             const luggageTable = initPaymentsTable('#luggageTable', '#luggageTotal');
             const levyTable = initPaymentsTable('#levyTable', '#levyTotal');
+            const cancellationTable = initPaymentsTable('#cancellationTable', '#cancellationTotal');
+            const parcelTable = initPaymentsTable('#parcelTable', '#parcelTotal');
+            const specialHireTable = initPaymentsTable('#specialHireTable', '#specialHireTotal');
             const tableMap = {
                 serviceTable: serviceTable,
                 commissionTable: commissionTable,
                 luggageTable: luggageTable,
                 levyTable: levyTable,
+                cancellationTable: cancellationTable,
+                parcelTable: parcelTable,
+                specialHireTable: specialHireTable,
             };
             wireColumnFilters(tableMap);
 
@@ -656,6 +981,54 @@
             $('#luggageMinDate, #luggageMaxDate').on('change', function() {
                 if ($('#luggageTimeFilter').val() === 'custom') {
                     luggageTable?.draw();
+                }
+            });
+
+            // Apply time filter for Cancellation Fees Table
+            $('#cancellationTimeFilter').on('change', function() {
+                if ($(this).val() === 'custom') {
+                    $('#cancellationDateRangeGroup').removeClass('hidden');
+                } else {
+                    $('#cancellationDateRangeGroup').addClass('hidden');
+                    cancellationTable?.draw();
+                }
+            });
+
+            $('#cancellationMinDate, #cancellationMaxDate').on('change', function() {
+                if ($('#cancellationTimeFilter').val() === 'custom') {
+                    cancellationTable?.draw();
+                }
+            });
+
+            // Apply time filter for Parcel Commission Table
+            $('#parcelTimeFilter').on('change', function() {
+                if ($(this).val() === 'custom') {
+                    $('#parcelDateRangeGroup').removeClass('hidden');
+                } else {
+                    $('#parcelDateRangeGroup').addClass('hidden');
+                    parcelTable?.draw();
+                }
+            });
+
+            $('#parcelMinDate, #parcelMaxDate').on('change', function() {
+                if ($('#parcelTimeFilter').val() === 'custom') {
+                    parcelTable?.draw();
+                }
+            });
+
+            // Apply time filter for Special Hire Commission Table
+            $('#specialHireTimeFilter').on('change', function() {
+                if ($(this).val() === 'custom') {
+                    $('#specialHireDateRangeGroup').removeClass('hidden');
+                } else {
+                    $('#specialHireDateRangeGroup').addClass('hidden');
+                    specialHireTable?.draw();
+                }
+            });
+
+            $('#specialHireMinDate, #specialHireMaxDate').on('change', function() {
+                if ($('#specialHireTimeFilter').val() === 'custom') {
+                    specialHireTable?.draw();
                 }
             });
         });

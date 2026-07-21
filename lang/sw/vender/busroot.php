@@ -65,9 +65,9 @@ return [
     'email_tigosecure' => 'Barua Pepe (Tigosecure)',
     'deposit_button' => 'Weka Amana',
     // Round trip payment success / failed
-    'round_payment_success_title' => 'Malipo ya Safari ya Rundi Imefaulu',
+    'round_payment_success_title' => 'Malipo ya Safari ya Kurudi Imefaulu',
     'round_payment_successful' => 'Malipo Yamefaulu!',
-    'round_trip_booking_confirmed' => 'Uwekaji nafasi wako wa safari ya urundi umehakikiwa.',
+    'round_trip_booking_confirmed' => 'Uwekaji nafasi wako wa safari ya kurudi umehakikiwa.',
     'round_payment_thank_you' => 'Asante kwa malipo yako. Tiketi zako zimeandikishwa kwa mafanikio.',
     'first_leg_booking_details' => 'Maelezo ya Uwekaji Nafasi wa Mwendo wa Kwanza',
     'second_leg_booking_details' => 'Maelezo ya Uwekaji Nafasi wa Mwendo wa Pili',
@@ -76,8 +76,8 @@ return [
     'seats' => 'Vitulo',
     'amount_paid' => 'Kiasi Kilicholipwa',
     'fee' => 'Ada',
-    'round_payment_failed_title' => 'Malipo ya Safari ya Rundi Yameshindwa',
-    'round_payment_could_not_process' => 'Malipo yako ya safari ya urundi haikuweza kuchakatwa.',
+    'round_payment_failed_title' => 'Malipo ya Safari ya Kurudi Yameshindwa',
+    'round_payment_could_not_process' => 'Malipo yako ya safari ya kurudi haikuweza kuchakatwa.',
     'round_payment_try_again_or_support' => 'Kulikuwa na tatizo na malipo yako. Tafadhali jaribu tena au wasiliana na msaada.',
     'error' => 'Hitilafu',
 ];

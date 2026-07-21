@@ -6,6 +6,7 @@ return [
     'terms' => 'Terms',
     'privacy' => 'Privacy',
     'contact' => 'Contact',
+    'entries' => 'entries',
     'save' => 'Save',
     'close' => 'Close',
     'edit' => 'Edit',

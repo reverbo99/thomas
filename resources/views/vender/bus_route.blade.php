@@ -119,6 +119,7 @@
                             <th class="sortable" data-sort="fee">{{ __('vender/busroot.bus_fee') }} <i class="fas fa-sort"></i></th>
                             <th class="sortable" data-sort="time">{{ __('vender/busroot.time_24hrs') }} <i class="fas fa-sort"></i></th>
                             <th class="sortable" data-sort="date">{{ __('vender/busroot.date') }} <i class="fas fa-sort"></i></th>
+                            <th>{{ __('system.pages.seats') }}</th>
                             @if ($userCompanyId)
                                 <th>{{ __('vender/schedule.edit_bus_schedule') }}</th>
                             @endif
@@ -180,6 +181,29 @@
                                         <span class="text-gray-400">N/A</span>
                                     @endif
                                 </td>
+                                <td>
+                                    @php
+                                        $seatMap = $sched->booked_seat_map ?? [];
+                                        $bookedCount = count($seatMap);
+                                        $totalSeats = (int) ($bus->total_seats ?? 0);
+                                        $availableCount = max(0, $totalSeats - $bookedCount);
+                                    @endphp
+                                    <button type="button"
+                                        class="view-seats-btn page-btn page-btn--outline"
+                                        style="padding:.35rem .7rem;font-size:.8rem;"
+                                        aria-label="{{ __('system.pages.view_seats') }}"
+                                        data-bus-number="{{ $bus?->bus_number ?? '' }}"
+                                        data-company="{{ $campany?->name ?? '' }}"
+                                        data-route="{{ $legFrom }} → {{ $legTo }}"
+                                        data-date="{{ $scheduleDate?->format('d M Y') ?? '' }}"
+                                        data-total-seats="{{ $totalSeats }}"
+                                        data-booked-count="{{ $bookedCount }}"
+                                        data-available-count="{{ $availableCount }}"
+                                        data-layout="{{ e($bus?->seate_json ?? '') }}"
+                                        data-booked-seats="{{ e(json_encode($seatMap)) }}">
+                                        <i class="fas fa-chair"></i> {{ __('system.pages.view_seats') }}
+                                    </button>
+                                </td>
                                 @if ($userCompanyId)
                                     <td>
                                         @if ($canEdit)
@@ -212,6 +236,8 @@
         @endif
     </section>
 </div>
+
+@include('partials.seat_arrangement_modal')
 @endsection
 
 @if ($schedules->isNotEmpty())

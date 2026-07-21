@@ -107,6 +107,7 @@
                             <th>{{ __('vender/parcels.amount') }}</th>
                             <th>{{ __('vender/parcels.date_added') }}</th>
                             <th>{{ __('vender/parcels.status') }}</th>
+                            <th>{{ __('vender/parcels.print_receipt') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -138,6 +139,11 @@
                                         $statusClass = $statusKey === 'completed' ? 'vendor-status--paid' : ($statusKey === 'cancelled' ? 'vendor-status--other' : 'vendor-status--unpaid');
                                     @endphp
                                     <span class="vendor-status {{ $statusClass }}">{{ ucfirst($parcel->status ?? 'pending') }}</span>
+                                </td>
+                                <td>
+                                    <a href="{{ route('vender.parcels.print', $parcel->id) }}" target="_blank" class="page-btn page-btn--outline">
+                                        <i class="fas fa-print"></i> {{ __('vender/parcels.print_receipt') }}
+                                    </a>
                                 </td>
                             </tr>
                         @endforeach

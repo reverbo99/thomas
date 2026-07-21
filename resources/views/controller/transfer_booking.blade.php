@@ -71,23 +71,20 @@
                                         <option value="{{ $bus->id }}">{{ $bus->bus_number }} ({{ $bus->busname->name ?? __('vender/history.na') }})</option>
                                     @endforeach
                                 </select>
+                                <p class="text-xs text-gray-500 mt-1">{{ __('vender/transfer.select_bus_first_hint') }}</p>
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_schedule_id" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_schedule') }}</label>
-                                <select class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_schedule_id" name="new_schedule_id" required>
-                                    <option value="">{{ __('vender/transfer.select_new_schedule') }}</option>
-                                    @foreach ($schedules as $schedule)
-                                        <option value="{{ $schedule->id }}">
-                                            {{ $schedule->from }} {{ __('vender/history.route') }} {{ $schedule->to }} {{ __('vender/dashboard.date') }} {{ $schedule->schedule_date }} ({{ $schedule->start }} - {{ $schedule->end }})
-                                        </option>
-                                    @endforeach
+                                <select class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_schedule_id" name="new_schedule_id" required disabled>
+                                    <option value="">{{ __('vender/transfer.select_new_bus_first') }}</option>
                                 </select>
                             </div>
 
                             <div class="mb-4">
                                 <label for="new_travel_date" class="block text-sm font-medium text-gray-700">{{ __('vender/transfer.new_travel_date') }}</label>
-                                <input type="date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" id="new_travel_date" name="new_travel_date" required value="{{ $selectedBooking->travel_date }}">
+                                <input type="date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm focus:outline-none sm:text-sm" id="new_travel_date" name="new_travel_date" required readonly value="">
+                                <p class="text-xs text-gray-500 mt-1">{{ __('vender/transfer.travel_date_derived_hint') }}</p>
                             </div>
 
                             <div class="mb-4">
@@ -177,45 +174,64 @@
     };
 
     $(document).ready(function() {
+        var scheduleDates = {};
+
+        // Schedules are loaded for the chosen bus ONLY (no date filter) — the
+        // travel date is then derived from whichever schedule the user picks,
+        // instead of asking the user to separately guess a date the new bus
+        // actually runs on. Previously the date field stayed pre-filled with
+        // the original booking's date, so picking a different bus silently
+        // produced an empty "no schedules" dropdown whenever that bus didn't
+        // run on that exact date — this made the whole feature look broken.
         function loadSchedules() {
             const busId = $('#new_bus_id').val();
-            const travelDate = $('#new_travel_date').val();
             const newScheduleSelect = $('#new_schedule_id');
+            const travelDateInput = $('#new_travel_date');
 
+            scheduleDates = {};
             newScheduleSelect.empty().append(`<option value="">${transferI18n.selectSchedule}</option>`);
+            travelDateInput.val('');
 
-            if (busId && travelDate) {
-                $.ajax({
-                    url: '{{ route('get.filtered.schedules') }}',
-                    method: 'GET',
-                    data: {
-                        bus_id: busId,
-                        travel_date: travelDate
-                    },
-                    success: function(response) {
-                        if (response.length > 0) {
-                            response.forEach(function(schedule) {
-                                newScheduleSelect.append(
-                                    `<option value="${schedule.id}">${schedule.from} ${transferI18n.routeTo} ${schedule.to} ${transferI18n.onDate} ${schedule.schedule_date} (${schedule.start} - ${schedule.end})</option>`
-                                );
-                            });
-                        } else {
-                            newScheduleSelect.append(`<option value="">${transferI18n.noSchedules}</option>`);
-                        }
-                    },
-                    error: function(xhr) {
-                        console.error('Error fetching schedules:', xhr);
-                        newScheduleSelect.append(`<option value="">${transferI18n.errorLoading}</option>`);
-                    }
-                });
+            if (!busId) {
+                newScheduleSelect.prop('disabled', true)
+                    .empty().append(`<option value="">${@json(__('vender/transfer.select_new_bus_first'))}</option>`);
+                return;
             }
+
+            newScheduleSelect.prop('disabled', false);
+
+            $.ajax({
+                url: '{{ route('get.filtered.schedules') }}',
+                method: 'GET',
+                data: {
+                    bus_id: busId
+                },
+                success: function(response) {
+                    if (response.length > 0) {
+                        response.forEach(function(schedule) {
+                            scheduleDates[schedule.id] = schedule.schedule_date;
+                            newScheduleSelect.append(
+                                `<option value="${schedule.id}">${schedule.from} ${transferI18n.routeTo} ${schedule.to} ${transferI18n.onDate} ${schedule.schedule_date} (${schedule.start} - ${schedule.end})</option>`
+                            );
+                        });
+                    } else {
+                        newScheduleSelect.empty().append(`<option value="">${transferI18n.noSchedules}</option>`);
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error fetching schedules:', xhr);
+                    newScheduleSelect.empty().append(`<option value="">${transferI18n.errorLoading}</option>`);
+                }
+            });
         }
 
-        $('#new_bus_id, #new_travel_date').on('change', loadSchedules);
+        $('#new_bus_id').on('change', loadSchedules);
 
-        if ($('#new_bus_id').val() && $('#new_travel_date').val()) {
-            loadSchedules();
-        }
+        $('#new_schedule_id').on('change', function() {
+            const scheduleId = $(this).val();
+            $('#new_travel_date').val(scheduleDates[scheduleId] || '');
+            calculateAmounts();
+        });
 
         function calculateAmounts() {
             const busId = $('#new_bus_id').val();
@@ -258,11 +274,7 @@
             }
         }
 
-        $('#new_bus_id, #new_schedule_id, #new_travel_date, #new_pickup_point, #new_dropping_point').on('change', calculateAmounts);
-
-        if ($('#new_bus_id').val() && $('#new_schedule_id').val() && $('#new_travel_date').val() && $('#new_pickup_point').val() && $('#new_dropping_point').val() && $('#booking_id').val()) {
-            calculateAmounts();
-        }
+        $('#new_pickup_point, #new_dropping_point').on('change', calculateAmounts);
     });
 </script>
 @endsection

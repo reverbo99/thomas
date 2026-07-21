@@ -410,6 +410,7 @@ class CustomerController extends Controller
         $bus_info['cancel_key'] = $request->key ?? ($bus_info['cancel_key'] ?? '');
         $bus_info['excess_luggage'] = $request->excess_luggage ?? 0; // Add excess luggage checkbox value
         $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
+        $bus_info['estimated_weight'] = $request->estimated_weight ?? null; // Customer-declared weight, for the excess luggage receipt
         session()->put('booking_form', $bus_info);
 
         $insuranceError = process_booking_insurance_input($request, $bus_info);
@@ -615,6 +616,7 @@ class CustomerController extends Controller
             'has_excess_luggage' => session()->get('booking_form')['excess_luggage'] ?? 0, // Canonical DB flag
             'excess_luggage_fee' => session()->get('booking_form')['excess_luggage_fee'] ?? 0, // Keep luggage out of the service fee
             'excess_luggage_description' => session()->get('booking_form')['excess_luggage_description'], // Add excess luggage description
+            'estimated_weight' => session()->get('booking_form')['estimated_weight'] ?? null,
         ];
 
         if ($bima == 1) {
@@ -850,6 +852,7 @@ class CustomerController extends Controller
             'has_excess_luggage' => $bookingForm['excess_luggage'] ?? 0, // Canonical DB flag
             'excess_luggage_fee' => $bookingForm['excess_luggage_fee'] ?? 0, // Keep luggage out of the service fee
             'excess_luggage_description' => $bookingForm['excess_luggage_description'],
+            'estimated_weight' => $bookingForm['estimated_weight'] ?? null,
             'transaction_ref_id' => $xcode,
             'payment_method' => 'test_mode',
         ];

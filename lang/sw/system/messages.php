@@ -3,6 +3,7 @@
 return [
     'withdrawal_marked' => 'Ombi la kutoa limewekwa alama kama :status.',
     'platform_percent_saved' => 'Asilimia ya jukwaa kwa mwendeshaji huyu imehifadhiwa.',
+    'passengers_saved' => 'Orodha ya abiria imehifadhiwa.',
     'transaction_completed' => 'Muamala umewekwa alama kama umekamilika.',
     'transaction_cancelled' => 'Muamala umeghairiwa.',
     'transaction_cancel_failed' => 'Imeshindwa kughairi muamala. Tafadhali jaribu tena.',

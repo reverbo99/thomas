@@ -427,12 +427,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/buses/print/pdf', [AdminController::class, 'printBusesPdf'])->name('bus.print.pdf');
         Route::get('/get-filtered-schedules', [AdminController::class, 'getFilteredSchedules'])->name('get.filtered.schedules');
         Route::get('/calculate-transfer-amounts', [AdminController::class, 'calculateTransferAmounts'])->name('calculate.transfer.amounts');
+        Route::post('/booking/excess-luggage/{booking}', [AdminController::class, 'updateExcessLuggage'])->name('booking.excess_luggage.update');
+        Route::get('/booking/excess-luggage/{booking}/receipt', [AdminController::class, 'printExcessLuggageReceipt'])->name('excess_luggage.receipt.print');
         
         // Bus Owner Parcel Management
         Route::prefix('/parcels')->name('bus_owner.parcels.')->group(function () {
              Route::get('/', [AdminController::class, 'busOwnerParcels'])->name('index');
              Route::post('/update-status/{id}', [ParcelController::class, 'updateStatus'])->name('update_status');
              Route::post('/toggle-acceptance', [ParcelController::class, 'toggleAcceptance'])->name('toggle_acceptance');
+             Route::get('/{id}/print', [ParcelController::class, 'print'])->name('print');
         });
     });
 
@@ -458,6 +461,20 @@ Route::middleware('auth')->group(function () {
         Route::post('/special-hire/withdrawals/{id}', [SystemController::class, 'updateSpecialHireWithdrawal'])->name('system.special_hire.withdrawal');
         Route::post('/special-hire/{user}/platform-percent', [SystemController::class, 'updateSpecialHireOwnerPlatformPercent'])->name('system.special_hire.platform_percent')
             ->whereNumber('user');
+        Route::get('/special-hire/orders/{order}/passengers', [SystemController::class, 'specialHireOrderPassengersEdit'])->name('system.special_hire.order.passengers.edit')
+            ->whereNumber('order');
+        Route::post('/special-hire/orders/{order}/passengers', [SystemController::class, 'specialHireOrderPassengersUpdate'])->name('system.special_hire.order.passengers.update')
+            ->whereNumber('order');
+        Route::get('/special-hire/orders/{order}/manifest/pdf', [SystemController::class, 'specialHireOrderManifestPdf'])->name('system.special_hire.order.manifest.pdf')
+            ->whereNumber('order');
+        Route::get('/special-hire/orders/{order}/receipt/customer/pdf', [SystemController::class, 'specialHireOrderCustomerReceiptPdf'])->name('system.special_hire.order.receipt.customer')
+            ->whereNumber('order');
+        Route::get('/special-hire/orders/{order}/receipt/commission/pdf', [SystemController::class, 'specialHireOrderCommissionReceiptPdf'])->name('system.special_hire.order.receipt.commission')
+            ->whereNumber('order');
+        Route::get('/special-hire/orders/{order}/transfer', [SystemController::class, 'specialHireOrderTransferEdit'])->name('system.special_hire.order.transfer.edit')
+            ->whereNumber('order');
+        Route::post('/special-hire/orders/{order}/transfer', [SystemController::class, 'specialHireOrderTransferUpdate'])->name('system.special_hire.order.transfer.update')
+            ->whereNumber('order');
         Route::get('/transaction', [SystemController::class, 'pay_request'])->name('pay.request');
         Route::get('/transaction/export/pdf', [SystemController::class, 'paymentRequestReportPdf'])->name('pay.request.pdf');
         Route::get('/transaction/export/csv', [SystemController::class, 'paymentRequestReportCsv'])->name('pay.request.csv');
@@ -611,6 +628,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/find-bus', [ParcelController::class, 'searchBus'])->name('find_bus');
             Route::get('/create/{bus_id}', [ParcelController::class, 'create'])->name('create');
             Route::post('/store', [ParcelController::class, 'store'])->name('store');
+            Route::get('/{id}/print', [ParcelController::class, 'print'])->name('print');
         });
     });
 

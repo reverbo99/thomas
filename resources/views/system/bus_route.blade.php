@@ -93,6 +93,9 @@
                                 </svg>
                             </div>
                         </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {{ __('system.pages.seats') }}
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -135,10 +138,34 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-sort-value="{{ $car->schedule->schedule_date ?? '' }}">
                             {{ $car->schedule->schedule_date ? \Carbon\Carbon::parse($car->schedule->schedule_date)->format('d M Y') : 'N/A' }}
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            @php
+                                $seatMap = $car->booked_seat_map ?? [];
+                                $bookedCount = count($seatMap);
+                                $totalSeats = (int) ($car->total_seats ?? 0);
+                                $availableCount = max(0, $totalSeats - $bookedCount);
+                            @endphp
+                            <button type="button"
+                                class="view-seats-btn inline-flex items-center px-3 py-1.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-md text-xs font-medium hover:bg-indigo-100 transition"
+                                data-bus-number="{{ $car->bus_number }}"
+                                data-company="{{ $car->campany->name ?? '' }}"
+                                data-route="{{ $car->schedule->from }} → {{ $car->schedule->to }}"
+                                data-date="{{ $car->schedule->schedule_date ? \Carbon\Carbon::parse($car->schedule->schedule_date)->format('d M Y') : 'N/A' }}"
+                                data-total-seats="{{ $totalSeats }}"
+                                data-booked-count="{{ $bookedCount }}"
+                                data-available-count="{{ $availableCount }}"
+                                data-layout="{{ e($car->seate_json ?? '') }}"
+                                data-booked-seats="{{ e(json_encode($seatMap)) }}">
+                                <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 7a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2" />
+                                </svg>
+                                {{ __('system.pages.view_seats') }}
+                            </button>
+                        </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="px-6 py-12 text-center">
+                        <td colspan="9" class="px-6 py-12 text-center">
                             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                             </svg>
@@ -162,6 +189,8 @@
         </div>
     </div>
 </div>
+
+@include('partials.seat_arrangement_modal')
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

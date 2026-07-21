@@ -86,6 +86,7 @@ return [
     'excess_luggage' => 'Excess Luggage (Max :dimensions, :weight, Fee: :fee)',
     'excess_luggage_description' => 'Excess Luggage Description',
     'e_g_1_extra_bag_large_box' => 'e.g., 1 extra bag, large box',
+    'estimated_weight_kg' => 'Estimated Weight (kg)',
     'age_group' => 'Age Group',
     'adult' => 'Adult',
     'child' => 'Child',

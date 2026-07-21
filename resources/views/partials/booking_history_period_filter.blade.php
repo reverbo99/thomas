@@ -6,6 +6,9 @@
     $resetUrl = $resetUrl ?? $formAction;
     $variant = $variant ?? 'default';
     $extraFields = $extraFields ?? [];
+    // Optional extra visible filter inputs rendered inside this same form, e.g.
+    // [['name' => 'bus_name', 'type' => 'text', 'label' => 'Bus name', 'value' => request('bus_name')]]
+    $columnFilters = $columnFilters ?? [];
     $isVendor = $variant === 'vendor';
     // Allow callers that place the filter on a coloured header to override the
     // label colour so the labels stay legible (e.g. white text on a teal card).
@@ -52,6 +55,14 @@
         <label for="historyEndDate" class="text-xs font-medium {{ $labelClass }}">{{ __('system.common.end_date') }}</label>
         <input type="date" name="end_date" id="historyEndDate" value="{{ $endDate }}" class="{{ $dateClass }}">
     </div>
+
+    @foreach ($columnFilters as $filter)
+        <div class="flex flex-col gap-1">
+            <label for="colFilter_{{ $filter['name'] }}" class="text-xs font-medium {{ $labelClass }}">{{ $filter['label'] }}</label>
+            <input type="{{ $filter['type'] ?? 'text' }}" name="{{ $filter['name'] }}" id="colFilter_{{ $filter['name'] }}"
+                   value="{{ $filter['value'] ?? '' }}" placeholder="{{ $filter['label'] }}" class="{{ $dateClass }}">
+        </div>
+    @endforeach
 
     <button type="submit" class="{{ $btnClass }}">{{ __('system.pages.apply_filter') }}</button>
     <a href="{{ $resetUrl }}" class="{{ $resetClass }}">{{ __('system.pages.reset') }}</a>

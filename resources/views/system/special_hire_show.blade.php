@@ -47,7 +47,7 @@
                     <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                 @enderror
             </div>
-            <button type="submit" class="w-full max-w-xs px-4 py-2.5 rounded-lg bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-sm">
+            <button type="submit" class="inline-flex items-center justify-center w-full max-w-xs px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                 Save platform commission
             </button>
         </form>
@@ -233,6 +233,7 @@
                         <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Total</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Payment</th>
                         <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Order</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">{{ __('system.pages.manifest') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -256,9 +257,20 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 capitalize text-xs text-gray-700">{{ str_replace('_', ' ', $o->order_status) }}</td>
+                            <td class="px-4 py-3 text-xs whitespace-nowrap">
+                                <div class="flex flex-col gap-1">
+                                    <a href="{{ route('system.special_hire.order.passengers.edit', $o->id) }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ __('system.pages.manage_passengers') }}</a>
+                                    <a href="{{ route('system.special_hire.order.manifest.pdf', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.manifest') }}</a>
+                                    <a href="{{ route('system.special_hire.order.receipt.customer', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.customer_receipt') }}</a>
+                                    <a href="{{ route('system.special_hire.order.receipt.commission', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.commission_receipt') }}</a>
+                                    @unless(in_array($o->order_status, ['completed', 'cancelled'], true))
+                                        <a href="{{ route('system.special_hire.order.transfer.edit', $o->id) }}" class="text-amber-600 hover:text-amber-800">{{ __('system.pages.transfer_order') }}</a>
+                                    @endunless
+                                </div>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">{{ __('system.pages.no_hire_orders_account') }}</td></tr>
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">{{ __('system.pages.no_hire_orders_account') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -109,11 +109,12 @@
                     <tr>
                         <th style="width: 2%;">#</th>
                         <th style="width: 5%;">Seat</th>
-                        <th style="width: 9%;">Route</th>
-                        <th style="width: 9%;">Name</th>
+                        <th style="width: 7%;">Route</th>
+                        <th style="width: 8%;">Name</th>
                         <th style="width: 2%;">Sex</th>
                         <th style="width: 7%;">Phone</th>
                         <th style="width: 4%;">Type</th>
+                        <th style="width: 3%;">Infant</th>
                         <th style="width: 4%;">ID Type</th>
                         <th style="width: 5%;">Id no</th>
                         <th style="width: 8%;">PNR</th>
@@ -137,6 +138,7 @@
                             <td class="text-center">{{ $booking['gender_code'] ?? '' }}</td>
                             <td>{{ $booking['customer_phone'] ?? '' }}</td>
                             <td>{{ $booking['passenger_type'] ?? 'Adult' }}</td>
+                            <td class="text-center">{{ !empty($booking['infant_child']) ? 'Yes' : 'No' }}</td>
                             <td>{{ $booking['id_type'] ?? '' }}</td>
                             <td>{{ $booking['id_number'] ?? '' }}</td>
                             <td>{{ $booking['booking_code'] ?? '' }}</td>

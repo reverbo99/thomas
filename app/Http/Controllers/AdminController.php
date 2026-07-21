@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use App\Models\Setting; // Added this line
 use App\Services\FareFormulaService;
-use Milon\Barcode\DNS2D;
+use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 use PhpParser\Node\Expr\FuncCall;
 use Yoeunes\Toastr\Toastr;
 
@@ -620,6 +620,8 @@ $q->where('id', auth()->user()->campany->id);
             $period = 'custom';
         }
 
+        apply_booking_history_column_filters($query, $request);
+
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();
 
         $totalPayment = 0;
@@ -630,7 +632,10 @@ $q->where('id', auth()->user()->campany->id);
             $totalPayment += (float)($b->amount ?? 0) + (float)($b->vat ?? 0);
             $totalDiscount += (float)($b->discount_amount ?? 0);
             $totalVAT += (float)($b->vat ?? 0);
-            $grandTotal += round((float)($b->fee ?? 0) + (float)($b->vender_fee ?? 0) + (float)($b->amount ?? 0) + (float)($b->vat ?? 0) + (float)($b->fee_vat ?? 0));
+            // Grand total is the gross bus fare (bookings.busFee) — the same
+            // value shown per-row — not fare + commission + VAT stacked on top,
+            // which previously inflated this figure (e.g. 38,000 instead of 36,000).
+            $grandTotal += round((float) ($b->busFee ?? 0));
         }
 
         return view('controller.history', compact('bookings', 'totalPayment', 'totalDiscount', 'totalVAT', 'grandTotal', 'period', 'startDate', 'endDate'));
@@ -818,6 +823,12 @@ $q->where('id', auth()->user()->campany->id);
             ->orderBy('schedule_date', 'asc')
             ->orderBy('start', 'asc')
             ->get();
+
+        // Booked seats per schedule for the seat-arrangement modal.
+        $seatMaps = schedule_seat_maps($schedules);
+        foreach ($schedules as $schedule) {
+            $schedule->booked_seat_map = $seatMaps[$schedule->id] ?? [];
+        }
 
         return view('controller.schedules', compact('schedules'));
     }
@@ -1268,10 +1279,8 @@ $q->where('id', auth()->user()->campany->id);
             $data = $payload;
         }
 
-        $dns2d = new DNS2D();
-
         // Generate as HTML (easiest for Blade)
-        $qrCode = $dns2d->getBarcodeHTML($data->booking_code, 'QRCODE', 6, 6, 'blue');
+        $qrCode = DNS2D::getBarcodeHTML($data->booking_code, 'QRCODE', 6, 6, 'blue');
 
         $data->qrcode = $qrCode;
 
@@ -1497,14 +1506,25 @@ $q->where('id', auth()->user()->campany->id);
     public function getFilteredSchedules(Request $request)
     {
         $busId = $request->input('bus_id');
+        // travel_date is optional: when omitted, every upcoming schedule for the
+        // bus is returned so the caller can pick a schedule first and derive the
+        // travel date from it (used by the transfer-booking form, where forcing
+        // the user to guess a date the target bus actually runs on left the
+        // schedule dropdown empty with no explanation).
         $travelDate = $request->input('travel_date');
 
-        if (!$busId || !$travelDate) {
+        if (!$busId) {
             return response()->json([], 400);
         }
 
-        $schedules = Schedule::where('bus_id', $busId)
-                             ->whereDate('schedule_date', $travelDate)
+        $query = Schedule::where('bus_id', $busId);
+        if ($travelDate) {
+            $query->whereDate('schedule_date', $travelDate);
+        } else {
+            $query->where('schedule_date', '>=', Carbon::today()->format('Y-m-d'));
+        }
+
+        $schedules = $query->orderBy('schedule_date')
                              ->orderBy('start')
                              ->get()
                              ->unique('id')
@@ -1571,6 +1591,116 @@ $q->where('id', auth()->user()->campany->id);
             'new_campany_id' => $newBus->campany->id,
             'new_route_id' => $newBus->route->id,
         ]);
+    }
+
+    /**
+     * Record (or clear) an excess-luggage charge on an already-existing paid
+     * booking. Until now excess luggage could only be declared by the
+     * customer/vendor at the moment of booking — there was no way to add it
+     * later (e.g. a conductor finds extra luggage at boarding). Reuses the
+     * same has_excess_luggage/excess_luggage_fee/excess_luggage_description
+     * columns already read everywhere else (system income, government levy,
+     * manifest), so no other reporting code needs to change.
+     */
+    public function updateExcessLuggage(Request $request, $bookingId)
+    {
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return back()->with('error', __('vender/earning.no_company_account'));
+        }
+
+        $booking = Booking::whereHas('bus', function ($q) use ($companyId) {
+            $q->where('campany_id', $companyId);
+        })->find($bookingId);
+
+        if (!$booking) {
+            return back()->with('error', __('vender/transfer.booking_not_found_or_unauthorized'));
+        }
+
+        $request->validate([
+            'luggage_action' => 'required|in:set,remove',
+            'excess_luggage_fee' => 'required_if:luggage_action,set|nullable|numeric|min:0',
+            'excess_luggage_description' => 'nullable|string|max:500',
+            'actual_weight' => 'nullable|numeric|min:0',
+            'actual_length' => 'nullable|numeric|min:0',
+            'actual_height' => 'nullable|numeric|min:0',
+            'actual_width' => 'nullable|numeric|min:0',
+            'luggage_refund_amount' => 'nullable|numeric',
+        ]);
+
+        if ($request->luggage_action === 'remove') {
+            $booking->update([
+                'has_excess_luggage' => 0,
+                'excess_luggage_fee' => 0,
+                'excess_luggage_description' => null,
+                'actual_weight' => null,
+                'actual_length' => null,
+                'actual_height' => null,
+                'actual_width' => null,
+                'luggage_refund_amount' => null,
+            ]);
+
+            return back()->with('success', __('vender/luggage.removed_success'));
+        }
+
+        $booking->update([
+            'has_excess_luggage' => 1,
+            'excess_luggage_fee' => $request->excess_luggage_fee,
+            'excess_luggage_description' => $request->excess_luggage_description,
+            // actual_weight/length/height/width are recorded here at the weigh-in step; estimated_weight
+            // was already declared by the customer/vendor at booking time and is
+            // left untouched. luggage_refund_amount is a manual figure staff can
+            // note after comparing the two — the flat fee itself is never recalculated.
+            'actual_weight' => $request->actual_weight,
+            'actual_length' => $request->actual_length,
+            'actual_height' => $request->actual_height,
+            'actual_width' => $request->actual_width,
+            'luggage_refund_amount' => $request->luggage_refund_amount,
+        ]);
+
+        return back()->with('success', __('vender/luggage.saved_success'));
+    }
+
+    /**
+     * Standalone excess-luggage receipt — separate from the main bus ticket,
+     * covering the weigh-in reconciliation (estimated vs actual weight) that
+     * the ticket itself has no room for. Reuses the same TRA/QR fields and
+     * busOwnerAccount header already proven on print.ticket.
+     */
+    public function printExcessLuggageReceipt($bookingId)
+    {
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return back()->with('error', __('vender/earning.no_company_account'));
+        }
+
+        $booking = Booking::with(['bus.campany.busOwnerAccount', 'campany.busOwnerAccount'])
+            ->whereHas('bus', function ($q) use ($companyId) {
+                $q->where('campany_id', $companyId);
+            })
+            ->find($bookingId);
+
+        if (!$booking) {
+            return back()->with('error', __('vender/transfer.booking_not_found_or_unauthorized'));
+        }
+
+        $busOwnerAccount = optional($booking->bus->campany ?? $booking->campany)->busOwnerAccount;
+        $busCompany = $booking->bus->campany ?? $booking->campany;
+
+        $traQrCode = null;
+        if (!empty($booking->tra_qr_url)) {
+            $traQrPng = DNS2D::getBarcodePNG($booking->tra_qr_url, 'QRCODE', 4, 4, [0, 0, 0]);
+            $traQrCode = $traQrPng
+                ? '<img src="data:image/png;base64,' . $traQrPng . '" alt="TRA QR" width="68" height="68">'
+                : null;
+        }
+
+        $pdf = Pdf::loadView('print.excess_luggage_receipt', compact('booking', 'busOwnerAccount', 'busCompany', 'traQrCode'));
+        $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
+
+        return $pdf->stream('excess-luggage-receipt-' . $booking->booking_code . '.pdf');
     }
 
     public function busOwnerParcels()

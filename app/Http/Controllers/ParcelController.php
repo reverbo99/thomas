@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Parcel;
 use App\Models\bus;
+use App\Services\TraVfdService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 
 class ParcelController extends Controller
 {
@@ -67,9 +71,17 @@ class ParcelController extends Controller
             'weight' => 'nullable|numeric|min:0',
             'height' => 'nullable|numeric|min:0',
             'width' => 'nullable|numeric|min:0',
+            'length' => 'nullable|numeric|min:0',
+            'sender_name' => 'required|string',
+            'sender_contact' => 'required|string',
+            'parcel_instructions' => 'required|in:collection,delivery',
+            'receiver_name' => 'required|string',
+            'receiver_contact_1' => 'required|string',
+            'receiver_contact_2' => 'nullable|string',
+            'receiver_delivery_address' => 'required|string',
         ]);
 
-        Parcel::create([
+        $parcel = Parcel::create([
             'bus_id' => $request->bus_id,
             'parcel_number' => $request->parcel_number,
             'parcel_type' => $request->parcel_type,
@@ -78,11 +90,51 @@ class ParcelController extends Controller
             'weight' => $request->weight,
             'height' => $request->height,
             'width' => $request->width,
+            'length' => $request->length,
             'status' => 'pending',
             'vender_id' => auth()->id(),
+            'sender_name' => $request->sender_name,
+            'sender_contact' => $request->sender_contact,
+            'parcel_instructions' => $request->parcel_instructions,
+            'receiver_name' => $request->receiver_name,
+            'receiver_contact_1' => $request->receiver_contact_1,
+            'receiver_contact_2' => $request->receiver_contact_2,
+            'receiver_delivery_address' => $request->receiver_delivery_address,
         ]);
 
+        (new TraVfdService())->fiscalize($parcel->refresh());
+
         return redirect()->route('vender.parcels.index')->with('success', __('vender/parcels.parcel_added_success'));
+    }
+
+    public function print($id)
+    {
+        $user = Auth::user();
+
+        $parcel = Parcel::with(['bus.campany.busOwnerAccount', 'bus.schedule', 'vender'])->findOrFail($id);
+
+        $ownsAsVendor = $parcel->vender_id === $user->id;
+        $ownsAsBusOwner = $user->campany && $parcel->bus && $parcel->bus->campany_id === $user->campany->id;
+
+        if (!$ownsAsVendor && !$ownsAsBusOwner) {
+            abort(403);
+        }
+
+        $busCompany = $parcel->bus->campany ?? null;
+        $busOwnerAccount = $busCompany->busOwnerAccount ?? null;
+
+        $traQrCode = null;
+        if (!empty($parcel->tra_qr_url)) {
+            $traQrPng = DNS2D::getBarcodePNG($parcel->tra_qr_url, 'QRCODE', 4, 4, [0, 0, 0]);
+            $traQrCode = $traQrPng
+                ? '<img src="data:image/png;base64,' . $traQrPng . '" alt="TRA QR" width="68" height="68">'
+                : null;
+        }
+
+        $pdf = Pdf::loadView('print.parcel_receipt', compact('parcel', 'busCompany', 'busOwnerAccount', 'traQrCode'));
+        $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
+
+        return $pdf->stream('parcel-receipt-' . $parcel->parcel_number . '.pdf');
     }
 
     public function updateStatus(Request $request, $id)

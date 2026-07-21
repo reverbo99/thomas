@@ -3,6 +3,7 @@
 return [
     'withdrawal_marked' => 'Withdrawal request marked as :status.',
     'platform_percent_saved' => 'Platform percentage for this operator has been saved.',
+    'passengers_saved' => 'Passenger list has been saved.',
     'transaction_completed' => 'Transaction marked as completed.',
     'transaction_cancelled' => 'Transaction cancelled.',
     'transaction_cancel_failed' => 'Failed to cancel transaction. Please try again.',

@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'excess_luggage' => 'Mzigo wa Ziada',
+    'add_edit_excess_luggage' => 'Ongeza/Hariri Mzigo wa Ziada',
+    'excess_luggage_fee' => 'Ada',
+    'excess_luggage_description' => 'Maelezo (si lazima)',
+    'excess_luggage_description_placeholder' => 'mfano: mfuko wa ziada, baiskeli, sanduku',
+    'save' => 'Hifadhi',
+    'remove' => 'Ondoa',
+    'cancel' => 'Ghairi',
+    'saved_success' => 'Ada ya mzigo wa ziada imehifadhiwa.',
+    'removed_success' => 'Ada ya mzigo wa ziada imeondolewa.',
+    'confirm_remove' => 'Ondoa ada ya mzigo wa ziada kutoka kwenye uhifadhi huu?',
+    'weigh_in_section' => 'Upatanisho wa Kupima Uzito',
+    'estimated_weight' => 'Uzito uliokadiriwa (na mteja)',
+    'actual_weight' => 'Uzito halisi (kg)',
+    'actual_length' => 'Urefu halisi (cm)',
+    'actual_height' => 'Kimo halisi (cm)',
+    'actual_width' => 'Upana halisi (cm)',
+    'not_declared' => 'Haujaandikwa',
+    'refund_payment_amount' => 'Kiasi cha marejesho / malipo ya ziada',
+    'refund_payment_hint' => 'Si lazima. Chanya = kiasi cha ziada kilichokusanywa kutoka kwa abiria, hasi = kiasi kilichorejeshwa. Ada ya mzigo wa ziada hapo juu haitabadilika kiotomatiki.',
+    'print_receipt' => 'Chapisha Risiti ya Mzigo wa Ziada',
+];

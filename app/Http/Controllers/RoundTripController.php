@@ -1283,6 +1283,8 @@ class RoundTripController extends Controller
         $bus_info['cancel_key'] = $request->key ?? '';
         $bus_info['has_excess_luggage'] = $request->excess_luggage ?? 0;
         $bus_info['excess_luggage_fee'] = 0; // Initialize to 0
+        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null;
+        $bus_info['estimated_weight'] = $request->estimated_weight ?? null;
         session()->put('booking_form', $bus_info);
 
         $insuranceError = process_booking_insurance_input($request, $bus_info);
@@ -1617,6 +1619,8 @@ class RoundTripController extends Controller
                 'schedule_id' => $firstBookingData['schedule_id'],
                 'has_excess_luggage' => $firstBookingData['has_excess_luggage'],
                 'excess_luggage_fee' => $firstBookingData['excess_luggage_fee'],
+                'excess_luggage_description' => $firstBookingData['excess_luggage_description'] ?? null,
+                'estimated_weight' => $firstBookingData['estimated_weight'] ?? null,
             ];
             if ($firstBookingData['bima'] == 1) {
                 $bookingData1['bima_amount'] = $firstBookingData['bima_amount'];
@@ -1669,6 +1673,8 @@ class RoundTripController extends Controller
                 'schedule_id' => $secondBookingData['schedule_id'],
                 'has_excess_luggage' => $secondBookingData['has_excess_luggage'],
                 'excess_luggage_fee' => $secondBookingData['excess_luggage_fee'],
+                'excess_luggage_description' => $secondBookingData['excess_luggage_description'] ?? null,
+                'estimated_weight' => $secondBookingData['estimated_weight'] ?? null,
             ];
             if ($secondBookingData['bima'] == 1) {
                 $bookingData2['bima_amount'] = $secondBookingData['bima_amount'];
@@ -2038,6 +2044,8 @@ class RoundTripController extends Controller
             'schedule_id' => $firstBookingData['schedule_id'],
             'has_excess_luggage' => $firstBookingData['has_excess_luggage'],
             'excess_luggage_fee' => $firstBookingData['excess_luggage_fee'],
+            'excess_luggage_description' => $firstBookingData['excess_luggage_description'] ?? null,
+            'estimated_weight' => $firstBookingData['estimated_weight'] ?? null,
             'transaction_ref_id' => $isResave ? $roundResaveRef : $xcode1,
             'payment_method' => 'test_mode',
         ];
@@ -2080,6 +2088,8 @@ class RoundTripController extends Controller
             'schedule_id' => $secondBookingData['schedule_id'],
             'has_excess_luggage' => $secondBookingData['has_excess_luggage'],
             'excess_luggage_fee' => $secondBookingData['excess_luggage_fee'],
+            'excess_luggage_description' => $secondBookingData['excess_luggage_description'] ?? null,
+            'estimated_weight' => $secondBookingData['estimated_weight'] ?? null,
             'transaction_ref_id' => $isResave ? $roundResaveRef : $xcode2,
             'payment_method' => 'test_mode',
         ];

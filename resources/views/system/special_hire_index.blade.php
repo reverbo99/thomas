@@ -80,6 +80,8 @@
                                 <th class="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Contact</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Coasters</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Orders</th>
+                                <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">{{ __('system.pages.total_amount_paid') }}</th>
+                                <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">{{ __('system.pages.commission_fees') }}</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Platform commission %</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs"></th>
                             </tr>
@@ -92,6 +94,8 @@
                                     <td class="px-4 py-3 text-gray-600">{{ $owner->contact ?? $owner->phone ?? '—' }}</td>
                                     <td class="px-4 py-3 text-right text-gray-900">{{ number_format($owner->coasters_count) }}</td>
                                     <td class="px-4 py-3 text-right text-gray-900">{{ number_format($owner->special_hire_orders_count) }}</td>
+                                    <td class="px-4 py-3 text-right text-gray-900">{{ $currency }} {{ convert_money($owner->revenue_paid_sum ?? 0) }}</td>
+                                    <td class="px-4 py-3 text-right text-gray-900">{{ $currency }} {{ convert_money($owner->commission_paid_sum ?? 0) }}</td>
                                     <td class="px-4 py-3 text-right">
                                         <form action="{{ route('system.special_hire.platform_percent', $owner->id) }}" method="post" class="inline-flex flex-wrap items-center justify-end gap-2">
                                             @csrf
@@ -112,7 +116,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="px-4 py-10 text-center text-gray-500">{{ __('system.pages.no_special_hire_accounts') }}</td></tr>
+                                <tr><td colspan="9" class="px-4 py-10 text-center text-gray-500">{{ __('system.pages.no_special_hire_accounts') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>

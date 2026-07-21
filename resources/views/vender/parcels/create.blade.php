@@ -62,10 +62,14 @@
 
             <div class="vendor-parcel-form-card__section">
                 <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.dimensions_weight') }}</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div class="vendor-form-field">
                         <label for="weight">{{ __('vender/parcels.weight_kg') }}</label>
                         <input type="number" name="weight" id="weight" step="0.01" value="{{ old('weight') }}" class="page-input" placeholder="0.00">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="length">{{ __('vender/parcels.length_cm') }}</label>
+                        <input type="number" name="length" id="length" step="0.01" value="{{ old('length') }}" class="page-input" placeholder="0.00">
                     </div>
                     <div class="vendor-form-field">
                         <label for="height">{{ __('vender/parcels.height_cm') }}</label>
@@ -74,6 +78,50 @@
                     <div class="vendor-form-field">
                         <label for="width">{{ __('vender/parcels.width_cm') }}</label>
                         <input type="number" name="width" id="width" step="0.01" value="{{ old('width') }}" class="page-input" placeholder="0.00">
+                    </div>
+                </div>
+            </div>
+
+            <div class="vendor-parcel-form-card__section">
+                <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.sender_details') }}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="vendor-form-field">
+                        <label for="sender_name">{{ __('vender/parcels.sender_name') }}</label>
+                        <input type="text" name="sender_name" id="sender_name" value="{{ old('sender_name') }}" required class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="sender_contact">{{ __('vender/parcels.sender_contact') }}</label>
+                        <input type="text" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" required class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="parcel_instructions">{{ __('vender/parcels.parcel_instructions') }}</label>
+                        <select name="parcel_instructions" id="parcel_instructions" required class="page-input">
+                            <option value="" disabled {{ old('parcel_instructions') ? '' : 'selected' }}>{{ __('vender/parcels.select_instructions') }}</option>
+                            <option value="collection" {{ old('parcel_instructions') == 'collection' ? 'selected' : '' }}>{{ __('vender/parcels.instructions_collection') }}</option>
+                            <option value="delivery" {{ old('parcel_instructions') == 'delivery' ? 'selected' : '' }}>{{ __('vender/parcels.instructions_delivery') }}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="vendor-parcel-form-card__section">
+                <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.receiver_details') }}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="vendor-form-field">
+                        <label for="receiver_name">{{ __('vender/parcels.receiver_name') }}</label>
+                        <input type="text" name="receiver_name" id="receiver_name" value="{{ old('receiver_name') }}" required class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="receiver_contact_1">{{ __('vender/parcels.receiver_contact_1') }}</label>
+                        <input type="text" name="receiver_contact_1" id="receiver_contact_1" value="{{ old('receiver_contact_1') }}" required class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="receiver_contact_2">{{ __('vender/parcels.receiver_contact_2') }}</label>
+                        <input type="text" name="receiver_contact_2" id="receiver_contact_2" value="{{ old('receiver_contact_2') }}" class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="receiver_delivery_address">{{ __('vender/parcels.receiver_delivery_address') }}</label>
+                        <input type="text" name="receiver_delivery_address" id="receiver_delivery_address" value="{{ old('receiver_delivery_address') }}" required class="page-input">
                     </div>
                 </div>
             </div>

@@ -40,6 +40,13 @@ class Booking extends Model
         'age_group',
         'has_excess_luggage',
         'excess_luggage_fee',
+        'excess_luggage_description',
+        'estimated_weight',
+        'actual_weight',
+        'actual_length',
+        'actual_height',
+        'actual_width',
+        'luggage_refund_amount',
         'mfs_id',
         'verification_code',
         ////////

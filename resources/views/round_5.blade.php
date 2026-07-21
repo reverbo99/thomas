@@ -144,6 +144,12 @@
                                                     <input type="text" name="excess_luggage_description" id="excess_luggage_description"
                                                            class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                            placeholder="e.g., 1 extra bag, large box">
+                                                    <label for="estimated_weight" class="block text-sm font-medium text-gray-700 mb-1 mt-2">
+                                                        {{ __('customer/busroot.estimated_weight_kg') }}
+                                                    </label>
+                                                    <input type="number" step="0.1" min="0" name="estimated_weight" id="estimated_weight"
+                                                           class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                           placeholder="20">
                                                 </div>
                                                 <!-- Age Group -->
                                                 <div>

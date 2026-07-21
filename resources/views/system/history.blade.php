@@ -58,6 +58,30 @@
                             <option value="phone" @selected(($channelFilter ?? '') === 'phone')>{{ __('all.sales_channel_phone') }}</option>
                         </select>
                     </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="filterBusName" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_bus_name') }}</label>
+                        <input type="text" name="bus_name" id="filterBusName" value="{{ request('bus_name') }}" placeholder="{{ __('system.pages.filter_bus_name') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="filterBusNumber" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_plate_number') }}</label>
+                        <input type="text" name="bus_number" id="filterBusNumber" value="{{ request('bus_number') }}" placeholder="{{ __('system.pages.filter_plate_number') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="filterDepartureDate" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_departure_date') }}</label>
+                        <input type="date" name="departure_date" id="filterDepartureDate" value="{{ request('departure_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="filterDepartureTime" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_departure_time') }}</label>
+                        <input type="time" name="departure_time" id="filterDepartureTime" value="{{ request('departure_time') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="filterDriver" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_driver') }}</label>
+                        <input type="text" name="driver" id="filterDriver" value="{{ request('driver') }}" placeholder="{{ __('system.pages.filter_driver') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label for="filterConductor" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_conductor') }}</label>
+                        <input type="text" name="conductor" id="filterConductor" value="{{ request('conductor') }}" placeholder="{{ __('system.pages.filter_conductor') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                    </div>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">{{ __('system.pages.apply_filter') }}</button>
                     <a href="{{ route('system.history') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">{{ __('system.pages.reset') }}</a>
                 </form>

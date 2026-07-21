@@ -1094,6 +1094,121 @@ if (!function_exists('booking_to_report_row')) {
     }
 }
 
+if (!function_exists('schedule_seat_maps')) {
+    /**
+     * Build a booked-seat map for a set of schedules, keyed by schedule id.
+     *
+     * Each value is an array of `seat label => passenger name` for that
+     * schedule's bus on its travel date. Matches the customer seat-selection
+     * logic: seats are a comma-separated list on Paid/Reserved/resaved bookings.
+     *
+     * @param  iterable  $schedules  Schedules with a loaded `bus` relation.
+     * @return array<int, array<string, string>>
+     */
+    function schedule_seat_maps($schedules): array
+    {
+        $schedules = collect($schedules);
+
+        $busIds = $schedules->pluck('bus_id')->filter()->unique()->values();
+        $dates = $schedules
+            ->pluck('schedule_date')
+            ->filter()
+            ->map(fn ($date) => \Carbon\Carbon::parse($date)->format('Y-m-d'))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($busIds->isEmpty() || empty($dates)) {
+            return [];
+        }
+
+        $grouped = \App\Models\Booking::whereIn('bus_id', $busIds)
+            ->whereIn('travel_date', $dates)
+            ->whereIn('payment_status', ['Paid', 'Reserved', 'resaved'])
+            ->get(['bus_id', 'travel_date', 'seat', 'customer_name'])
+            ->groupBy(fn ($booking) => $booking->bus_id . '|' . \Carbon\Carbon::parse($booking->travel_date)->format('Y-m-d'));
+
+        $maps = [];
+        foreach ($schedules as $schedule) {
+            $bus = $schedule->bus ?? null;
+            if (!$bus) {
+                continue;
+            }
+
+            $date = $schedule->schedule_date ? \Carbon\Carbon::parse($schedule->schedule_date)->format('Y-m-d') : null;
+            $key = $bus->id . '|' . $date;
+
+            $seatMap = [];
+            foreach (($grouped->get($key) ?? collect()) as $booking) {
+                foreach (explode(',', (string) $booking->seat) as $seat) {
+                    $seat = trim($seat);
+                    if ($seat !== '') {
+                        $seatMap[$seat] = $booking->customer_name ?? '';
+                    }
+                }
+            }
+            $maps[$schedule->id] = $seatMap;
+        }
+
+        return $maps;
+    }
+}
+
+if (!function_exists('apply_booking_history_column_filters')) {
+    /**
+     * Filter a booking history query by bus name, plate number, departure
+     * date/time, driver name and conductor name. Each is optional and applied
+     * only when present, so it composes with date-range and channel filters.
+     * Shared by the admin (system) and bus-owner booking history pages.
+     */
+    function apply_booking_history_column_filters($query, $request): void
+    {
+        if ($request->filled('bus_name')) {
+            $busName = $request->bus_name;
+            $query->whereHas('bus.busname', function ($q) use ($busName) {
+                $q->where('name', 'like', "%{$busName}%");
+            });
+        }
+
+        if ($request->filled('bus_number')) {
+            $busNumber = $request->bus_number;
+            $query->whereHas('bus', function ($q) use ($busNumber) {
+                $q->where('bus_number', 'like', "%{$busNumber}%");
+            });
+        }
+
+        if ($request->filled('driver')) {
+            $driver = $request->driver;
+            $query->whereHas('bus', function ($q) use ($driver) {
+                $q->where('driver_name', 'like', "%{$driver}%")
+                    ->orWhere('driver_name_2', 'like', "%{$driver}%");
+            });
+        }
+
+        if ($request->filled('conductor')) {
+            $conductor = $request->conductor;
+            $query->whereHas('bus', function ($q) use ($conductor) {
+                $q->where('conductor_name', 'like', "%{$conductor}%")
+                    ->orWhere('conductor', 'like', "%{$conductor}%");
+            });
+        }
+
+        if ($request->filled('departure_date')) {
+            $departureDate = $request->departure_date;
+            $query->whereHas('schedule', function ($q) use ($departureDate) {
+                $q->whereDate('schedule_date', $departureDate);
+            });
+        }
+
+        if ($request->filled('departure_time')) {
+            $departureTime = $request->departure_time;
+            $query->whereHas('schedule', function ($q) use ($departureTime) {
+                $q->where('start', 'like', "%{$departureTime}%");
+            });
+        }
+    }
+}
+
 if (!function_exists('apply_booking_history_date_filter')) {
     /**
      * Apply booking history period or custom date range to a query.

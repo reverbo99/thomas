@@ -53,6 +53,28 @@
                                      <td class="px-4 py-3">{{ $schedule->schedule_date }}</td>
                                      <td class="px-4 py-3">
                                          <div class="flex gap-2">
+                                             @php
+                                                 $seatMap = $schedule->booked_seat_map ?? [];
+                                                 $bookedCount = count($seatMap);
+                                                 $totalSeats = (int) ($schedule->bus->total_seats ?? 0);
+                                                 $availableCount = max(0, $totalSeats - $bookedCount);
+                                             @endphp
+                                             <button type="button"
+                                                 class="view-seats-btn inline-flex items-center px-3 py-1 bg-indigo-100 text-indigo-600 rounded-md hover:bg-indigo-200 transition-colors"
+                                                 aria-label="{{ __('system.pages.view_seats') }}"
+                                                 data-bus-number="{{ $schedule->bus->bus_number ?? '' }}"
+                                                 data-company="{{ $schedule->bus->busname->name ?? '' }}"
+                                                 data-route="{{ $schedule->from }} → {{ $schedule->to }}"
+                                                 data-date="{{ $schedule->schedule_date }}"
+                                                 data-total-seats="{{ $totalSeats }}"
+                                                 data-booked-count="{{ $bookedCount }}"
+                                                 data-available-count="{{ $availableCount }}"
+                                                 data-layout="{{ e($schedule->bus->seate_json ?? '') }}"
+                                                 data-booked-seats="{{ e(json_encode($seatMap)) }}">
+                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 7a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2" />
+                                                 </svg>
+                                             </button>
                                              <a href="{{ route('edit.schedule', $schedule->id) }}"
                                                  class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-600 rounded-md hover:bg-yellow-200 transition-colors"
                                                  aria-label="{{ __('vender/schedule.edit_schedule') }}">
@@ -186,4 +208,6 @@
              closeModalBtn.addEventListener('click', () => modal.close());
          });
      </script>
+
+     @include('partials.seat_arrangement_modal')
  @endsection

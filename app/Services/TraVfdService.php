@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Parcel;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -43,24 +44,26 @@ class TraVfdService
     }
 
     /**
-     * Main entry point to fiscalize a booking
+     * Main entry point to fiscalize a booking or a parcel
+     *
+     * @param Booking|Parcel $model
      */
-    public function fiscalize(Booking $booking)
+    public function fiscalize($model)
     {
         try {
             if (!config('tra.enabled', true)) {
                 if ($this->shouldMockFiscalization()) {
-                    return $this->applyMockFiscalization($booking);
+                    return $this->applyMockFiscalization($model);
                 }
                 return true;
             }
 
-            if ($booking->tra_status === 'success') {
+            if ($model->tra_status === 'success') {
                 return true;
             }
 
             if ($this->shouldMockFiscalization()) {
-                return $this->applyMockFiscalization($booking);
+                return $this->applyMockFiscalization($model);
             }
 
             // 1. Ensure we have valid token and config
@@ -72,7 +75,7 @@ class TraVfdService
             $dc = $this->getDailyCounter($state);
 
             // 3. Construct XML
-            $xml = $this->buildReceiptXml($booking, $state, $rctNum, $dc);
+            $xml = $this->buildReceiptXml($model, $state, $rctNum, $dc);
 
             // 4. Sign Payload
             $signedXml = $this->signPayload($xml, 'RCT');
@@ -81,16 +84,40 @@ class TraVfdService
             $response = $this->sendReceiptRequest($signedXml, $state);
 
             // 6. Process Response
-            return $this->handleReceiptResponse($response, $booking, $state, $rctNum, $dc);
+            return $this->handleReceiptResponse($response, $model, $state, $rctNum, $dc);
 
         } catch (Exception $e) {
-            Log::error("TRA Fiscalization Error (Booking {$booking->id}): " . $e->getMessage());
+            Log::error("TRA Fiscalization Error (" . class_basename($model) . " {$model->id}): " . $e->getMessage());
             if ($this->shouldMockFiscalization()) {
-                return $this->applyMockFiscalization($booking);
+                return $this->applyMockFiscalization($model);
             }
-            $booking->update(['tra_status' => 'failed', 'tra_error' => $e->getMessage()]);
+            $model->update(['tra_status' => 'failed', 'tra_error' => $e->getMessage()]);
             return false;
         }
+    }
+
+    /**
+     * Extract the customer/amount/description fields used to build the TRA
+     * receipt XML, since Booking and Parcel model different real-world parties
+     * (passenger vs sender) under different column names.
+     */
+    protected function resolveFiscalData($model): array
+    {
+        if ($model instanceof Parcel) {
+            return [
+                'amount' => $model->amount_paid,
+                'customer_name' => $model->sender_name ?: 'Customer',
+                'customer_phone' => $model->sender_contact,
+                'description' => 'Parcel Shipment ' . $model->parcel_number,
+            ];
+        }
+
+        return [
+            'amount' => $model->amount,
+            'customer_name' => $model->customer_name ?: 'Costumer',
+            'customer_phone' => $model->customer_phone,
+            'description' => 'Transport Ticket ' . $model->booking_code,
+        ];
     }
 
     protected function shouldMockFiscalization(): bool
@@ -115,18 +142,18 @@ class TraVfdService
         return false;
     }
 
-    protected function applyMockFiscalization(Booking $booking): bool
+    protected function applyMockFiscalization($model): bool
     {
-        if ($booking->tra_status === 'success') {
+        if ($model->tra_status === 'success') {
             return true;
         }
 
-        $rctNum = (string) ((int) (Setting::first()->id ?? 1) * 100000 + (int) $booking->id);
+        $rctNum = (string) ((int) (Setting::first()->id ?? 1) * 100000 + (int) $model->id);
         $vnum = 'T' . $rctNum;
         $verifyBase = $this->url('verify');
         $qrUrl = $verifyBase . '/' . $vnum . '_' . date('His');
 
-        $booking->update([
+        $model->update([
             'tra_status' => 'success',
             'tra_rct_num' => $rctNum,
             'tra_z_num' => date('Ymd'),
@@ -136,7 +163,7 @@ class TraVfdService
             'tra_error' => null,
         ]);
 
-        Log::info("TRA mock fiscalization applied (test mode) for booking {$booking->id}");
+        Log::info("TRA mock fiscalization applied (test mode) for " . class_basename($model) . " {$model->id}");
 
         return true;
     }
@@ -271,27 +298,30 @@ class TraVfdService
 
     // --- Receipt Construction ---
 
-    protected function buildReceiptXml(Booking $booking, $state, $rctNum, $dc)
+    protected function buildReceiptXml($model, $state, $rctNum, $dc)
     {
         $date = date('Y-m-d');
         $time = date('H:i:s');
         $znum = date('Ymd');
 
-        $custIdType = '6'; // NIL — bus passengers rarely provide TIN at booking
+        $fiscal = $this->resolveFiscalData($model);
+
+        $custIdType = '6'; // NIL — passengers/senders rarely provide TIN
         $custId = '';
-        $custName = htmlspecialchars($booking->customer_name ?? 'Costumer');
-        $mobile = $this->normalizePhone($booking->customer_phone);
+        $custName = htmlspecialchars($fiscal['customer_name']);
+        $mobile = $this->normalizePhone($fiscal['customer_phone']);
 
         $rctVNum = $state['receipt_code'] . $rctNum; // Verification Num: CODE + GC
 
-        $amount = number_format($booking->amount, 2, '.', '');
+        $amount = number_format($fiscal['amount'], 2, '.', '');
         $taxCode = '1'; // Standard Rate 18% - Adjust logic if needed (e.g. buses might be exempt?)
         // Calculate Net and Tax based on 18%
         // Gross = Net * 1.18 -> Net = Gross / 1.18
         $net = number_format($amount / 1.18, 2, '.', '');
         $tax = number_format($amount - $net, 2, '.', '');
+        $itemDesc = htmlspecialchars($fiscal['description']);
 
-        $xml = "<RCT><DATE>$date</DATE><TIME>$time</TIME><TIN>{$this->tin}</TIN><REGID>{$state['reg_id']}</REGID><EFDSERIAL>{$this->certSerial}</EFDSERIAL><CUSTIDTYPE>$custIdType</CUSTIDTYPE><CUSTID>$custId</CUSTID><CUSTNAME>$custName</CUSTNAME><MOBILENUM>$mobile</MOBILENUM><RCTNUM>$rctNum</RCTNUM><DC>$dc</DC><GC>$rctNum</GC><ZNUM>$znum</ZNUM><RCTVNUM>$rctVNum</RCTVNUM><ITEMS><ITEM><ID>1</ID><DESC>Transport Ticket {$booking->booking_code}</DESC><QTY>1</QTY><TAXCODE>$taxCode</TAXCODE><AMT>$amount</AMT></ITEM></ITEMS><TOTALS><TOTALTAXEXCL>$net</TOTALTAXEXCL><TOTALTAXINCL>$amount</TOTALTAXINCL><DISCOUNT>0.00</DISCOUNT></TOTALS><PAYMENTS><PMTTYPE>EMONEY</PMTTYPE><PMTAMOUNT>$amount</PMTAMOUNT></PAYMENTS><VATTOTALS><VATRATE>A</VATRATE><NETTAMOUNT>$net</NETTAMOUNT><TAXAMOUNT>$tax</TAXAMOUNT></VATTOTALS></RCT>";
+        $xml = "<RCT><DATE>$date</DATE><TIME>$time</TIME><TIN>{$this->tin}</TIN><REGID>{$state['reg_id']}</REGID><EFDSERIAL>{$this->certSerial}</EFDSERIAL><CUSTIDTYPE>$custIdType</CUSTIDTYPE><CUSTID>$custId</CUSTID><CUSTNAME>$custName</CUSTNAME><MOBILENUM>$mobile</MOBILENUM><RCTNUM>$rctNum</RCTNUM><DC>$dc</DC><GC>$rctNum</GC><ZNUM>$znum</ZNUM><RCTVNUM>$rctVNum</RCTVNUM><ITEMS><ITEM><ID>1</ID><DESC>$itemDesc</DESC><QTY>1</QTY><TAXCODE>$taxCode</TAXCODE><AMT>$amount</AMT></ITEM></ITEMS><TOTALS><TOTALTAXEXCL>$net</TOTALTAXEXCL><TOTALTAXINCL>$amount</TOTALTAXINCL><DISCOUNT>0.00</DISCOUNT></TOTALS><PAYMENTS><PMTTYPE>EMONEY</PMTTYPE><PMTAMOUNT>$amount</PMTAMOUNT></PAYMENTS><VATTOTALS><VATRATE>A</VATRATE><NETTAMOUNT>$net</NETTAMOUNT><TAXAMOUNT>$tax</TAXAMOUNT></VATTOTALS></RCT>";
 
         return $xml;
     }
@@ -311,7 +341,7 @@ class TraVfdService
         return $response;
     }
 
-    protected function handleReceiptResponse($response, $booking, $state, $rctNum, $dc)
+    protected function handleReceiptResponse($response, $model, $state, $rctNum, $dc)
     {
         if ($response->failed()) {
             throw new Exception("Receipt API HTTP Error: " . $response->body());
@@ -335,7 +365,7 @@ class TraVfdService
             $timeStr = date('His');
             $qrUrl = "$verifyBase/{$rctVNum}_{$timeStr}";
 
-            $booking->update([
+            $model->update([
                 'tra_status' => 'success',
                 'tra_rct_num' => $rctNum,
                 'tra_z_num' => date('Ymd'),
@@ -344,13 +374,13 @@ class TraVfdService
                 'tra_response' => $response->body()
             ]);
 
-            Log::info("TRA Receipt Success for Booking {$booking->id}");
+            Log::info("TRA Receipt Success for " . class_basename($model) . " {$model->id}");
             return true;
         } else {
             // Logic Error from TRA
             $msg = (string) $xml->RCTACK->ACKMSG;
-            Log::warning("TRA Receipt Rejected (Booking {$booking->id}): $msg");
-            $booking->update(['tra_status' => 'rejected', 'tra_error' => $msg]);
+            Log::warning("TRA Receipt Rejected (" . class_basename($model) . " {$model->id}): $msg");
+            $model->update(['tra_status' => 'rejected', 'tra_error' => $msg]);
             return false;
         }
     }

@@ -6,6 +6,7 @@ return [
     'terms' => 'Masharti',
     'privacy' => 'Faragha',
     'contact' => 'Wasiliana',
+    'entries' => 'kumbukumbu',
     'save' => 'Hifadhi',
     'close' => 'Funga',
     'edit' => 'Hariri',
