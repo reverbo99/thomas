@@ -33,4 +33,21 @@ return [
     'entries' => 'entries',
     'view_all_bookings' => 'View All Bookings',
     'bookings' => 'Bookings',
+
+    // Fee Summary
+    'fee_summary' => 'Fee Summary',
+    'view_details' => 'View Details',
+    'vendor_commission_fee' => 'Commission Fee',
+    'vendor_service_fee' => 'Service Fee',
+    'vendor_parcel_fee' => 'Parcel Fee',
+    'vendor_excess_luggage_fee' => 'Excess Luggage Fee',
+    'vendor_cancellation_fee' => 'Cancellation Fee',
+    'commission' => 'Commission',
+    'service' => 'Service',
+    'parcel' => 'Parcel',
+    'luggage' => 'Luggage',
+    'cancelled' => 'Cancelled',
+    'total_earned' => 'Total earned',
+    'total_collected' => 'Total collected',
+    'total_cancelled' => 'Total cancelled',
 ];

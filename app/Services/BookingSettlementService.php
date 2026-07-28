@@ -78,8 +78,11 @@ class BookingSettlementService
 
         // ── Vendor resolution ────────────────────────────────────────────────
         // $vendorPct = null  → no vendor on this booking → formula gives 0 %.
-        // $vendorPct = 0.0   → vendor exists but no percentage row → formula
-        //                       applies the 10 % default via fallbackPositive.
+        // $vendorPct = FareFormulaService::DEFAULT_VENDOR_PERCENT (10.0)
+        //                → vendor exists but has no account/percentage row;
+        //                  the default is resolved here so the formula can
+        //                  treat an explicit 0.0 as genuinely 0 %.
+        // $vendorPct >= 0   → vendor has an explicit VenderAccount.percentage
         $vendor = $booking->vender_id > 0 ? $booking->vender : null;
 
         if ($booking->vender_id > 0 && $vendor === null) {
@@ -90,24 +93,36 @@ class BookingSettlementService
             ]);
         }
 
-        // When a vendor is present, start at 0.0 so the formula falls back to
-        // the 10 % default if no VenderAccount row exists.  Passing null would
-        // tell the formula "no vendor" and produce 0 % commission.
+        // Pre-resolve the vendor percentage so the formula receives the
+        // actual value (possibly 0 %) instead of relying on fallbackPositive
+        // which cannot distinguish 0.0 from "unset".
+        //   null              → no vendor on this booking, formula gives 0 %
+        //   FareFormulaService::DEFAULT_VENDOR_PERCENT → vendor exists but no
+        //                        account/percentage row; apply default (10 %)
+        //   any other float    → explicit VenderAccount.percentage (may be 0.0)
         $vendorPct = $vendor ? 0.0 : null;
 
         if ($vendor) {
-            if ($vendor->VenderAccount) {
-                $vendorPct = (float) ($vendor->VenderAccount->percentage ?? 0);
+            if ($vendor->VenderAccount && $vendor->VenderAccount->percentage !== null) {
+                $vendorPct = (float) $vendor->VenderAccount->percentage;
                 Log::info('Settlement: vendor percentage from VenderAccount', [
                     'booking_id' => $booking->id,
                     'vender_id'  => $vendor->id,
                     'percentage' => $vendorPct,
                 ]);
-            } else {
-                Log::warning('Settlement: vendor has no VenderAccount row — using default 10 % commission', [
+            } elseif ($vendor->VenderAccount) {
+                $vendorPct = FareFormulaService::DEFAULT_VENDOR_PERCENT;
+                Log::warning('Settlement: vendor VenderAccount.percentage is null — using default', [
                     'booking_id' => $booking->id,
                     'vender_id'  => $vendor->id,
-                    'reason'     => 'No vender_account row for this user; fallbackPositive will apply 10 %',
+                    'default'    => FareFormulaService::DEFAULT_VENDOR_PERCENT,
+                ]);
+            } else {
+                $vendorPct = FareFormulaService::DEFAULT_VENDOR_PERCENT;
+                Log::warning('Settlement: vendor has no VenderAccount row — using default', [
+                    'booking_id' => $booking->id,
+                    'vender_id'  => $vendor->id,
+                    'default'    => FareFormulaService::DEFAULT_VENDOR_PERCENT,
                 ]);
             }
         } else {
@@ -140,10 +155,11 @@ class BookingSettlementService
         ]);
 
         $systemBalanceAmount = (float) $result['system_commission_total'];
-        // Excess luggage is paid with the booking total but is not platform service income.
-        // Subtract it so payment_fees / service levy stay service-only; luggage is tracked on bookings.
         $luggageFee = booking_luggage_fee($booking);
-        $paymentFeesAmount = max(0, (float) $result['service_pool_after_vendor'] - $luggageFee);
+        // System retains 5 % of the bus owner's luggage fee; bus owner keeps 95 %.
+        $systemLuggageShare = round($luggageFee * 0.05, 2);
+        $busOwnerLuggageShare = round($luggageFee - $systemLuggageShare, 2);
+        $paymentFeesAmount = (float) $result['service_pool_after_vendor'];
         $vendorFee = 0.0;
         $vendorService = 0.0;
 
@@ -244,8 +260,8 @@ class BookingSettlementService
             'amount' => $governmentLevyOnServiceFee,
         ]);
 
-        $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy + $luggageFee);
-        $bus->campany->balance->increment('amount', (float) $result['bus_owner_share']);
+        $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy + $systemLuggageShare);
+        $bus->campany->balance->increment('amount', (float) $result['bus_owner_share'] + $busOwnerLuggageShare);
 
         return [
             'booking' => $booking->fresh(),
@@ -254,6 +270,8 @@ class BookingSettlementService
             'system_balance_amount' => $systemBalanceAmount,
             'payment_fees_amount' => $paymentFeesAmount,
             'luggage_fee' => $luggageFee,
+            'system_luggage_share' => $systemLuggageShare,
+            'bus_owner_luggage_share' => $busOwnerLuggageShare,
             'vendor_fee_share' => $vendorFee,
             'vendor_service_share' => $vendorService,
             'government_levy' => (float) $result['government_levy_on_fare'],

@@ -375,9 +375,10 @@
 
             @if ($data->has_excess_luggage ?? false)
                 @php
-                    $ticketFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
+                    $ticketLuggageFee = (float) ($data->excess_luggage_fee ?? 0);
                     $ticketEstimatedWeight = $data->estimated_weight ?? null;
-                    $ticketEstimatedLuggageFee = $ticketEstimatedWeight !== null ? round((float) $ticketEstimatedWeight * $ticketFeePerKg, 2) : null;
+                    $ticketActualWeight = $data->actual_weight ?? null;
+                    $ticketFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
                 @endphp
                 <div class="divider"></div>
                 <div class="details">
@@ -386,17 +387,15 @@
                             <td>Excess luggage:</td>
                             <td>Yes</td>
                         </tr>
+                        @if ($ticketEstimatedWeight !== null || $ticketActualWeight !== null)
                         <tr>
-                            <td>Estimated weight:</td>
-                            <td>{{ $ticketEstimatedWeight !== null ? number_format((float) $ticketEstimatedWeight, 2) . ' kg' : 'N/A' }}</td>
+                            <td>Weight:</td>
+                            <td>{{ $ticketActualWeight !== null ? number_format((float) $ticketActualWeight, 2) . ' kg' : number_format((float) $ticketEstimatedWeight, 2) . ' kg (est.)' }}</td>
                         </tr>
+                        @endif
                         <tr>
-                            <td>Fee charge per kg:</td>
-                            <td>{{ number_format($ticketFeePerKg, 2) }}</td>
-                        </tr>
-                        <tr>
-                            <td>Estimated luggage fee:</td>
-                            <td>{{ $ticketEstimatedLuggageFee !== null ? number_format($ticketEstimatedLuggageFee, 2) : 'N/A' }}</td>
+                            <td>Excess luggage fee:</td>
+                            <td>{{ number_format($ticketLuggageFee, 2) }}</td>
                         </tr>
                     </table>
                 </div>

@@ -88,40 +88,70 @@
             return seat;
         }
 
-        // 2+2 fallback layout when no seate_json is stored (mirrors the customer seat page).
-        function fallbackLayout(total) {
-            var rows = [], made = 0, rowNo = 0;
-            while (made < total) {
-                var L = String.fromCharCode(65 + rowNo);
-                var remain = total - made;
-                if (remain >= 4 || (remain > 1 && rowNo === 0)) {
-                    var n = Math.min(4, remain);
-                    if (n === 4) { rows.push([L + '4', L + '3', '', L + '2', L + '1']); made += 4; }
-                    else if (n === 2) { rows.push([L + '2', L + '1', '', '', '']); made += 2; }
-                    else if (n === 3) { rows.push([L + '2', L + '1', '', L + '3', '']); made += 3; }
-                } else if (remain === 1) {
-                    rows.push(['', '', L + '1', '', '']); made += 1;
-                }
-                rowNo++;
-            }
-            return rows;
-        }
-
         function renderSeats(layoutRaw, bookedMap, totalSeats) {
             grid.innerHTML = '';
             var layout = null;
             try { layout = (layoutRaw && typeof layoutRaw === 'string') ? JSON.parse(layoutRaw) : layoutRaw; } catch (e) { layout = null; }
 
-            var isBooked = function (lbl) { return Object.prototype.hasOwnProperty.call(bookedMap, lbl); };
+            // Debug: log received data so we can diagnose
+            console.log('[SeatModal] layoutRaw:', layoutRaw, 'totalSeats:', totalSeats, 'bookedMap:', bookedMap);
+            console.log('[SeatModal] parsed layout:', layout);
 
-            if (layout && Number.isInteger(layout.rows) && Number.isInteger(layout.cols)) {
-                var rows = Math.max(1, layout.rows | 0);
-                var cols = Math.max(1, layout.cols | 0);
+            var isBooked = function (lbl) { return Object.prototype.hasOwnProperty.call(bookedMap, lbl); };
+            var isPositiveInt = function (v) { var n = parseInt(v, 10); return !isNaN(n) && n > 0; };
+
+            // ── Auto-generate a basic layout when none is defined ──────────────
+            if (!layout || !isPositiveInt(layout.rows) || !isPositiveInt(layout.cols)) {
+                if (totalSeats > 0) {
+                    layout = {
+                        rows: Math.ceil(totalSeats / 4),
+                        cols: 4,
+                        aisles: [],
+                        seats: []
+                    };
+                    var n = 1;
+                    for (var r = 1; r <= layout.rows; r++) {
+                        for (var c = 1; c <= layout.cols; c++) {
+                            if (n > totalSeats) break;
+                            layout.seats.push({ id: 'gen-' + n, label: '' + n, row: r, col: c });
+                            n++;
+                        }
+                        if (n > totalSeats) break;
+                    }
+                    console.log('[SeatModal] auto-generated layout:', layout);
+                }
+            }
+
+            if (layout && isPositiveInt(layout.rows) && isPositiveInt(layout.cols)) {
+                var rawRows = Math.max(1, parseInt(layout.rows, 10));
+                var rawCols = Math.max(1, parseInt(layout.cols, 10));
                 var aisles = Array.isArray(layout.aisles) ? layout.aisles : [];
                 var seats = Array.isArray(layout.seats) ? layout.seats : [];
+
+                // Compute actual booked/unbooked from the layout so the counts
+                // always match the visual grid (includes all seat types).
+                var actualBooked = 0;
+                for (var si = 0; si < seats.length; si++) {
+                    if (isBooked(seats[si].label)) actualBooked++;
+                }
+                if (seats.length > 0) {
+                    document.getElementById('seatModalTotal').textContent = seats.length;
+                    document.getElementById('seatModalBooked').textContent = actualBooked;
+                    document.getElementById('seatModalAvailable').textContent = seats.length - actualBooked;
+                }
+
+                // Expand grid dynamically so that seats positioned outside the
+                // declared bounds (e.g. "seats za nyumba") are never lost.
+                var rows = rawRows, cols = rawCols;
+                for (var si = 0; si < seats.length; si++) {
+                    if (seats[si].row > rows) rows = seats[si].row;
+                    if (seats[si].col > cols) cols = seats[si].col;
+                }
+
                 grid.style.gridTemplateColumns = 'repeat(' + cols + ', 44px)';
                 var seatAt = function (r, c) { return seats.find(function (s) { return s.row === r && s.col === c; }); };
                 var aisleAt = function (r, c) { return aisles.some(function (a) { return a.row === r && a.col === c; }); };
+                var rendered = {};
                 for (var r = 1; r <= rows; r++) {
                     for (var c = 1; c <= cols; c++) {
                         var cell = document.createElement('div');
@@ -129,27 +159,38 @@
                         var s = seatAt(r, c);
                         if (s) {
                             var lbl = s.label != null ? s.label : '';
+                            rendered[s.id || lbl] = true;
                             cell.appendChild(buildSeat(lbl, isBooked(lbl), bookedMap[lbl]));
                         }
                         grid.appendChild(cell);
                     }
                 }
-                emptyMsg.classList.add('hidden');
-                grid.classList.remove('hidden');
-                return;
-            }
 
-            if (totalSeats > 0) {
-                var fbRows = fallbackLayout(totalSeats);
-                grid.style.gridTemplateColumns = 'repeat(5, 44px)';
-                fbRows.forEach(function (row) {
-                    row.forEach(function (lbl) {
-                        var cell = document.createElement('div');
-                        cell.className = 'sm-cell' + (lbl === '' ? ' sm-aisle' : '');
-                        if (lbl !== '') cell.appendChild(buildSeat(lbl, isBooked(lbl), bookedMap[lbl]));
-                        grid.appendChild(cell);
-                    });
-                });
+                // Render any seats that could not be placed in the grid
+                // (e.g. seats missing row/col or with non-positive positions).
+                var unplaced = [];
+                for (var si = 0; si < seats.length; si++) {
+                    var idKey = seats[si].id || seats[si].label;
+                    if (!rendered[idKey] && seats[si].label) {
+                        unplaced.push(seats[si].label);
+                    }
+                }
+                if (unplaced.length > 0) {
+                    var extra = document.createElement('div');
+                    extra.style.cssText = 'grid-column:1/-1;margin-top:0.75rem;padding-top:0.75rem;border-top:1px dashed #cbd5e1;';
+                    var lbl = document.createElement('p');
+                    lbl.className = 'text-xs font-semibold text-gray-500 mb-1';
+                    lbl.textContent = '{{ __('system.pages.other_seats') }}' || 'Other seats:';
+                    extra.appendChild(lbl);
+                    var wrap = document.createElement('div');
+                    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';
+                    for (var j = 0; j < unplaced.length; j++) {
+                        wrap.appendChild(buildSeat(unplaced[j], isBooked(unplaced[j]), bookedMap[unplaced[j]]));
+                    }
+                    extra.appendChild(wrap);
+                    grid.appendChild(extra);
+                }
+
                 emptyMsg.classList.add('hidden');
                 grid.classList.remove('hidden');
                 return;
@@ -159,21 +200,21 @@
             emptyMsg.classList.remove('hidden');
         }
 
-        document.querySelectorAll('.view-seats-btn').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var bookedMap = {};
-                try { bookedMap = JSON.parse(btn.dataset.bookedSeats || '{}') || {}; } catch (e) { bookedMap = {}; }
-                document.getElementById('seatModalTitle').textContent =
-                    (btn.dataset.company ? btn.dataset.company + ' — ' : '') + (btn.dataset.busNumber || '');
-                document.getElementById('seatModalSubtitle').textContent =
-                    (btn.dataset.route || '') + '  ·  ' + (btn.dataset.date || '');
-                document.getElementById('seatModalTotal').textContent = btn.dataset.totalSeats || '0';
-                document.getElementById('seatModalBooked').textContent = btn.dataset.bookedCount || '0';
-                document.getElementById('seatModalAvailable').textContent = btn.dataset.availableCount || '0';
-                renderSeats(btn.dataset.layout || '', bookedMap, parseInt(btn.dataset.totalSeats || '0', 10));
-                modal.classList.remove('hidden');
-                document.body.style.overflow = 'hidden';
-            });
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.view-seats-btn');
+            if (!btn) return;
+            var bookedMap = {};
+            try { bookedMap = JSON.parse(btn.dataset.bookedSeats || '{}') || {}; } catch (er) { bookedMap = {}; }
+            document.getElementById('seatModalTitle').textContent =
+                (btn.dataset.company ? btn.dataset.company + ' — ' : '') + (btn.dataset.busNumber || '');
+            document.getElementById('seatModalSubtitle').textContent =
+                (btn.dataset.route || '') + '  ·  ' + (btn.dataset.date || '');
+            document.getElementById('seatModalTotal').textContent = btn.dataset.totalSeats || '0';
+            document.getElementById('seatModalBooked').textContent = btn.dataset.bookedCount || '0';
+            document.getElementById('seatModalAvailable').textContent = btn.dataset.availableCount || '0';
+            renderSeats(btn.dataset.layout || '', bookedMap, parseInt(btn.dataset.totalSeats || '0', 10));
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         });
     }
 

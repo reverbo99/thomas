@@ -53,6 +53,32 @@
         </form>
     </div>
 
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-8 max-w-xl">
+        <h2 class="text-sm font-semibold text-gray-800 mb-3">Account status</h2>
+        <p class="text-xs text-gray-500 mb-4">Enable or disable this special hire operator's access to the system. Disabled operators cannot log in to the special hire portal.</p>
+        <div class="flex items-center gap-4 mb-4">
+            <span class="text-sm font-medium text-gray-700">Current status:</span>
+            @php $isActive = ($selectedOwner->status ?? '') === 'accept' || $selectedOwner->status === ''; @endphp
+            <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full {{ $isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                {{ $isActive ? 'Active' : 'Disabled' }}
+            </span>
+        </div>
+        <form action="{{ route('system.special_hire.toggle_status', $selectedOwner->id) }}" method="post" class="space-y-4">
+            @csrf
+            <div>
+                <label for="status" class="block text-xs font-medium text-gray-600 mb-1">Set status</label>
+                <select name="status" id="status"
+                    class="w-full max-w-xs rounded-lg border-gray-300 text-sm shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                    <option value="accept" {{ $isActive ? 'selected' : '' }}>Active</option>
+                    <option value="disabled" {{ !$isActive ? 'selected' : '' }}>Disabled</option>
+                </select>
+            </div>
+            <button type="submit" class="inline-flex items-center justify-center w-full max-w-xs px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                Save status
+            </button>
+        </form>
+    </div>
+
     <nav class="flex flex-wrap gap-2 mb-6 text-sm" aria-label="Page sections">
         <a href="#stats" class="px-3 py-1.5 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300">Summary</a>
         <a href="#coasters" class="px-3 py-1.5 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300">Coasters</a>
@@ -61,7 +87,7 @@
         <a href="#withdrawals" class="px-3 py-1.5 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300">{{ __('system.pages.withdrawals') }}</a>
     </nav>
 
-    <div id="stats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div id="stats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <p class="text-xs font-semibold text-teal-600 uppercase tracking-wide">Coasters</p>
             <p class="text-2xl font-bold text-gray-900 mt-1">{{ number_format($stats['coasters']) }}</p>
@@ -81,6 +107,11 @@
             <p class="text-xs font-semibold text-teal-600 uppercase tracking-wide">Paid revenue</p>
             <p class="text-2xl font-bold text-gray-900 mt-1">{{ $currency }} {{ convert_money($stats['revenue_paid']) }}</p>
             <p class="text-xs text-gray-500 mt-1">Pending: {{ $currency }} {{ convert_money($stats['revenue_pending']) }}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <p class="text-xs font-semibold text-amber-600 uppercase tracking-wide">Government levy (5%)</p>
+            <p class="text-2xl font-bold text-gray-900 mt-1">{{ $currency }} {{ convert_money($stats['gov_levy']) }}</p>
+            <p class="text-xs text-gray-500 mt-1">5% of paid revenue</p>
         </div>
     </div>
 

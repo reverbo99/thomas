@@ -24,7 +24,7 @@ class FareFormulaService
 
     private const DEFAULT_SERVICE_ADDING = 100.0;
 
-    private const DEFAULT_VENDOR_PERCENT = 10.0;
+    public const DEFAULT_VENDOR_PERCENT = 10.0;
 
     private const DEFAULT_GOVERNMENT_LEVY_PERCENT = 5.0;
 
@@ -47,12 +47,12 @@ class FareFormulaService
         $commissionAdding = $company ? (float) ($company->commission_amount ?? 0) : 0.0;
 
         // Vendor percentage: null means no vendor involved (direct booking), so 0%.
-        // Only apply default if vendor exists but has no percentage set.
+        // The caller (BookingSettlementService) pre-resolves the default fallback
+        // so that 0.0 means explicitly 0% — not "unset".
         if ($vendorPercentage === null) {
             $vendorPercent = 0.0;
         } else {
-            $vendorPercent = $this->fallbackPositive($vendorPercentage, self::DEFAULT_VENDOR_PERCENT);
-            $vendorPercent = min(100.0, $this->normalizePercentValue($vendorPercent));
+            $vendorPercent = min(100.0, $this->normalizePercentValue((float) $vendorPercentage));
         }
 
         return [
@@ -174,8 +174,6 @@ class FareFormulaService
             + $rates['commission_adding'];
 
         $serviceFees = $this->calculateTravellerServiceFee($busFareLevyInclusive, $setting, max(1, (int) $seatCount));
-        $governmentLevyOnServiceFee = $serviceFees * ($rates['government_levy_percent'] / 100);
-        $totalGovernmentLevies = $governmentLevyOnFare + $governmentLevyOnServiceFee;
 
         $commissionToVendor = $systemCommissionTotal * ($rates['vendor_percent'] / 100);
         $serviceFeesToVendor = $serviceFees * ($rates['vendor_percent'] / 100);
@@ -185,8 +183,9 @@ class FareFormulaService
         $busFareRemainder = $busFareLevyInclusive - ($systemCommissionTotal + $governmentLevyOnFare);
         $amountOnBusOwnerFormula = $rates['commission_adding'];
 
-        $rawServicePool = max(0, $totalFareLevyInclusive - $busFareLevyInclusive - $bimaAmount);
-        $servicePoolAfterVendor = max(0, $rawServicePool - $serviceFeesToVendor);
+        $servicePoolAfterVendor = max(0, $serviceFees - $serviceFeesToVendor);
+        $governmentLevyOnServiceFee = $servicePoolAfterVendor * ($rates['government_levy_percent'] / 100);
+        $totalGovernmentLevies = $governmentLevyOnFare + $governmentLevyOnServiceFee;
 
         return [
             'rates' => $rates,
@@ -226,12 +225,12 @@ class FareFormulaService
         return $number > 0 ? $number : $fallback;
     }
 
-    /** Values in (0, 1] are treated as fractions (0.05 → 5%). */
+    /** Values in (0, 1) are treated as fractions (0.05 → 5%); 1.0+ kept as-is. */
     private function normalizePercentValue(float $value): float
     {
         if ($value <= 0) {
             return 0.0;
         }
-        return $value > 0 && $value <= 1 ? $value * 100.0 : $value;
+        return $value > 0 && $value < 1 ? $value * 100.0 : $value;
     }
 }

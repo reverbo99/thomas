@@ -33,4 +33,21 @@ return [
     'entries' => 'maingizo',
     'view_all_bookings' => 'Ona Uhifadhi Wote',
     'bookings' => 'Uhifadhi',
+
+    // Fee Summary
+    'fee_summary' => 'Muhtasari wa Ada',
+    'view_details' => 'Ona Maelezo',
+    'vendor_commission_fee' => 'Ada ya Ushirika',
+    'vendor_service_fee' => 'Ada ya Huduma',
+    'vendor_parcel_fee' => 'Ada ya Mzigo',
+    'vendor_excess_luggage_fee' => 'Ada ya Mzigo wa Ziada',
+    'vendor_cancellation_fee' => 'Ada ya Kughairi',
+    'commission' => 'Ushirika',
+    'service' => 'Huduma',
+    'parcel' => 'Mzigo',
+    'luggage' => 'Mzigo',
+    'cancelled' => 'Kughairiwa',
+    'total_earned' => 'Jumla iliyopatikana',
+    'total_collected' => 'Jumla iliyokusanywa',
+    'total_cancelled' => 'Jumla iliyoghairiwa',
 ];

@@ -37,7 +37,6 @@
         <span>{{ __('system.pages.commission') }}: {{ number_format($commissionTotal ?? 0, 2) }}</span>
         <span>{{ __('system.pages.service_fees') }}: {{ number_format($serviceFeeTotal ?? 0, 2) }}</span>
         <span>{{ __('system.pages.luggage_fees') }}: {{ number_format($luggageTotal ?? 0, 2) }}</span>
-        <span>{{ __('system.pages.gov_levy_service') }}: {{ number_format($levyTotal ?? 0, 2) }}</span>
         <span>{{ __('system.pages.cancellation_fees') }}: {{ number_format($cancellationTotal ?? 0, 2) }}</span>
         <span>{{ __('system.pages.parcel_commission_fees') }}: {{ number_format($parcelTotal ?? 0, 2) }}</span>
         <span>{{ __('system.pages.special_hire_commission_fees') }}: {{ number_format($specialHireTotal ?? 0, 2) }}</span>
@@ -148,43 +147,6 @@
                 <tr>
                     <td colspan="3" class="text-right">{{ __('system.pages.section_total') }}</td>
                     <td class="text-right">{{ number_format($luggageTotal ?? 0, 2) }}</td>
-                    <td></td>
-                </tr>
-            </tfoot>
-        @endif
-    </table>
-
-    <h2>{{ __('system.pages.gov_levy_service') }}</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>No</th>
-                <th>{{ __('system.pages.col_company') }}</th>
-                <th>{{ __('system.pages.col_booking_code') }}</th>
-                <th class="text-right">{{ __('system.common.amount') }}</th>
-                <th>{{ __('system.common.date') }}</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($levyRows as $row)
-                <tr>
-                    <td>{{ $row['no'] }}</td>
-                    <td>{{ $row['company'] }}</td>
-                    <td>{{ $row['booking_code'] }}</td>
-                    <td class="text-right">{{ $row['amount'] }}</td>
-                    <td>{{ $row['date'] }}</td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="5">{{ __('system.pages.no_data_found') }}</td>
-                </tr>
-            @endforelse
-        </tbody>
-        @if (count($levyRows) > 0)
-            <tfoot>
-                <tr>
-                    <td colspan="3" class="text-right">{{ __('system.pages.section_total') }}</td>
-                    <td class="text-right">{{ number_format($levyTotal ?? 0, 2) }}</td>
                     <td></td>
                 </tr>
             </tfoot>

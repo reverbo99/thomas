@@ -914,10 +914,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            const rows = Math.max(1, layout.rows | 0);
-            const cols = Math.max(1, layout.cols | 0);
+            let rows = Math.max(1, layout.rows | 0);
+            let cols = Math.max(1, layout.cols | 0);
             const aisles = Array.isArray(layout.aisles) ? layout.aisles : [];
             const seats = Array.isArray(layout.seats) ? layout.seats : [];
+
+            // Expand grid to accommodate house seats placed outside declared bounds
+            seats.forEach(function (s) {
+                if (s.row > rows) rows = s.row;
+                if (s.col > cols) cols = s.col;
+            });
 
             grid.innerHTML = '';
             grid.style.display = 'grid';

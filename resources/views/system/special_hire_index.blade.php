@@ -82,7 +82,9 @@
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Orders</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">{{ __('system.pages.total_amount_paid') }}</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">{{ __('system.pages.commission_fees') }}</th>
+                                <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Gov. Levy (5%)</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Platform commission %</th>
+                                <th class="px-4 py-3 text-center font-medium text-gray-500 uppercase text-xs">Status</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs"></th>
                             </tr>
                         </thead>
@@ -96,6 +98,7 @@
                                     <td class="px-4 py-3 text-right text-gray-900">{{ number_format($owner->special_hire_orders_count) }}</td>
                                     <td class="px-4 py-3 text-right text-gray-900">{{ $currency }} {{ convert_money($owner->revenue_paid_sum ?? 0) }}</td>
                                     <td class="px-4 py-3 text-right text-gray-900">{{ $currency }} {{ convert_money($owner->commission_paid_sum ?? 0) }}</td>
+                                    <td class="px-4 py-3 text-right text-gray-900">{{ $currency }} {{ convert_money($owner->gov_levy_sum ?? 0) }}</td>
                                     <td class="px-4 py-3 text-right">
                                         <form action="{{ route('system.special_hire.platform_percent', $owner->id) }}" method="post" class="inline-flex flex-wrap items-center justify-end gap-2">
                                             @csrf
@@ -108,6 +111,17 @@
                                             </button>
                                         </form>
                                     </td>
+                                    <td class="px-4 py-3 text-center">
+                                        <form action="{{ route('system.special_hire.toggle_status', $owner->id) }}" method="post" class="inline-flex items-center gap-2">
+                                            @csrf
+                                            <select name="status"
+                                                    onchange="this.form.submit()"
+                                                    class="rounded-md border-gray-300 text-xs shadow-sm focus:border-teal-500 focus:ring-teal-500 {{ ($owner->status ?? '') === 'accept' || $owner->status === '' ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50' }}">
+                                                <option value="accept" @selected(($owner->status ?? '') === 'accept' || $owner->status === '')>Active</option>
+                                                <option value="disabled" @selected(($owner->status ?? '') !== 'accept' && $owner->status !== '')>Disabled</option>
+                                            </select>
+                                        </form>
+                                    </td>
                                     <td class="px-4 py-3 text-right">
                                         <a href="{{ route('system.special_hire.show', $owner->id) }}"
                                            class="inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">
@@ -116,7 +130,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="9" class="px-4 py-10 text-center text-gray-500">{{ __('system.pages.no_special_hire_accounts') }}</td></tr>
+                                <tr><td colspan="11" class="px-4 py-10 text-center text-gray-500">{{ __('system.pages.no_special_hire_accounts') }}</td></tr>
                             @endforelse
                         </tbody>
                     </table>

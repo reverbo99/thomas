@@ -66,7 +66,7 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                 <p class="text-xs font-medium text-slate-500">Paid Amount</p>
                 <p class="text-xl font-semibold text-slate-800 mt-2">{{ $currency }} {{ convert_money($totalPaidAmount) }}</p>
@@ -76,26 +76,42 @@
                 <p class="text-xl font-semibold text-slate-800 mt-2">{{ $currency }} {{ convert_money($totalVat) }}</p>
             </div>
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                <p class="text-xs font-medium text-slate-500">Gov Levy (Fare)</p>
-                <p class="text-xl font-semibold text-emerald-700 mt-2">{{ $currency }} {{ convert_money($totalGovLevyOnFare) }}</p>
-            </div>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                <p class="text-xs font-medium text-slate-500">Gov Levy (Service)</p>
-                <p class="text-xl font-semibold text-emerald-600 mt-2">{{ $currency }} {{ convert_money($totalGovLevyOnService) }}</p>
-            </div>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                <p class="text-xs font-medium text-slate-500">{{ __('system.pages.total_gov_levy') }}</p>
-                <p class="text-xl font-semibold text-emerald-800 mt-2">{{ $currency }} {{ convert_money($totalGovernmentLevy) }}</p>
-            </div>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                 <p class="text-xs font-medium text-slate-500">System Service Fee</p>
                 <p class="text-xl font-semibold text-indigo-700 mt-2">{{ $currency }} {{ convert_money($totalSystemServiceFee) }}</p>
+            </div>
+            <div class="bg-white rounded-xl border border-amber-200 shadow-sm p-4">
+                <p class="text-xs font-medium text-amber-600">Est. Special Hire Revenue</p>
+                <p class="text-xl font-semibold text-amber-800 mt-2">{{ $currency }} {{ convert_money($specialHireTotalAmount) }}</p>
+            </div>
+        </div>
+
+        {{-- Government levy breakdown cards --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white rounded-xl border border-emerald-200 shadow-sm p-4">
+                <p class="text-xs font-medium text-emerald-600">Gov Levy (Fare)</p>
+                <p class="text-xl font-semibold text-emerald-700 mt-2">{{ $currency }} {{ convert_money($totalGovLevyOnFare) }}</p>
+                <p class="text-xs text-slate-400 mt-1">5% of bus fare</p>
+            </div>
+            <div class="bg-white rounded-xl border border-emerald-200 shadow-sm p-4">
+                <p class="text-xs font-medium text-emerald-600">Gov Levy (Service)</p>
+                <p class="text-xl font-semibold text-emerald-600 mt-2">{{ $currency }} {{ convert_money($totalGovLevyOnService) }}</p>
+                <p class="text-xs text-slate-400 mt-1">5% of service fee</p>
+            </div>
+            <div class="bg-white rounded-xl border border-amber-200 shadow-sm p-4">
+                <p class="text-xs font-medium text-amber-600">Gov Levy (Special Hire)</p>
+                <p class="text-xl font-semibold text-amber-700 mt-2">{{ $currency }} {{ convert_money($specialHireLevyTotal) }}</p>
+                <p class="text-xs text-slate-400 mt-1">5% of SH revenue (est.)</p>
+            </div>
+            <div class="bg-white rounded-xl border border-emerald-200 shadow-sm p-4 lg:col-span-2">
+                <p class="text-xs font-medium text-emerald-800">{{ __('system.pages.total_gov_levy') }}</p>
+                <p class="text-2xl font-bold text-emerald-900 mt-2">{{ $currency }} {{ convert_money($totalGovernmentLevy) }}</p>
+                <p class="text-xs text-slate-400 mt-1">Fare + Service + Special Hire</p>
             </div>
         </div>
 
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="px-4 py-3 border-b border-slate-200">
-                <h3 class="text-sm font-semibold text-slate-700">Paid Bookings Breakdown</h3>
+            <div class="px-4 py-3 border-b border-slate-200 bg-emerald-50">
+                <h3 class="text-sm font-semibold text-emerald-800">Paid Bookings — Levy on Fare + Levy on Service Fee</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200">
@@ -150,6 +166,52 @@
             </div>
             <div class="px-4 py-3 border-t border-slate-200">
                 {{ $bookings->links() }}
+            </div>
+        </div>
+
+        {{-- Special Hire Orders breakdown --}}
+        <div class="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b border-amber-200 bg-amber-50">
+                <h3 class="text-sm font-semibold text-amber-800">Special Hire Orders — Estimated Government Levy (5%)</h3>
+                <p class="text-xs text-amber-600 mt-0.5">This levy is estimated at 5% of the total order amount. It is not deducted from operator payouts.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-amber-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Order Code</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.common.date') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Pickup → Dropoff</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Operator</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Total Amount</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-amber-700 uppercase">Est. Gov Levy (5%)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @forelse($specialHireOrders as $order)
+                            @php
+                                $shLevy = round((float) $order->total_amount * 5 / 100, 2);
+                            @endphp
+                            <tr class="hover:bg-amber-50 transition">
+                                <td class="px-4 py-3 text-sm text-slate-700 font-medium">{{ $order->order_code ?? 'N/A' }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ optional($order->created_at)->format('d M Y H:i') }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">
+                                    {{ $order->pickup_location ?? 'N/A' }} — {{ $order->dropoff_location ?? 'N/A' }}
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $order->user->name ?? '—' }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-700 text-right font-medium">{{ $currency }} {{ convert_money($order->total_amount ?? 0) }}</td>
+                                <td class="px-4 py-3 text-sm text-amber-700 text-right font-semibold">{{ $currency }} {{ convert_money($shLevy) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-4 py-8 text-center text-sm text-slate-500">No paid special hire orders for this period.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-4 py-3 border-t border-slate-200">
+                {{ $specialHireOrders->links() }}
             </div>
         </div>
     </div>

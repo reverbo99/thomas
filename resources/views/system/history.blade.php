@@ -21,6 +21,7 @@
                             <span>{{ __('system.pages.total_payment') }}: {{ $currency }} <span id="totalPayment">{{ convert_money($totalPayment ?? 0) }}</span></span>
                             <span>{{ __('system.pages.total_discount') }}: {{ $currency }} <span id="totalDiscount">{{ convert_money($totalDiscount ?? 0) }}</span></span>
                             <span>{{ __('system.pages.total_vat') }}: {{ $currency }} <span id="totalVAT">{{ convert_money($totalVAT ?? 0) }}</span></span>
+                            <span>Gov. Levy: {{ $currency }} <span id="totalGovLevy">{{ convert_money($totalGovLevy ?? 0) }}</span></span>
                             <span>{{ __('system.pages.grand_total') }}: {{ $currency }} <span id="grandTotal">{{ convert_money($grandTotal ?? 0) }}</span></span>
                         </div>
                     </div>
@@ -187,8 +188,8 @@
                                         </td>
                                         <td class="py-2 px-4">
                                             <div class="flex flex-col">
-                                                <p class="text-gray-500 mb-0 payment-amount" data-amount="{{ $booking->amount ?? '0' }}" data-vat="{{ $booking->vat ?? '0' }}" data-discount="{{ $booking->discount_amount ?? '0' }}" data-fee="{{ $booking->fee ?? '0' }}" data-vender_fee="{{ $booking->vender_fee ?? '0' }}" data-fee_vat="{{ $booking->fee_vat ?? '0' }}">
-                                                    {{ $currency }} {{ convert_money(($booking->amount ?? 0) + ($booking->vat ?? 0)) }}
+                                                <p class="text-gray-500 mb-0 payment-amount" data-amount="{{ (float) ($booking->customer_paid_total ?? 0) }}" data-vat="{{ $booking->vat ?? '0' }}" data-discount="{{ $booking->discount_amount ?? '0' }}" data-fee="{{ $booking->fee ?? '0' }}" data-vender_fee="{{ $booking->vender_fee ?? '0' }}" data-fee_vat="{{ $booking->fee_vat ?? '0' }}">
+                                                    {{ $currency }} {{ convert_money((float) ($booking->customer_paid_total ?? 0)) }}
                                                 </p>
                                             </div>
                                         </td>
@@ -341,6 +342,7 @@
                     let totalPayment = 0;
                     let totalDiscount = 0;
                     let totalVAT = 0;
+                    let totalGovLevy = 0;
                     let grandTotal = 0;
 
                     this.api()
@@ -349,20 +351,23 @@
                             const rowNode = this.node();
                             const paymentEl = $(rowNode).find('.payment-amount');
                             const totalEl = $(rowNode).find('.total-amount');
+                            const commEl = $(rowNode).find('.commission-breakdown');
                             const amount = parseFloat(paymentEl.data('amount')) || 0;
-                            const vat = parseFloat(paymentEl.data('vat')) || 0;
                             const discount = parseFloat(paymentEl.data('discount')) || 0;
                             const total = parseFloat(totalEl.data('total')) || 0;
+                            const govLevy = parseFloat(commEl.data('gov-levy')) || 0;
 
-                            totalPayment += amount + vat;
+                            totalPayment += amount;
                             totalDiscount += discount;
-                            totalVAT += vat;
+                            totalVAT += parseFloat(paymentEl.data('vat')) || 0;
+                            totalGovLevy += govLevy;
                             grandTotal += total;
                         });
 
                     $('#totalPayment').text(formatAmount(totalPayment));
                     $('#totalDiscount').text(formatAmount(totalDiscount));
                     $('#totalVAT').text(formatAmount(totalVAT));
+                    $('#totalGovLevy').text(formatAmount(totalGovLevy));
                     $('#grandTotal').text(formatAmount(grandTotal));
                 }
             });

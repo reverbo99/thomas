@@ -78,6 +78,12 @@
             font-size: 7px;
         }
 
+        .manifest-table tr.staff-row td {
+            background-color: #dbeafe;
+            font-weight: 600;
+            color: #1e40af;
+        }
+
         .text-center {
             text-align: center;
         }
@@ -129,29 +135,29 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($bookings as $index => $booking)
-                        <tr>
-                            <td class="text-center">{{ $index + 1 }}</td>
-                            <td>{{ $booking['seat'] ?? '' }}</td>
-                            <td>{{ $booking['route_label'] ?? '' }}</td>
-                            <td>{{ strtoupper($booking['customer_name'] ?? '') }}</td>
-                            <td class="text-center">{{ $booking['gender_code'] ?? '' }}</td>
-                            <td>{{ $booking['customer_phone'] ?? '' }}</td>
-                            <td>{{ $booking['passenger_type'] ?? 'Adult' }}</td>
-                            <td class="text-center">{{ !empty($booking['infant_child']) ? 'Yes' : 'No' }}</td>
-                            <td>{{ $booking['id_type'] ?? '' }}</td>
-                            <td>{{ $booking['id_number'] ?? '' }}</td>
-                            <td>{{ $booking['booking_code'] ?? '' }}</td>
-                            <td>{{ $booking['issue_date'] ?? '' }}</td>
-                            <td>{{ $booking['issue_by'] ?? '' }}</td>
-                            <td>{{ $booking['pickup_point'] ?? '' }}</td>
-                            <td>{{ $booking['dropping_point'] ?? '' }}</td>
-                            <td class="text-right">{{ $booking['base_fare'] ?? '0' }}</td>
-                            <td class="text-right">{{ $booking['manifest_discount'] ?? '0' }}</td>
-                            <td class="text-right">{{ $booking['paid_fare'] ?? '0' }}</td>
-                            <td>{{ $booking['remarks'] ?? '' }}</td>
-                        </tr>
-                    @endforeach
+@foreach ($bookings as $index => $booking)
+                    <tr class="{{ !empty($booking['is_staff']) ? 'staff-row' : '' }}">
+                        <td class="text-center">{{ $index + 1 }}</td>
+                        <td>{{ $booking['seat'] ?? '' }}</td>
+                        <td>{{ $booking['route_label'] ?? '' }}</td>
+                        <td>{{ strtoupper($booking['customer_name'] ?? '') }}</td>
+                        <td class="text-center">{{ $booking['gender_code'] ?? '' }}</td>
+                        <td>{{ $booking['customer_phone'] ?? '' }}</td>
+                        <td>{{ $booking['passenger_type'] ?? 'Adult' }}</td>
+                        <td class="text-center">{{ !empty($booking['infant_child']) ? 'Yes' : 'No' }}</td>
+                        <td>{{ $booking['id_type'] ?? '' }}</td>
+                        <td>{{ $booking['id_number'] ?? '' }}</td>
+                        <td>{{ $booking['booking_code'] ?? '' }}</td>
+                        <td>{{ $booking['issue_date'] ?? '' }}</td>
+                        <td>{{ $booking['issue_by'] ?? '' }}</td>
+                        <td>{{ $booking['pickup_point'] ?? '' }}</td>
+                        <td>{{ $booking['dropping_point'] ?? '' }}</td>
+                        <td class="text-right">{{ $booking['base_fare'] ?? '0' }}</td>
+                        <td class="text-right">{{ $booking['manifest_discount'] ?? '0' }}</td>
+                        <td class="text-right">{{ $booking['paid_fare'] ?? '0' }}</td>
+                        <td>{{ $booking['remarks'] ?? '' }}</td>
+                    </tr>
+                @endforeach
                 </tbody>
             </table>
         </div>

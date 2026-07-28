@@ -113,6 +113,7 @@ return [
     'view_seats' => 'View seats',
     'seat_arrangement' => 'Seat Arrangement',
     'no_seat_layout' => 'No seat layout available for this bus.',
+    'other_seats' => 'Other seats:',
 
     // Booking history column filters
     'filter_bus_name' => 'Bus name',

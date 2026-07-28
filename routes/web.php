@@ -461,6 +461,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/special-hire/withdrawals/{id}', [SystemController::class, 'updateSpecialHireWithdrawal'])->name('system.special_hire.withdrawal');
         Route::post('/special-hire/{user}/platform-percent', [SystemController::class, 'updateSpecialHireOwnerPlatformPercent'])->name('system.special_hire.platform_percent')
             ->whereNumber('user');
+        Route::post('/special-hire/{user}/toggle-status', [SystemController::class, 'toggleSpecialHireStatus'])->name('system.special_hire.toggle_status')
+            ->whereNumber('user');
         Route::get('/special-hire/orders/{order}/passengers', [SystemController::class, 'specialHireOrderPassengersEdit'])->name('system.special_hire.order.passengers.edit')
             ->whereNumber('order');
         Route::post('/special-hire/orders/{order}/passengers', [SystemController::class, 'specialHireOrderPassengersUpdate'])->name('system.special_hire.order.passengers.update')
@@ -681,7 +683,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // Special Hire Routes
-    Route::prefix('special-hire')->middleware(['role:special_hire', '2fa'])->group(function () {
+    Route::prefix('special-hire')->middleware(['role:special_hire', '2fa', 'special_hire.enabled'])->group(function () {
         // Dashboard
         Route::get('/', [SpecialHireController::class, 'index'])->name('special_hire.index');
 

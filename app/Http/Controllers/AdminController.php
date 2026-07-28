@@ -1013,9 +1013,10 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         $data = null;
+        $loadedBookings = null;
 
         if ($request->filled('start_date') && $request->filled('end_date') && $companyId) {
-            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
+            $loadedBookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
                 ->where('campany_id', $companyId)
                 ->where('payment_status', 'Paid')
                 ->whereBetween('created_at', [
@@ -1025,7 +1026,7 @@ $q->where('id', auth()->user()->campany->id);
                 ->orderBy('seat')
                 ->latest()
                 ->get();
-            $data = $this->bookingsToReportArray($bookings);
+            $data = $this->bookingsToReportArray($loadedBookings);
         } elseif ($request->filled('booking_ids')) {
             $ids = is_array($request->booking_ids) ? $request->booking_ids : (array) json_decode($request->booking_ids, true);
             $ids = array_filter(array_map('intval', $ids));
@@ -1037,8 +1038,8 @@ $q->where('id', auth()->user()->campany->id);
                 if ($companyId) {
                     $query->where('campany_id', $companyId);
                 }
-                $bookings = $query->get();
-                $data = $this->bookingsToReportArray($bookings);
+                $loadedBookings = $query->get();
+                $data = $this->bookingsToReportArray($loadedBookings);
             }
         }
 
@@ -1047,13 +1048,18 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         if ($data === null && $companyId) {
-            $bookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
+            $loadedBookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
                 ->where('campany_id', $companyId)
                 ->where('payment_status', 'Paid')
                 ->orderBy('seat')
                 ->latest()
                 ->get();
-            $data = $this->bookingsToReportArray($bookings);
+            $data = $this->bookingsToReportArray($loadedBookings);
+        }
+
+        // Expand multi-passenger bookings into individual manifest rows.
+        if ($loadedBookings !== null) {
+            $data = expand_bookings_to_manifest_rows($loadedBookings, $data);
         }
 
         if (empty($data) || !is_array($data) || !isset($data[0])) {
@@ -1073,7 +1079,7 @@ $q->where('id', auth()->user()->campany->id);
         if ($busNumbers->count() > 1) {
             $sections = [];
             foreach ($busNumbers as $busNumber) {
-                $bus = bus::where('bus_number', $busNumber)->first();
+                $bus = Bus::where('bus_number', $busNumber)->first();
                 if (!$bus) {
                     continue;
                 }
@@ -1085,6 +1091,9 @@ $q->where('id', auth()->user()->campany->id);
                     ->all();
 
                 if (!empty($rows)) {
+                    // Prepend staff rows for this bus.
+                    $staffRows = $this->manifestStaffRows($bus);
+                    $rows = array_merge($staffRows, $rows);
                     $sections[] = ['bus' => $bus, 'bookings' => $rows];
                 }
             }
@@ -1100,7 +1109,7 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         $number = $busNumbers->first();
-        $bus = bus::where('bus_number', $number)->first();
+        $bus = Bus::where('bus_number', $number)->first();
 
         if (!$bus) {
             return redirect()->back()->with('error', __('vender/history.bus_not_found_number', ['number' => $number]));
@@ -1113,10 +1122,131 @@ $q->where('id', auth()->user()->campany->id);
 
     public function generateManifest($data,$bus)
     {
-        $pdf = Pdf::loadView('print.manifest', ['bookings' => $data, 'bus' => $bus]);
+        // Prepend staff rows so they appear first in the manifest table.
+        $staffRows = $this->manifestStaffRows($bus);
+        $allRows = array_merge($staffRows, $data);
+
+        $pdf = Pdf::loadView('print.manifest', ['bookings' => $allRows, 'bus' => $bus]);
         $pdf->setPaper('a4', 'landscape');
 
         return $pdf->download('manifest-' . now() . '.pdf');
+    }
+
+    /**
+     * Build synthetic manifest rows for all staff assigned to a bus so they
+     * appear on the passenger manifest alongside travellers.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function manifestStaffRows($bus): array
+    {
+        $rows = [];
+
+        // Driver
+        if (!empty($bus->driver_name)) {
+            $rows[] = [
+                'seat' => '—',
+                'route_label' => '',
+                'customer_name' => strtoupper($bus->driver_name),
+                'gender_code' => '',
+                'customer_phone' => $bus->driver_contact ?? '',
+                'passenger_type' => 'DRIVER',
+                'infant_child' => 0,
+                'id_type' => '',
+                'id_number' => '',
+                'booking_code' => '',
+                'issue_date' => '',
+                'issue_by' => '',
+                'pickup_point' => '',
+                'dropping_point' => '',
+                'base_fare' => '0',
+                'manifest_discount' => '0',
+                'paid_fare' => '0',
+                'remarks' => '',
+                'is_staff' => true,
+            ];
+        }
+
+        // Second driver
+        if (!empty($bus->driver_name_2)) {
+            $rows[] = [
+                'seat' => '—',
+                'route_label' => '',
+                'customer_name' => strtoupper($bus->driver_name_2),
+                'gender_code' => '',
+                'customer_phone' => $bus->driver_contact_2 ?? '',
+                'passenger_type' => 'DRIVER',
+                'infant_child' => 0,
+                'id_type' => '',
+                'id_number' => '',
+                'booking_code' => '',
+                'issue_date' => '',
+                'issue_by' => '',
+                'pickup_point' => '',
+                'dropping_point' => '',
+                'base_fare' => '0',
+                'manifest_discount' => '0',
+                'paid_fare' => '0',
+                'remarks' => '',
+                'is_staff' => true,
+            ];
+        }
+
+        // Conductor
+        if (!empty($bus->conductor_name)) {
+            $rows[] = [
+                'seat' => '—',
+                'route_label' => '',
+                'customer_name' => strtoupper($bus->conductor_name),
+                'gender_code' => '',
+                'customer_phone' => $bus->conductor ?? '',
+                'passenger_type' => 'CONDUCTOR',
+                'infant_child' => 0,
+                'id_type' => '',
+                'id_number' => '',
+                'booking_code' => '',
+                'issue_date' => '',
+                'issue_by' => '',
+                'pickup_point' => '',
+                'dropping_point' => '',
+                'base_fare' => '0',
+                'manifest_discount' => '0',
+                'paid_fare' => '0',
+                'remarks' => '',
+                'is_staff' => true,
+            ];
+        }
+
+        // Customer service staff (up to 4)
+        for ($i = 1; $i <= 4; $i++) {
+            $nameKey = "customer_service_name_{$i}";
+            $contactKey = "customer_service_contact_{$i}";
+            if (!empty($bus->{$nameKey})) {
+                $rows[] = [
+                    'seat' => '—',
+                    'route_label' => '',
+                    'customer_name' => strtoupper($bus->{$nameKey}),
+                    'gender_code' => '',
+                    'customer_phone' => $bus->{$contactKey} ?? '',
+                    'passenger_type' => 'CUSTOMER SERVICE',
+                    'infant_child' => 0,
+                    'id_type' => '',
+                    'id_number' => '',
+                    'booking_code' => '',
+                    'issue_date' => '',
+                    'issue_by' => '',
+                    'pickup_point' => '',
+                    'dropping_point' => '',
+                    'base_fare' => '0',
+                    'manifest_discount' => '0',
+                    'paid_fare' => '0',
+                    'remarks' => '',
+                    'is_staff' => true,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     public function export(Request $request)

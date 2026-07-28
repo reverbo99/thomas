@@ -104,7 +104,16 @@ class RedirectController extends Controller
         $sendConductorSms = $settings ? (bool) $settings->enable_conductor_sms_notifications : true;
         $sendConductorEmail = $settings ? (bool) $settings->enable_conductor_email_notifications : true;
 
-        $customerMessage = "Dear {$data->customer_name}, Karibu {$data->campany->name}. Utasafiri na basi namba {$data->bus->bus_number} Tarehe {$data->travel_date} kutoka {$data->pickup_point} kwenda {$data->dropping_point} muda wa kuondoka ni " . ($data->schedule->start ?? 'N/A') . " tafadhali report kituoni mapema kwa safari.Namba ya kiti chako ni {$data->seat} na namba yako ya safari ni {$data->booking_code}. Kwa mawasiliano piga {$data->bus->conductor}. HIGHLINK ISGC inakutakia safari njema";
+        $departureTime = $data->schedule->start ?? 'N/A';
+        $reportTime = 'N/A';
+        if ($departureTime !== 'N/A') {
+            try {
+                $reportTime = \Carbon\Carbon::parse($data->travel_date . ' ' . $departureTime)->subMinutes(30)->format('h:i A');
+            } catch (\Exception $e) {
+                $reportTime = $departureTime;
+            }
+        }
+        $customerMessage = "Dear {$data->customer_name}, Karibu {$data->campany->name}, Utasafiri na basi namba {$data->bus->bus_number} Linalotoka {$data->pickup_point} Kwenda {$data->dropping_point} Tarehe {$data->travel_date}. tafadhali wasili " . ($data->pickup_point ?? 'kituoni') . " angalau mapema saa {$reportTime} tayari kwa safari. Namba ya kiti chako ni {$data->seat} na namba yako ya safari ni {$data->booking_code}. Kwa mawasiliano piga +255755879793. HIGHLINK ISGC inakutakia safari njema.";
         $conductorMessage = "Dear conductor, Kiti {$data->seat} katika basi namba {$data->bus->bus_number} kimeuzwa kwa {$data->customer_name} kwa safari ya kutoka {$data->pickup_point} kwenda {$data->dropping_point} tarehe {$data->travel_date} namba ya safari yake ni {$data->booking_code} wasiliana naye kwa namba {$data->customer_phone} HIGHLINK ISGC inawatakia safari njema";
 
         if ($sendCustomerSms && !empty($data->customer_phone)) {

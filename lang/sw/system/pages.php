@@ -99,6 +99,7 @@ return [
     'view_seats' => 'Ona viti',
     'seat_arrangement' => 'Mpangilio wa Viti',
     'no_seat_layout' => 'Hakuna mpangilio wa viti kwa basi hili.',
+    'other_seats' => 'Viti vingine:',
     'filter_bus_name' => 'Jina la basi',
     'filter_plate_number' => 'Nambari ya bango',
     'filter_departure_date' => 'Tarehe ya kuondoka',

@@ -144,6 +144,7 @@
                                 $bookedCount = count($seatMap);
                                 $totalSeats = (int) ($car->total_seats ?? 0);
                                 $availableCount = max(0, $totalSeats - $bookedCount);
+                                $layoutData = is_string($car->seate_json) ? $car->seate_json : json_encode($car->seate_json);
                             @endphp
                             <button type="button"
                                 class="view-seats-btn inline-flex items-center px-3 py-1.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-md text-xs font-medium hover:bg-indigo-100 transition"
@@ -154,8 +155,8 @@
                                 data-total-seats="{{ $totalSeats }}"
                                 data-booked-count="{{ $bookedCount }}"
                                 data-available-count="{{ $availableCount }}"
-                                data-layout="{{ e($car->seate_json ?? '') }}"
-                                data-booked-seats="{{ e(json_encode($seatMap)) }}">
+                                data-layout="{{ $layoutData ?? '' }}"
+                                data-booked-seats="{{ json_encode($seatMap) }}">
                                 <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 7a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2" />
                                 </svg>

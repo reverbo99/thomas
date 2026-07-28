@@ -80,5 +80,6 @@ class Kernel extends HttpKernel
         'api.role' => \App\Http\Middleware\CheckApiRole::class,
         '2fa' => \App\Http\Middleware\EnsureTwoFactorEnabled::class,
         'vendor.enabled' => \App\Http\Middleware\EnsureVendorEnabled::class,
+        'special_hire.enabled' => \App\Http\Middleware\EnsureSpecialHireEnabled::class,
     ];
 }

@@ -8,6 +8,7 @@ use App\Services\TraVfdService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 
@@ -103,6 +104,21 @@ class ParcelController extends Controller
         ]);
 
         (new TraVfdService())->fiscalize($parcel->refresh());
+
+        try {
+            $parcel->loadMissing('bus.campany', 'bus.route');
+            $busCompanyName = $parcel->bus->campany->name ?? 'N/A';
+            $busCity = $parcel->bus->route->from ?? 'N/A';
+            $deliveryAddress = $parcel->receiver_delivery_address ?? 'N/A';
+
+            $parcelSms = "Mpendwa {$parcel->receiver_name}, Mzigo wako nambari {$parcel->parcel_number} umepokelewa katika ofisi za {$busCompanyName} hapa {$busCity} tayari kusafirishwa kuelekea {$deliveryAddress} wa kupokelea. Utapokea taarifa kutoka {$busCompanyName} mara baada ya mzigo wako utakapowasili.";
+
+            if (!empty($parcel->receiver_contact_1)) {
+                (new SmsController())->sms_send($parcel->receiver_contact_1, $parcelSms);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Parcel SMS failed: ' . $e->getMessage(), ['parcel_id' => $parcel->id]);
+        }
 
         return redirect()->route('vender.parcels.index')->with('success', __('vender/parcels.parcel_added_success'));
     }

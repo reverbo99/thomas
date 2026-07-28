@@ -1352,3 +1352,83 @@ if (! function_exists('transaction_payment_detail')) {
         return $paymentNumber !== '' ? $paymentNumber : $unknown;
     }
 }
+
+if (!function_exists('expand_bookings_to_manifest_rows')) {
+    /**
+     * Expand a bookings collection into individual passenger rows for the
+     * passenger manifest, including per-passenger detail from the JSON
+     * `passengers` column.  When a booking has no per-passenger breakdown
+     * (legacy data), a single row is emitted so nothing is lost.
+     *
+     * Each row carries every field from booking_to_report_row() plus optional
+     * passenger-level overrides for name, phone, gender, age_group, id_type,
+     * id_number, and the specific seat label.
+     *
+     * @param  \Illuminate\Support\Collection  $bookings  Eloquent Booking collection (with relations loaded)
+     * @param  array  $rows  Output of booking_to_report_row() — array of associative arrays.
+     * @return array  Expanded rows, one entry per passenger (or one per booking as fallback).
+     */
+    function expand_bookings_to_manifest_rows($bookings, array $rows): array
+    {
+        $expanded = [];
+        $indexed = collect($rows)->keyBy('booking_code');
+
+        foreach ($bookings as $booking) {
+            $bookingCode = $booking->booking_code ?? '';
+            $baseRow = $indexed->get($bookingCode);
+            if ($baseRow === null) {
+                continue;
+            }
+
+            $passengers = booking_passengers_list($booking);
+            $seatLabels = booking_seat_list($booking->seat ?? '');
+
+            if (empty($passengers)) {
+                // No per-passenger breakdown — emit the single booking row as-is.
+                $expanded[] = $baseRow;
+                continue;
+            }
+
+            foreach ($passengers as $idx => $passenger) {
+                if (!is_array($passenger)) {
+                    continue;
+                }
+
+                $seatLabel = $seatLabels[$idx] ?? ($passenger['seat'] ?? '');
+                $passengerName = trim((string) ($passenger['name'] ?? ''));
+                $passengerPhone = trim((string) ($passenger['phone'] ?? ''));
+
+                $row = $baseRow;
+                $row['seat'] = $seatLabel;
+                $row['customer_name'] = $passengerName !== '' ? $passengerName : ($baseRow['customer_name'] ?? 'N/A');
+                $row['customer_phone'] = $passengerPhone !== '' ? $passengerPhone : ($baseRow['customer_phone'] ?? 'N/A');
+                $row['age_group'] = $passenger['age_group'] ?? $baseRow['age_group'] ?? 'Adult';
+                $row['passenger_type'] = $passenger['age_group'] ?? $baseRow['passenger_type'] ?? 'Adult';
+                $row['infant_child'] = in_array(strtolower($row['passenger_type']), ['infant', 'baby', 'newborn']) ? 1 : 0;
+                $row['gender_code'] = manifest_gender_code($passenger['gender'] ?? null);
+                $row['gender'] = $passenger['gender'] ?? $baseRow['gender'] ?? '';
+                $row['id_type'] = $passenger['id_type'] ?? $baseRow['id_type'] ?? '';
+                $row['id_number'] = $passenger['id_number'] ?? $baseRow['id_number'] ?? '';
+                $row['is_staff'] = false;
+
+                $expanded[] = $row;
+            }
+        }
+
+        return $expanded;
+    }
+}
+
+if (!function_exists('booking_seat_list')) {
+    /**
+     * Split a comma-separated seat string into an indexed array.
+     */
+    function booking_seat_list(?string $seatString): array
+    {
+        if ($seatString === null || trim($seatString) === '') {
+            return [];
+        }
+
+        return array_map('trim', explode(',', $seatString));
+    }
+}

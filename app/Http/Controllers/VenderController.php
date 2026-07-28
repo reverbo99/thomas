@@ -13,8 +13,10 @@ use App\Mail\SendEmail;
 use App\Models\Bima;
 use App\Models\Booking;
 use App\Models\bus;
+use App\Models\CancelledBookings;
 use App\Models\City;
 use App\Models\Discount;
+use App\Models\Parcel;
 use App\Models\PaymentFees;
 use App\Models\route;
 use App\Models\Schedule;
@@ -59,6 +61,27 @@ class VenderController extends Controller
         $bookings = Booking::where('vender_id', $venderId)
             ->latest()
             ->get();
+
+        // ── Fee statistics for vendor dashboard ──────────────────────────
+        // Base: all Paid bookings for this vendor
+        $paidQuery = Booking::where('vender_id', $venderId)
+            ->where('payment_status', 'Paid');
+
+        $totalVenderFee = (float) (clone $paidQuery)->sum('vender_fee');
+        $totalVenderService = (float) (clone $paidQuery)->sum('vender_service');
+        $totalExcessLuggageFee = (float) (clone $paidQuery)
+            ->where('has_excess_luggage', 1)
+            ->sum('excess_luggage_fee');
+
+        // Parcel fees: sum of all parcel amounts paid through this vendor
+        $totalParcelFee = (float) Parcel::where('vender_id', $venderId)
+            ->where('status', 'delivered')
+            ->sum('amount_paid');
+
+        // Cancellation fees: sum of cancelled booking amounts attributed to this vendor
+        $totalCancellationFee = (float) CancelledBookings::whereHas('booking', function ($q) use ($venderId) {
+            $q->where('vender_id', $venderId);
+        })->sum('amount');
 
         // Prepare label/data based on filter
         $monthlyLabels = [];
@@ -152,7 +175,12 @@ class VenderController extends Controller
             'bookings',
             'monthlyLabels',
             'monthlyData',
-            'filter'
+            'filter',
+            'totalVenderFee',
+            'totalVenderService',
+            'totalParcelFee',
+            'totalExcessLuggageFee',
+            'totalCancellationFee'
         ));
     }
 

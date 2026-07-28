@@ -597,7 +597,7 @@ return [
     'error_try_again' => 'Kulikuwa na hitilafu. Tafadhali jaribu tena.',
     'hero_promo_eyebrow' => 'Salama na Starehe',
     'hero_promo_title' => 'Meli ya Kifahari, Madereva Wataalamu',
-    'hero_promo_subtitle' => 'Reclining seats, Wi-Fi, and on-time departures',
+    'hero_promo_subtitle' => 'Viti vya starehe, Wi-Fi, na kuondoka kwa wakati',
     'routes_page_eyebrow' => 'Safiri Kote Tanzania',
     'routes_page_subtitle' => 'Marudio ya juu yanayopendwa na abiria wetu — weka nafasi kwa kubofya mara moja',
     'routes_looking_today' => 'Unatafuta mabasi ya leo?',

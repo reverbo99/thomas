@@ -77,6 +77,8 @@ class SpecialHireOrderPaymentService
                             $wallet->increment('balance', $platformFee);
                         }
                     }
+                    $this->notifyDriverOfNewHire($order->fresh('coaster'));
+                    $this->notifyCustomerOfConfirmedHire($order->fresh('coaster'));
                 }
 
                 return;
@@ -127,6 +129,8 @@ class SpecialHireOrderPaymentService
                         $wallet->increment('balance', $platformFee);
                     }
                 }
+                $this->notifyDriverOfNewHire($order->fresh('coaster'));
+                $this->notifyCustomerOfConfirmedHire($order->fresh('coaster'));
             }
         });
     }
@@ -369,9 +373,11 @@ class SpecialHireOrderPaymentService
                 'clickpesa_ref' => $sanitizedRef ?: $intent->clickpesa_ref,
             ]);
 
-            $this->notifyDriverOfNewHire($order->fresh('coaster'));
+            $freshOrder = $order->fresh('coaster');
+            $this->notifyDriverOfNewHire($freshOrder);
+            $this->notifyCustomerOfConfirmedHire($freshOrder);
 
-            return $order->fresh('coaster');
+            return $freshOrder;
         });
     }
 
@@ -404,6 +410,36 @@ class SpecialHireOrderPaymentService
             );
         } catch (\Throwable $e) {
             Log::warning('FCM driver notify failed: '.$e->getMessage());
+        }
+    }
+
+    public function notifyCustomerOfConfirmedHire(SpecialHireOrder $order): void
+    {
+        $order->loadMissing('coaster.user');
+        $coaster = $order->coaster;
+        $companyName = $coaster?->user?->name ?? 'HIGHLINK';
+        $plateNumber = $coaster?->plate_number ?? 'N/A';
+        $pickup = $order->pickup_location ?? 'N/A';
+        $dropoff = $order->dropoff_location ?? 'N/A';
+        $hireDate = $order->hire_date ? $order->hire_date->format('d/m/Y') : 'N/A';
+        $hireTime = $order->hire_time ?? 'N/A';
+        $reportTime = $hireTime;
+        if ($hireTime !== 'N/A') {
+            try {
+                $reportTime = Carbon::parse($hireDate . ' ' . $hireTime)->subMinutes(30)->format('h:i A');
+            } catch (\Exception $e) {
+                $reportTime = $hireTime;
+            }
+        }
+
+        $msg = "Mpendwa {$order->customer_name}, Karibu {$companyName}, wewe na wenzako mtasafiri na basi namba {$plateNumber} kutoka {$pickup} Kwenda {$dropoff} Tarehe {$hireDate}. Abiria wote mnaombwa kuwasili {$pickup} angalau saa {$reportTime} tayari kwa safari. namba yako ni {$order->order_code}. Kwa mawasiliano piga +255755879793. HIGHLINK ISGC inakutakia safari njema.";
+
+        if (!empty($order->customer_phone)) {
+            try {
+                app(SmsController::class)->sms_send($order->customer_phone, $msg);
+            } catch (\Exception $e) {
+                Log::warning('Special hire customer SMS failed: ' . $e->getMessage(), ['order_id' => $order->id]);
+            }
         }
     }
 }

@@ -35,6 +35,10 @@ class bus extends Model
         'accept_parcels'
     ];
 
+    protected $casts = [
+        'seate_json' => 'string',
+    ];
+
     public function campany()
     {
         return $this->belongsTo(Campany::class);

@@ -187,6 +187,7 @@
                                         $bookedCount = count($seatMap);
                                         $totalSeats = (int) ($bus->total_seats ?? 0);
                                         $availableCount = max(0, $totalSeats - $bookedCount);
+                                        $layoutData = is_string($bus?->seate_json) ? $bus->seate_json : json_encode($bus?->seate_json);
                                     @endphp
                                     <button type="button"
                                         class="view-seats-btn page-btn page-btn--outline"
@@ -199,8 +200,8 @@
                                         data-total-seats="{{ $totalSeats }}"
                                         data-booked-count="{{ $bookedCount }}"
                                         data-available-count="{{ $availableCount }}"
-                                        data-layout="{{ e($bus?->seate_json ?? '') }}"
-                                        data-booked-seats="{{ e(json_encode($seatMap)) }}">
+                                        data-layout="{{ $layoutData ?? '' }}"
+                                        data-booked-seats="{{ json_encode($seatMap) }}">
                                         <i class="fas fa-chair"></i> {{ __('system.pages.view_seats') }}
                                     </button>
                                 </td>

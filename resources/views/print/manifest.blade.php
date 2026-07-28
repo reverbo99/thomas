@@ -72,6 +72,12 @@
             font-size: 7px;
         }
 
+        .manifest-table tr.staff-row td {
+            background-color: #dbeafe;
+            font-weight: 600;
+            color: #1e40af;
+        }
+
         .text-center {
             text-align: center;
         }
@@ -128,7 +134,7 @@
         <tbody>
             @if (isset($bookings) && is_array($bookings) && count($bookings) > 0)
                 @foreach ($bookings as $index => $booking)
-                    <tr>
+                    <tr class="{{ !empty($booking['is_staff']) ? 'staff-row' : '' }}">
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td>{{ $booking['seat'] ?? '' }}</td>
                         <td>{{ $booking['route_label'] ?? '' }}</td>

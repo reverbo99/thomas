@@ -471,7 +471,7 @@
                             {{-- Hidden JSON sent to server --}}
                             <input type="hidden" name="seate_json" id="seate_json">
 
-                            @if ($bus->seats_json && !empty($bus->seats_json))
+                            @if ($bus->seate_json && !empty($bus->seate_json))
                                 {{-- Show existing seat layout for editing --}}
                                 <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                     <div class="flex items-center">
@@ -491,26 +491,28 @@
                                         <input id="sl_name"
                                             class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50/50"
                                             placeholder="e.g., 2+2 Coach 45 seats"
-                                            value="{{ json_decode($bus->seats_json)->name ?? 'Untitled Layout' }}" />
+                                            value="{{ json_decode($bus->seate_json)->name ?? 'Untitled Layout' }}" />
                                     </label>
 
                                     <label class="md:col-span-2 col-span-1">
                                         <span class="block text-xs text-gray-600 mb-1">Rows</span>
                                         <input id="sl_rows" type="number" min="1"
-                                            value="{{ json_decode($bus->seats_json)->rows ?? 10 }}"
+                                            value="{{ json_decode($bus->seate_json)->rows ?? 10 }}"
                                             class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50/50" />
                                     </label>
 
                                     <label class="md:col-span-2 col-span-1">
                                         <span class="block text-xs text-gray-600 mb-1">Cols</span>
                                         <input id="sl_cols" type="number" min="1"
-                                            value="{{ json_decode($bus->seats_json)->cols ?? 4 }}"
+                                            value="{{ json_decode($bus->seate_json)->cols ?? 4 }}"
                                             class="w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50/50" />
                                     </label>
 
                                     <div class="md:col-span-5 col-span-2 flex gap-2 flex-wrap">
                                         <button type="button" id="sl_apply"
                                             class="rounded-lg px-3 py-2 text-white bg-teal-600 hover:bg-teal-700">Apply</button>
+                                        <button type="button" id="sl_autofill"
+                                            class="rounded-lg px-3 py-2 text-white bg-blue-600 hover:bg-blue-700" title="Fill all empty cells with seats">Auto Fill</button>
                                         <button type="button" id="sl_add"
                                             class="rounded-lg px-3 py-2 text-white bg-emerald-600 hover:bg-emerald-700">Add
                                             Seat</button>
@@ -1259,7 +1261,34 @@
             document.getElementById('sl_ren').addEventListener('click', renameSelected);
             document.getElementById('sl_del').addEventListener('click', deleteSelected);
             document.getElementById('sl_aisle').addEventListener('click', toggleAisle);
+            document.getElementById('sl_autofill').addEventListener('click', autoFillAll);
             nameEl.addEventListener('input', e => d.layout.name = e.target.value);
+
+            // Auto-fill all empty cells with seats
+            function autoFillAll() {
+                const { rows, cols } = d.layout;
+                let added = 0;
+                for (let r = 1; r <= rows; r++) {
+                    for (let c = 1; c <= cols; c++) {
+                        if (!isAisle(r, c) && !seatAt(r, c)) {
+                            const id = uid();
+                            d.layout.seats.push({
+                                id,
+                                label: suggestNextLabel(),
+                                row: r,
+                                col: c
+                            });
+                            added++;
+                        }
+                    }
+                }
+                if (added > 0) {
+                    d.selected = new Set();
+                    renderGrid();
+                } else {
+                    alert('No empty cells available (all cells are either seats or aisles)');
+                }
+            }
 
             // Init
             (function init() {

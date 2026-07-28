@@ -9,12 +9,12 @@
     @php
         $totalCommissionBalance = (float) $balances->sum('balance');
         $totalServiceFees = (float) $pays->sum(fn ($payment) => (float) ($payment->display_amount ?? $payment->amount));
-        $totalLevies = (float) $levies->sum(fn ($levy) => (float) ($levy->display_amount ?? $levy->amount));
-        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => booking_luggage_fee($booking));
+        $systemLuggagePercent = 5;
+        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => round(booking_luggage_fee($booking) * $systemLuggagePercent / 100, 2));
         $totalCancellationFees = (float) $cancellations->sum('amount');
         $totalParcelCommission = (float) $parcels->sum(fn ($parcel) => (float) $parcel->commission_amount);
         $totalSpecialHireCommission = (float) $specialHireOrders->sum('platform_commission_amount');
-        $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLevies + $totalLuggageFees
+        $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLuggageFees
             + $totalCancellationFees + $totalParcelCommission + $totalSpecialHireCommission;
     @endphp
 
@@ -63,11 +63,6 @@
                 <p class="text-xs font-semibold text-cyan-700 uppercase tracking-wide">{{ __('system.pages.luggage_fees') }}</p>
                 <p class="text-xl sm:text-2xl font-bold text-cyan-900 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalLuggageFees) }}</p>
                 <p class="text-xs text-cyan-600 opacity-90 mt-2 group-hover:underline">{{ __('system.pages.luggage_fees_rows', ['count' => $luggageBookings->count()]) }}</p>
-            </a>
-            <a href="#income-levy" class="group rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
-                <p class="text-xs font-semibold text-amber-800 uppercase tracking-wide">{{ __('system.pages.gov_levy_service') }}</p>
-                <p class="text-xl sm:text-2xl font-bold text-amber-950 tabular-nums mt-1">{{ $currency }} {{ convert_money($totalLevies) }}</p>
-                <p class="text-xs text-amber-700 opacity-90 mt-2 group-hover:underline">{{ __('system.pages.gov_levy_rows', ['count' => $levies->count()]) }}</p>
             </a>
             <a href="#income-cancellation" class="group rounded-xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
                 <p class="text-xs font-semibold text-rose-700 uppercase tracking-wide">{{ __('system.pages.cancellation_fees') }}</p>
@@ -328,101 +323,13 @@
                                 @php $lg = 1; @endphp
                                 @if($luggageBookings->count() > 0)
                                     @foreach ($luggageBookings as $booking)
-                                        @php $luggageAmount = booking_luggage_fee($booking); @endphp
+                                        @php $luggageAmount = round(booking_luggage_fee($booking) * $systemLuggagePercent / 100, 2); @endphp
                                         <tr class="hover:bg-cyan-50 transition-colors">
                                             <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $lg++ }}</td>
                                             <td class="py-2.5 px-4 font-medium text-gray-900">{{ $booking->campany->name ?? '—' }}</td>
                                             <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $booking->booking_code ?? 'N/A' }}</td>
                                             <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $luggageAmount }}">{{ $currency }} {{ convert_money($luggageAmount) }}</td>
                                             <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $booking->created_at->format('Y-m-d') }}">{{ $booking->created_at->format('d M Y') }}</td>
-                                        </tr>
-                                    @endforeach
-                                @else
-                                    <tr class="payments-empty-row">
-                                        @for ($col = 0; $col < 5; $col++)
-                                            <td class="py-8 px-4 text-center text-gray-500 text-sm">{{ $col === 0 ? __('system.pages.no_data_found') : '' }}</td>
-                                        @endfor
-                                    </tr>
-                                @endif
-                            </tbody>
-                        </table>
-                    </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="income-levy" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden scroll-mt-24">
-                <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #d97706, #f59e0b);">
-                    <div>
-                        <h2 class="text-lg font-semibold">Government levy (from service)</h2>
-                        <p class="text-amber-100 text-xs sm:text-sm mt-0.5">Levy portion attributed to service fees</p>
-                    </div>
-                    <div class="text-left sm:text-right">
-                        <span class="text-xs text-amber-100 uppercase tracking-wide font-medium">Section total</span>
-                        <div class="text-xl font-bold tabular-nums">{{ $currency }} <span id="levyTotal">{{ convert_money($totalLevies) }}</span></div>
-                    </div>
-                </div>
-                <div class="p-4 sm:p-6">
-                    <div class="flex flex-col lg:flex-row gap-4 mb-4 bg-gray-50 rounded-lg border border-gray-100 p-4">
-                        <div class="w-full lg:w-64">
-                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Period</label>
-                            <select id="levyTimeFilter" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm text-gray-800">
-                                <option value="all">All Time</option>
-                                <option value="day">Today</option>
-                                <option value="week">This Week</option>
-                                <option value="month">This Month</option>
-                                <option value="year">This Year</option>
-                                <option value="custom">Custom Range</option>
-                            </select>
-                        </div>
-                        <div class="w-full lg:flex-1 hidden" id="levyDateRangeGroup">
-                            <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Custom range</label>
-                            <div class="flex flex-col sm:flex-row sm:items-end gap-2">
-                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm" id="levyMinDate" placeholder="Start Date">
-                                <span class="text-gray-400 text-sm hidden sm:block pb-2.5">→</span>
-                                <input type="text" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm" id="levyMaxDate" placeholder="End Date">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
-                    <div class="overflow-x-auto px-4 py-4">
-                        <div class="system-payments-filters mb-3">
-                            <div class="system-payments-filters__grid">
-                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="0" placeholder="No.">
-                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="1" placeholder="{{ __('system.pages.col_company') }}">
-                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="2" placeholder="Booking code">
-                                <input type="text" class="system-payments-filters__input search-input text-right" data-table="levyTable" data-column="3" placeholder="{{ __('system.common.amount') }}">
-                                <input type="text" class="system-payments-filters__input search-input" data-table="levyTable" data-column="4" placeholder="{{ __('system.common.date') }}">
-                            </div>
-                        </div>
-                        <table id="levyTable" class="display stripe w-full table-fixed border-collapse text-sm system-payments-table">
-                            <colgroup>
-                                <col class="system-payments-col-no">
-                                <col class="system-payments-col-company">
-                                <col class="system-payments-col-booking">
-                                <col class="system-payments-col-amount">
-                                <col class="system-payments-col-date">
-                            </colgroup>
-                            <thead>
-                                <tr class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide border-b border-gray-200">
-                                    <th class="py-2.5 px-4 text-left font-semibold">No</th>
-                                    <th class="py-2.5 px-4 text-left font-semibold">{{ __('system.pages.col_company') }}</th>
-                                    <th class="py-2.5 px-4 text-left font-semibold">Booking code</th>
-                                    <th class="py-2.5 px-4 text-right font-semibold whitespace-nowrap">{{ __('system.common.amount') }}</th>
-                                    <th class="py-2.5 px-4 text-left font-semibold whitespace-nowrap">{{ __('system.common.date') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-gray-700 text-sm divide-y divide-gray-100 bg-white">
-                                @php $l = 1; @endphp
-                                @if($levies->count() > 0)
-                                    @foreach ($levies as $levy)
-                                        @php $levyAmount = (float) ($levy->display_amount ?? $levy->amount); @endphp
-                                        <tr class="hover:bg-amber-50 transition-colors">
-                                            <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $l++ }}</td>
-                                            <td class="py-2.5 px-4 font-medium text-gray-900">{{ $levy->campany->name }}</td>
-                                            <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $levy->booking_id }}</td>
-                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $levyAmount }}">{{ $currency }} {{ convert_money($levyAmount) }}</td>
-                                            <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $levy->created_at->format('Y-m-d') }}">{{ $levy->created_at->format('d M Y') }}</td>
                                         </tr>
                                     @endforeach
                                 @else
@@ -784,14 +691,6 @@
                 format: 'DD MMM YYYY'
             });
 
-            // Create date inputs for Government Levy Table
-            var levyMinDate = new DateTime($('#levyMinDate'), {
-                format: 'DD MMM YYYY'
-            });
-            var levyMaxDate = new DateTime($('#levyMaxDate'), {
-                format: 'DD MMM YYYY'
-            });
-
             // Create date inputs for Luggage Fees Table
             var luggageMinDate = new DateTime($('#luggageMinDate'), {
                 format: 'DD MMM YYYY'
@@ -844,11 +743,6 @@
                     minDate = luggageMinDate.val();
                     maxDate = luggageMaxDate.val();
                     dateStr = data[4];
-                } else if (tableId === 'levyTable') {
-                    filterValue = $('#levyTimeFilter').val();
-                    minDate = levyMinDate.val();
-                    maxDate = levyMaxDate.val();
-                    dateStr = data[4]; // Date column for levyTable
                 } else if (tableId === 'cancellationTable') {
                     filterValue = $('#cancellationTimeFilter').val();
                     minDate = cancellationMinDate.val();
@@ -902,7 +796,6 @@
             const serviceTable = initPaymentsTable('#serviceTable', '#serviceTotal');
             const commissionTable = initPaymentsTable('#commissionTable', '#commissionTotal');
             const luggageTable = initPaymentsTable('#luggageTable', '#luggageTotal');
-            const levyTable = initPaymentsTable('#levyTable', '#levyTotal');
             const cancellationTable = initPaymentsTable('#cancellationTable', '#cancellationTotal');
             const parcelTable = initPaymentsTable('#parcelTable', '#parcelTotal');
             const specialHireTable = initPaymentsTable('#specialHireTable', '#specialHireTotal');
@@ -910,7 +803,6 @@
                 serviceTable: serviceTable,
                 commissionTable: commissionTable,
                 luggageTable: luggageTable,
-                levyTable: levyTable,
                 cancellationTable: cancellationTable,
                 parcelTable: parcelTable,
                 specialHireTable: specialHireTable,
@@ -948,23 +840,6 @@
             $('#commissionMinDate, #commissionMaxDate').on('change', function() {
                 if ($('#commissionTimeFilter').val() === 'custom') {
                     commissionTable?.draw();
-                }
-            });
-
-            // Apply time filter for Government Levy Table
-            $('#levyTimeFilter').on('change', function() {
-                if ($(this).val() === 'custom') {
-                    $('#levyDateRangeGroup').removeClass('hidden');
-                } else {
-                    $('#levyDateRangeGroup').addClass('hidden');
-                    levyTable?.draw();
-                }
-            });
-
-            // Redraw the Government Levy Table when the custom date inputs change
-            $('#levyMinDate, #levyMaxDate').on('change', function() {
-                if ($('#levyTimeFilter').val() === 'custom') {
-                    levyTable?.draw();
                 }
             });
 
