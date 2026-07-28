@@ -597,6 +597,7 @@ return [
     'error_try_again' => 'Something went wrong. Please try again.',
     'hero_promo_eyebrow' => 'Safe & Comfortable',
     'hero_promo_title' => 'Premium Fleet, Expert Drivers',
+    'hero_promo_subtitle' => 'Comfortable seats, Wi-Fi, and on-time coach departures',
     'routes_page_eyebrow' => 'Travel Across Tanzania',
     'routes_page_subtitle' => 'Top destinations travelled by our passengers — book in one click',
     'routes_looking_today' => "Looking for today's buses?",

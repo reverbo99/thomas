@@ -570,6 +570,10 @@ if (!function_exists('group_ticket_list_rows')) {
 }
 
 if (!function_exists('booking_luggage_fee')) {
+    /**
+     * The bus owner's excess luggage fee as charged on the booking (gross).
+     * This is the bus owner's figure — see system_luggage_fee() for the system's cut.
+     */
     function booking_luggage_fee($booking): float
     {
         if ((int) ($booking->has_excess_luggage ?? 0) === 1 || (float) ($booking->excess_luggage_fee ?? 0) > 0) {
@@ -577,6 +581,38 @@ if (!function_exists('booking_luggage_fee')) {
         }
 
         return 0.0;
+    }
+}
+
+if (!function_exists('system_luggage_percent')) {
+    /**
+     * Percentage of the bus owner's excess luggage fee that the system retains.
+     * Single source of truth for the split — settlement, dashboard, system income
+     * and the exports must all agree, so never hardcode the rate at the call site.
+     */
+    function system_luggage_percent(): float
+    {
+        return \App\Services\FareFormulaService::SYSTEM_LUGGAGE_PERCENT;
+    }
+}
+
+if (!function_exists('system_luggage_fee')) {
+    /**
+     * The system's share of a booking's excess luggage fee (system income).
+     */
+    function system_luggage_fee($booking): float
+    {
+        return round(booking_luggage_fee($booking) * system_luggage_percent() / 100, 2);
+    }
+}
+
+if (!function_exists('bus_owner_luggage_fee')) {
+    /**
+     * The bus owner's share of a booking's excess luggage fee, after the system's cut.
+     */
+    function bus_owner_luggage_fee($booking): float
+    {
+        return round(booking_luggage_fee($booking) - system_luggage_fee($booking), 2);
     }
 }
 

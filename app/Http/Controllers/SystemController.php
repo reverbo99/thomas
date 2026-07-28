@@ -134,11 +134,11 @@ class SystemController extends Controller
 
         $service = SystemBalance::sum('balance');
         $fees = (float) PaymentFees::sum('amount');
-        $systemLuggagePercent = 5;
+        // System income from luggage is only its percentage share of the bus owner's fee.
         $luggageTotal = round((float) Booking::query()
             ->where('payment_status', 'Paid')
             ->where('excess_luggage_fee', '>', 0)
-            ->sum('excess_luggage_fee') * $systemLuggagePercent / 100, 2);
+            ->sum('excess_luggage_fee') * system_luggage_percent() / 100, 2);
         $balance = AdminWallet::sum('balance');
         $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
         $specialHireCommissionTotal = (float) SpecialHireOrder::where('payment_status', 'paid')->sum('platform_commission_amount');
@@ -1277,14 +1277,13 @@ class SystemController extends Controller
             );
         });
 
-        $systemLuggagePercent = 5;
-        $luggageRows = $luggageBookings->values()->map(function ($booking, $index) use ($systemLuggagePercent) {
+        $luggageRows = $luggageBookings->values()->map(function ($booking, $index) {
             return $this->mapSystemIncomeRow(
                 __('system.pages.luggage_fees'),
                 $index + 1,
                 $booking->campany->name ?? '—',
                 $booking->booking_code ?? 'N/A',
-                round(booking_luggage_fee($booking) * $systemLuggagePercent / 100, 2),
+                system_luggage_fee($booking),
                 $booking->created_at
             );
         });
@@ -1327,7 +1326,7 @@ class SystemController extends Controller
 
         $commissionTotal = (float) $balances->sum('balance');
         $serviceFeeTotal = (float) $pays->sum('amount');
-        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => round(booking_luggage_fee($booking) * $systemLuggagePercent / 100, 2));
+        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => system_luggage_fee($booking));
         $cancellationTotal = (float) $cancellations->sum('amount');
         $parcelTotal = (float) $parcels->sum(fn ($parcel) => round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2));
         $specialHireTotal = (float) $specialHireOrders->sum('platform_commission_amount');

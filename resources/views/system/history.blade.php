@@ -195,19 +195,23 @@
                                         </td>
                                         <td class="py-2 px-4">
                                             @php
-                                                $govLevyOnFare = (float) ($booking->government_levy ?? 0);
-                                                $govLevyOnService = (float) $booking->governmentLeviesOnService->sum('amount');
-                                                $totalGovLevy = $govLevyOnFare + $govLevyOnService;
+                                                // Levy on fare is stored on the booking; levy on the service fee lives in
+                                                // government_levies keyed by booking_code. Total must match the
+                                                // Government Levies report for the same booking.
+                                                $rowGovLevyOnFare = (float) ($booking->government_levy ?? 0);
+                                                $rowGovLevyOnService = (float) $booking->governmentLeviesOnService->sum('amount');
+                                                $rowTotalGovLevy = $rowGovLevyOnFare + $rowGovLevyOnService;
                                                 $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
                                             @endphp
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"
                                                 data-discount="{{ $booking->discount_amount ?? 0 }}"
-                                                data-gov-levy="{{ $totalGovLevy }}"
+                                                data-gov-levy="{{ $rowTotalGovLevy }}"
                                                 data-vat="{{ $booking->vat ?? 0 }}">
                                                 <p class="text-gray-500 font-medium mb-0">Commission: {{ $currency }} {{ convert_money($totalCommission) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">Discount: {{ $currency }} {{ convert_money($booking->discount_amount ?? 0) }}</p>
-                                                <p class="text-gray-500 font-medium mb-0">Gov. levy: {{ $currency }} {{ convert_money($totalGovLevy) }}</p>
+                                                <p class="text-gray-500 font-medium mb-0">Gov. levy: {{ $currency }} {{ convert_money($rowTotalGovLevy) }}</p>
+                                                <p class="text-gray-400 text-xs mb-0">{{ __('system.pages.gov_levy_fare') }}: {{ convert_money($rowGovLevyOnFare) }} · {{ __('system.pages.gov_levy_service') }}: {{ convert_money($rowGovLevyOnService) }}</p>
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">

@@ -13,7 +13,7 @@ use App\Models\Setting;
  * - System commission: (total bus fare levy-inclusive × commission %) + commission adding.
  * - Service fees (admin / settlement): (total bus fare levy-inclusive × service %) + service adding.
  * - Traveller service fee (checkout): same as settlement service fees.
- * - Government levy on service fee: 5% of admin service fees.
+ * - Government levy on service fee: 5% of the full service fee, before any vendor share is deducted.
  * - Rates may be stored as decimals (0.05 = 5%) or whole percents (5 = 5%).
  */
 class FareFormulaService
@@ -27,6 +27,9 @@ class FareFormulaService
     public const DEFAULT_VENDOR_PERCENT = 10.0;
 
     private const DEFAULT_GOVERNMENT_LEVY_PERCENT = 5.0;
+
+    /** System's share of the bus owner's excess luggage fee; the owner keeps the rest. */
+    public const SYSTEM_LUGGAGE_PERCENT = 5.0;
 
     private const SAFIRI_DOMESTIC_PER_DAY = 100.0;
 
@@ -184,8 +187,14 @@ class FareFormulaService
         $amountOnBusOwnerFormula = $rates['commission_adding'];
 
         $servicePoolAfterVendor = max(0, $serviceFees - $serviceFeesToVendor);
-        $governmentLevyOnServiceFee = $servicePoolAfterVendor * ($rates['government_levy_percent'] / 100);
+        // Levy base is the FULL service fee (spreadsheet B23 = 5% × B16), not the
+        // pool left after the vendor's cut — a vendor on the booking must not
+        // shrink what is owed to the government.
+        $governmentLevyOnServiceFee = $serviceFees * ($rates['government_levy_percent'] / 100);
         $totalGovernmentLevies = $governmentLevyOnFare + $governmentLevyOnServiceFee;
+        // What the system actually retains from the service fee once the vendor
+        // and the government have been paid out of it.
+        $systemServiceFeeShare = max(0, $servicePoolAfterVendor - $governmentLevyOnServiceFee);
 
         return [
             'rates' => $rates,
@@ -203,6 +212,7 @@ class FareFormulaService
             'amount_on_bus_owner_formula' => $amountOnBusOwnerFormula,
             'bus_owner_share' => $busOwnerShare,
             'service_pool_after_vendor' => $servicePoolAfterVendor,
+            'system_service_fee_share' => $systemServiceFeeShare,
             'highlink_share_user_ticket' => $systemCommissionTotal + $serviceFees,
             'highlink_share_vendor_ticket' => $systemCommissionRemainder + $servicePoolAfterVendor,
             'bima_amount' => $bimaAmount,

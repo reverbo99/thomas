@@ -156,9 +156,10 @@ class BookingSettlementService
 
         $systemBalanceAmount = (float) $result['system_commission_total'];
         $luggageFee = booking_luggage_fee($booking);
-        // System retains 5 % of the bus owner's luggage fee; bus owner keeps 95 %.
-        $systemLuggageShare = round($luggageFee * 0.05, 2);
-        $busOwnerLuggageShare = round($luggageFee - $systemLuggageShare, 2);
+        // System retains SYSTEM_LUGGAGE_PERCENT of the bus owner's luggage fee;
+        // the bus owner keeps the remainder.
+        $systemLuggageShare = system_luggage_fee($booking);
+        $busOwnerLuggageShare = bus_owner_luggage_fee($booking);
         $paymentFeesAmount = (float) $result['service_pool_after_vendor'];
         $vendorFee = 0.0;
         $vendorService = 0.0;
@@ -244,10 +245,12 @@ class BookingSettlementService
             'balance' => $systemBalanceAmount,
         ]);
         
-        // Calculate government levy on service fees (5%)
-        $governmentLevyOnServiceFee = $paymentFeesAmount * 0.05;
-        $serviceFeeAfterLevy = $paymentFeesAmount - $governmentLevyOnServiceFee;
-        
+        // Government levy on the service fee comes straight from the formula so the
+        // stored levy row, the booking columns and the admin reports cannot drift.
+        // It is levied on the full service fee, so the vendor's cut does not reduce it.
+        $governmentLevyOnServiceFee = (float) $result['government_levy_on_service_fee'];
+        $serviceFeeAfterLevy = (float) $result['system_service_fee_share'];
+
         PaymentFees::create([
             'campany_id' => $bus->campany->id,
             'amount' => $serviceFeeAfterLevy,

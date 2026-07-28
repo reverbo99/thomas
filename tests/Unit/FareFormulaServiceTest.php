@@ -120,4 +120,58 @@ class FareFormulaServiceTest extends TestCase
         $this->assertEquals(12.0, $result['government_levy_on_service_fee']);
         $this->assertEquals(100.0, $result['system_commission_total']);
     }
+
+    /**
+     * Sheet B23: government levy on the service fee is 5% of the FULL service fee (B16).
+     * A vendor on the booking takes its cut out of the system's share, never out of
+     * what is owed to the government, so the levy must not move with the vendor rate.
+     */
+    public function test_government_levy_on_service_fee_ignores_vendor_share(): void
+    {
+        $service = new FareFormulaService();
+        $setting = new Setting();
+        $setting->service_percentage = 2;
+        $setting->service = 100;
+
+        $withoutVendor = $service->calculateSettlement(2000.0, 2000.0, 0, 0, $setting, null, null, 2);
+        $withVendor = $service->calculateSettlement(2000.0, 2000.0, 0, 0, $setting, null, 10.0, 2);
+
+        // Same service fee base, so the same levy regardless of the vendor.
+        $this->assertEquals(240.0, $withVendor['service_fees']);
+        $this->assertEquals(12.0, $withVendor['government_levy_on_service_fee']);
+        $this->assertEquals(
+            $withoutVendor['government_levy_on_service_fee'],
+            $withVendor['government_levy_on_service_fee']
+        );
+
+        // The vendor's 10% comes out of the system's retained share, not the levy.
+        $this->assertEquals(24.0, $withVendor['service_fees_to_vendor']);
+        $this->assertEquals(204.0, $withVendor['system_service_fee_share']);
+        $this->assertEquals(228.0, $withoutVendor['system_service_fee_share']);
+
+        // Vendor + government + system must account for the whole service fee.
+        $this->assertEquals(
+            240.0,
+            round(
+                $withVendor['service_fees_to_vendor']
+                + $withVendor['government_levy_on_service_fee']
+                + $withVendor['system_service_fee_share'],
+                2
+            )
+        );
+    }
+
+    public function test_total_government_levies_is_fare_plus_service_levy(): void
+    {
+        $service = new FareFormulaService();
+        $setting = new Setting();
+        $setting->service_percentage = 2;
+        $setting->service = 100;
+
+        $result = $service->calculateSettlement(2000.0, 2000.0, 0, 0, $setting, null, 10.0, 2);
+
+        // Sheet B24 = B21 + B23.
+        $this->assertEquals(100.0, $result['government_levy_on_fare']);
+        $this->assertEquals(112.0, $result['total_government_levies']);
+    }
 }

@@ -1140,113 +1140,67 @@ $q->where('id', auth()->user()->campany->id);
      */
     private function manifestStaffRows($bus): array
     {
-        $rows = [];
+        // Staff appear whenever a name OR a contact is on record. Only
+        // conductor_phone is mandatory when a bus is created, so keying off the
+        // name alone dropped crew members from the manifest.
+        $staff = [
+            ['DRIVER', $bus->driver_name ?? null, $bus->driver_contact ?? null],
+            ['DRIVER', $bus->driver_name_2 ?? null, $bus->driver_contact_2 ?? null],
+            ['CONDUCTOR', $bus->conductor_name ?? null, $bus->conductor ?? null],
+        ];
 
-        // Driver
-        if (!empty($bus->driver_name)) {
-            $rows[] = [
-                'seat' => '—',
-                'route_label' => '',
-                'customer_name' => strtoupper($bus->driver_name),
-                'gender_code' => '',
-                'customer_phone' => $bus->driver_contact ?? '',
-                'passenger_type' => 'DRIVER',
-                'infant_child' => 0,
-                'id_type' => '',
-                'id_number' => '',
-                'booking_code' => '',
-                'issue_date' => '',
-                'issue_by' => '',
-                'pickup_point' => '',
-                'dropping_point' => '',
-                'base_fare' => '0',
-                'manifest_discount' => '0',
-                'paid_fare' => '0',
-                'remarks' => '',
-                'is_staff' => true,
-            ];
-        }
-
-        // Second driver
-        if (!empty($bus->driver_name_2)) {
-            $rows[] = [
-                'seat' => '—',
-                'route_label' => '',
-                'customer_name' => strtoupper($bus->driver_name_2),
-                'gender_code' => '',
-                'customer_phone' => $bus->driver_contact_2 ?? '',
-                'passenger_type' => 'DRIVER',
-                'infant_child' => 0,
-                'id_type' => '',
-                'id_number' => '',
-                'booking_code' => '',
-                'issue_date' => '',
-                'issue_by' => '',
-                'pickup_point' => '',
-                'dropping_point' => '',
-                'base_fare' => '0',
-                'manifest_discount' => '0',
-                'paid_fare' => '0',
-                'remarks' => '',
-                'is_staff' => true,
-            ];
-        }
-
-        // Conductor
-        if (!empty($bus->conductor_name)) {
-            $rows[] = [
-                'seat' => '—',
-                'route_label' => '',
-                'customer_name' => strtoupper($bus->conductor_name),
-                'gender_code' => '',
-                'customer_phone' => $bus->conductor ?? '',
-                'passenger_type' => 'CONDUCTOR',
-                'infant_child' => 0,
-                'id_type' => '',
-                'id_number' => '',
-                'booking_code' => '',
-                'issue_date' => '',
-                'issue_by' => '',
-                'pickup_point' => '',
-                'dropping_point' => '',
-                'base_fare' => '0',
-                'manifest_discount' => '0',
-                'paid_fare' => '0',
-                'remarks' => '',
-                'is_staff' => true,
-            ];
-        }
-
-        // Customer service staff (up to 4)
         for ($i = 1; $i <= 4; $i++) {
-            $nameKey = "customer_service_name_{$i}";
-            $contactKey = "customer_service_contact_{$i}";
-            if (!empty($bus->{$nameKey})) {
-                $rows[] = [
-                    'seat' => '—',
-                    'route_label' => '',
-                    'customer_name' => strtoupper($bus->{$nameKey}),
-                    'gender_code' => '',
-                    'customer_phone' => $bus->{$contactKey} ?? '',
-                    'passenger_type' => 'CUSTOMER SERVICE',
-                    'infant_child' => 0,
-                    'id_type' => '',
-                    'id_number' => '',
-                    'booking_code' => '',
-                    'issue_date' => '',
-                    'issue_by' => '',
-                    'pickup_point' => '',
-                    'dropping_point' => '',
-                    'base_fare' => '0',
-                    'manifest_discount' => '0',
-                    'paid_fare' => '0',
-                    'remarks' => '',
-                    'is_staff' => true,
-                ];
+            $staff[] = [
+                'CUSTOMER SERVICE',
+                $bus->{"customer_service_name_{$i}"} ?? null,
+                $bus->{"customer_service_contact_{$i}"} ?? null,
+            ];
+        }
+
+        $rows = [];
+        foreach ($staff as [$role, $name, $contact]) {
+            $name = trim((string) $name);
+            $contact = trim((string) $contact);
+
+            if ($name === '' && $contact === '') {
+                continue;
             }
+
+            $rows[] = $this->manifestStaffRow($role, $name !== '' ? $name : $role, $contact);
         }
 
         return $rows;
+    }
+
+    /**
+     * One synthetic manifest row for a crew member. Fare/booking fields are blank
+     * so staff never contribute to the manifest's revenue columns.
+     *
+     * @return array<string, mixed>
+     */
+    private function manifestStaffRow(string $role, string $name, string $contact): array
+    {
+        return [
+            'seat' => '—',
+            'route_label' => '',
+            'customer_name' => strtoupper($name),
+            'gender_code' => '',
+            'customer_phone' => $contact,
+            'passenger_type' => $role,
+            'infant_child' => 0,
+            'id_type' => '',
+            'id_number' => '',
+            'booking_code' => '',
+            'issue_date' => '',
+            'issue_by' => '',
+            'pickup_point' => '',
+            'dropping_point' => '',
+            'base_fare' => '0',
+            'manifest_discount' => '0',
+            'paid_fare' => '0',
+            'remarks' => '',
+            'is_staff' => true,
+        ];
     }
 
     public function export(Request $request)

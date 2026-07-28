@@ -18,14 +18,33 @@ class EnsureSpecialHireEnabled
         $user = $request->user();
 
         if (!$user) {
-            return redirect()->route('login');
+            return $this->deny($request, 'Unauthenticated.', 401);
         }
 
         if ($user->isSpecialHire() && !$user->isActive()) {
-            return redirect()->route('login')
-                ->with('error', 'Your special hire account has been disabled. Please contact the administrator.');
+            return $this->deny(
+                $request,
+                'Your special hire account has been disabled. Please contact the administrator.',
+                403
+            );
         }
 
         return $next($request);
+    }
+
+    /**
+     * API clients (mobile app) get JSON; the web portal keeps its login redirect.
+     * Without this the admin's Active/Disabled toggle only gated the web portal.
+     */
+    private function deny(Request $request, string $message, int $status): Response
+    {
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], $status);
+        }
+
+        return redirect()->route('login')->with('error', $message);
     }
 }

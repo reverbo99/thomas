@@ -9,8 +9,8 @@
     @php
         $totalCommissionBalance = (float) $balances->sum('balance');
         $totalServiceFees = (float) $pays->sum(fn ($payment) => (float) ($payment->display_amount ?? $payment->amount));
-        $systemLuggagePercent = 5;
-        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => round(booking_luggage_fee($booking) * $systemLuggagePercent / 100, 2));
+        $systemLuggagePercent = system_luggage_percent();
+        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => system_luggage_fee($booking));
         $totalCancellationFees = (float) $cancellations->sum('amount');
         $totalParcelCommission = (float) $parcels->sum(fn ($parcel) => (float) $parcel->commission_amount);
         $totalSpecialHireCommission = (float) $specialHireOrders->sum('platform_commission_amount');
@@ -262,7 +262,7 @@
                 <div class="px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" style="background-image: linear-gradient(to right, #0891b2, #06b6d4);">
                     <div>
                         <h2 class="text-lg font-semibold">{{ __('system.pages.luggage_fees') }}</h2>
-                        <p class="text-cyan-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.luggage_desc') }}</p>
+                        <p class="text-cyan-100 text-xs sm:text-sm mt-0.5">{{ __('system.pages.luggage_desc', ['percent' => rtrim(rtrim(number_format($systemLuggagePercent, 2, '.', ''), '0'), '.')]) }}</p>
                     </div>
                     <div class="text-left sm:text-right">
                         <span class="text-xs text-cyan-100 uppercase tracking-wide font-medium">{{ __('system.pages.section_total') }}</span>
@@ -323,7 +323,7 @@
                                 @php $lg = 1; @endphp
                                 @if($luggageBookings->count() > 0)
                                     @foreach ($luggageBookings as $booking)
-                                        @php $luggageAmount = round(booking_luggage_fee($booking) * $systemLuggagePercent / 100, 2); @endphp
+                                        @php $luggageAmount = system_luggage_fee($booking); @endphp
                                         <tr class="hover:bg-cyan-50 transition-colors">
                                             <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $lg++ }}</td>
                                             <td class="py-2.5 px-4 font-medium text-gray-900">{{ $booking->campany->name ?? '—' }}</td>

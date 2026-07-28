@@ -46,7 +46,7 @@ Route::prefix('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('special-hire/admin')
-    ->middleware(['auth:sanctum', 'api.role:special_hire'])
+    ->middleware(['auth:sanctum', 'api.role:special_hire', 'special_hire.enabled'])
     ->group(function () {
         // Dashboard & Analytics
         Route::get('/dashboard', [SpecialHireApiController::class, 'dashboard']);
