@@ -62,26 +62,15 @@ class VenderController extends Controller
             ->latest()
             ->get();
 
-        // ── Fee statistics for vendor dashboard ──────────────────────────
-        // Base: all Paid bookings for this vendor
-        $paidQuery = Booking::where('vender_id', $venderId)
-            ->where('payment_status', 'Paid');
-
-        $totalVenderFee = (float) (clone $paidQuery)->sum('vender_fee');
-        $totalVenderService = (float) (clone $paidQuery)->sum('vender_service');
-        $totalExcessLuggageFee = (float) (clone $paidQuery)
-            ->where('has_excess_luggage', 1)
-            ->sum('excess_luggage_fee');
-
-        // Parcel fees: sum of all parcel amounts paid through this vendor
-        $totalParcelFee = (float) Parcel::where('vender_id', $venderId)
-            ->where('status', 'delivered')
-            ->sum('amount_paid');
-
-        // Cancellation fees: sum of cancelled booking amounts attributed to this vendor
-        $totalCancellationFee = (float) CancelledBookings::whereHas('booking', function ($q) use ($venderId) {
-            $q->where('vender_id', $venderId);
-        })->sum('amount');
+        $feeSummary = $this->buildVendorFeeSummary($venderId, $filter);
+        $totalVenderFee = $feeSummary['totalVenderFee'];
+        $totalVenderService = $feeSummary['totalVenderService'];
+        $totalParcelFee = $feeSummary['totalParcelFee'];
+        $totalExcessLuggageFee = $feeSummary['totalExcessLuggageFee'];
+        $totalCancellationFee = $feeSummary['totalCancellationFee'];
+        $parcelCollected = $feeSummary['parcelCollected'];
+        $luggageCollected = $feeSummary['luggageCollected'];
+        $cancellationRetained = $feeSummary['cancellationRetained'];
 
         // Prepare label/data based on filter
         $monthlyLabels = [];
@@ -180,8 +169,89 @@ class VenderController extends Controller
             'totalVenderService',
             'totalParcelFee',
             'totalExcessLuggageFee',
-            'totalCancellationFee'
+            'totalCancellationFee',
+            'parcelCollected',
+            'luggageCollected',
+            'cancellationRetained'
         ));
+    }
+
+    /**
+     * Vendor fee cards: only vender_fee / vender_service credit the commission wallet.
+     * Parcel, excess luggage, and cancellation have no vendor share in settlement —
+     * those cards show 0 with collected/retained amounts available for UI hints.
+     */
+    private function buildVendorFeeSummary(int $venderId, string $period = 'month', ?string $startDate = null, ?string $endDate = null): array
+    {
+        $paidQuery = Booking::where('vender_id', $venderId)
+            ->where('payment_status', 'Paid');
+        $this->applyVendorFeePeriodFilter($paidQuery, $period, $startDate, $endDate);
+
+        $totalVenderFee = (float) (clone $paidQuery)->sum('vender_fee');
+        $totalVenderService = (float) (clone $paidQuery)->sum('vender_service');
+        $luggageCollected = (float) (clone $paidQuery)
+            ->where(function ($q) {
+                $q->where('has_excess_luggage', 1)
+                    ->orWhere('excess_luggage_fee', '>', 0);
+            })
+            ->sum('excess_luggage_fee');
+
+        $parcelQuery = Parcel::where('vender_id', $venderId)
+            ->where('status', '!=', 'cancelled');
+        $this->applyVendorFeePeriodFilter($parcelQuery, $period, $startDate, $endDate);
+        $parcelCollected = (float) $parcelQuery->sum('amount_paid');
+
+        $cancelQuery = CancelledBookings::query()
+            ->whereHas('booking', function ($q) use ($venderId) {
+                $q->where('vender_id', $venderId);
+            });
+        $this->applyVendorFeePeriodFilter($cancelQuery, $period, $startDate, $endDate);
+        $cancellationRetained = (float) $cancelQuery->sum('amount');
+
+        return [
+            'totalVenderFee' => $totalVenderFee,
+            'totalVenderService' => $totalVenderService,
+            // No vendor wallet credit for these three in BookingSettlementService / parcel flow.
+            'totalParcelFee' => 0.0,
+            'totalExcessLuggageFee' => 0.0,
+            'totalCancellationFee' => 0.0,
+            'parcelCollected' => $parcelCollected,
+            'luggageCollected' => $luggageCollected,
+            'cancellationRetained' => $cancellationRetained,
+        ];
+    }
+
+    private function applyVendorFeePeriodFilter($query, string $period, ?string $startDate = null, ?string $endDate = null): void
+    {
+        switch ($period) {
+            case 'today':
+                $query->whereDate('created_at', Carbon::today());
+                break;
+            case 'week':
+                $query->whereBetween('created_at', [
+                    Carbon::now()->startOfWeek(),
+                    Carbon::now()->endOfWeek(),
+                ]);
+                break;
+            case 'year':
+                $query->whereYear('created_at', Carbon::now()->year);
+                break;
+            case 'custom':
+                if ($startDate && $endDate) {
+                    $start = Carbon::parse($startDate)->startOfDay();
+                    $end = Carbon::parse($endDate)->endOfDay();
+                    if ($start->gt($end)) {
+                        [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+                    }
+                    $query->whereBetween('created_at', [$start, $end]);
+                }
+                break;
+            case 'month':
+            default:
+                $query->whereMonth('created_at', Carbon::now()->month)
+                    ->whereYear('created_at', Carbon::now()->year);
+                break;
+        }
     }
 
     public function route(Request $request)
@@ -544,11 +614,13 @@ class VenderController extends Controller
 
         $formulaService = app(FareFormulaService::class);
         $bus_info = session()->get('booking_form', []);
+        $total_fare = $formulaService->busFareForServiceFeeFromBookingForm($bus_info);
         $fees = $formulaService->calculateTravellerServiceFee(
-            $formulaService->busFareForServiceFeeFromBookingForm($bus_info),
+            $total_fare,
             $setting,
             $formulaService->seatCountFromBookingForm($bus_info)
         );
+        $government_levy = government_levy_on_amount($total_fare);
         $bus_info['discount_amount'] = $dis;
         $bus_info['payable_amount'] = round($price + $fees);
         session()->put('booking_form', $bus_info);
@@ -557,7 +629,16 @@ class VenderController extends Controller
         $excess_luggage_fee = $excessLuggageFee;
         $test_mode = (bool) ($setting->test_mode ?? false);
 
-        return view('vender.payment_details', compact('price', 'ins', 'fees', 'dis', 'excess_luggage_fee', 'test_mode'));
+        return view('vender.payment_details', compact(
+            'price',
+            'ins',
+            'fees',
+            'dis',
+            'excess_luggage_fee',
+            'test_mode',
+            'total_fare',
+            'government_levy'
+        ));
     }
 
     public function get_payment(Request $request)
@@ -1168,12 +1249,24 @@ class VenderController extends Controller
         $built = $this->buildVendorBookingHistoryQuery($request);
         $bookings = $built['query']->where('payment_status', 'Paid')->latest()->paginate(20)->withQueryString();
 
-        return view('vender.history', [
+        $period = $built['period'] ?? 'today';
+        if (! $request->has('period') && ! $request->filled('start_date') && ! $request->filled('end_date')) {
+            $period = 'today';
+        }
+
+        $feeSummary = $this->buildVendorFeeSummary(
+            (int) auth()->id(),
+            $period,
+            $built['startDate'] ?? null,
+            $built['endDate'] ?? null
+        );
+
+        return view('vender.history', array_merge([
             'bookings' => $bookings,
             'period' => $built['period'],
             'startDate' => $built['startDate'],
             'endDate' => $built['endDate'],
-        ]);
+        ], $feeSummary));
     }
 
     public function historyExportPdf(Request $request)

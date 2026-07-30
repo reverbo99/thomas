@@ -268,8 +268,12 @@
         @include('partials.payment_checkout_test_mode', [
             'verifyAction' => $paymentAction,
             'amount' => $totalPayable,
-            'langNs' => 'all',
+            'langNs' => 'customer/busroot',
             'formIdSuffix' => '_inline_rt',
+            'supportsReserve' => $supportsReserve,
+            'reserveDescription' => $isVendorPayment
+                ? __('customer/busroot.resave_description_vendor')
+                : __('customer/busroot.resave_description'),
         ])
     @endif
 

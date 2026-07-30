@@ -26,7 +26,8 @@ class FareFormulaService
 
     public const DEFAULT_VENDOR_PERCENT = 10.0;
 
-    private const DEFAULT_GOVERNMENT_LEVY_PERCENT = 5.0;
+    /** Government levy % on fare and on the full (pre-vendor) service fee. */
+    public const DEFAULT_GOVERNMENT_LEVY_PERCENT = 5.0;
 
     /** System's share of the bus owner's excess luggage fee; the owner keeps the rest. */
     public const SYSTEM_LUGGAGE_PERCENT = 5.0;

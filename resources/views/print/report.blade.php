@@ -197,7 +197,10 @@
                                         @endif
                                         <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ $booking['service_fee'] ?? 'N/A' }}</p>
                                         <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ $booking['commision'] ?? 'N/A' }}</p>
-                                        <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ $booking['gov_levy'] ?? ($booking['gov_levy_service'] ?? '0') }}</p>
+                                        <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ $booking['gov_levy'] ?? '0' }}</p>
+                                        @if ((float) ($booking['gov_levy_service'] ?? 0) > 0)
+                                        <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy (service):</span> {{ $booking['gov_levy_service'] }}</p>
+                                        @endif
                                     </div>
                                 </td>
                                 <td>

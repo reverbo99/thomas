@@ -33,7 +33,7 @@ return [
     'print' => 'Chapisha',
     'request_transaction_title' => 'Omba Muamala',
     'amount_tsh' => 'Kiasi (Tsh)',
-    'max_amount' => 'Max: :amount',
+    'max_amount' => 'Upeo: :amount',
     'select_payment_method' => 'Chagua Njia ya Malipo',
     'payment_number' => 'Nambari ya Malipo',
     'payment_details' => 'Maelezo ya Malipo',

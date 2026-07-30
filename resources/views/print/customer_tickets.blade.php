@@ -157,10 +157,6 @@
                                     @if ((float) ($booking['luggage_fee'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">{{ __('customer/myticket.luggage') }}:</span> {{ $booking['luggage_fee'] }}</p>
                                     @endif
-                                    @if ((float) ($booking['service_fee'] ?? 0) > 0)
-                                        <p class="text-xs mb-0"><span class="font-weight-bold">{{ __('customer/myticket.service_fee') }}:</span> {{ $booking['service_fee'] }}</p>
-                                    @endif
-                                    <p class="text-xs mb-0 font-weight-bold" style="color: rgb(43, 163, 43);">{{ __('customer/myticket.total_paid') }}: {{ $booking['total'] ?? 'N/A' }}</p>
                                 </td>
                             </tr>
                         @endforeach
@@ -174,8 +170,6 @@
                     @php
                         $sumBusFare = collect($bookings)->sum(fn ($row) => (float) ($row['bus_fee'] ?? 0));
                         $sumLuggage = collect($bookings)->sum(fn ($row) => (float) ($row['luggage_fee'] ?? 0));
-                        $sumService = collect($bookings)->sum(fn ($row) => (float) ($row['service_fee'] ?? 0));
-                        $sumTotal = collect($bookings)->sum(fn ($row) => (float) ($row['total'] ?? 0));
                     @endphp
                     <tfoot>
                         <tr>
@@ -185,10 +179,6 @@
                                 @if ($sumLuggage > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">{{ __('customer/myticket.luggage') }}:</span> {{ number_format($sumLuggage, 2) }}</p>
                                 @endif
-                                @if ($sumService > 0)
-                                    <p class="text-xs mb-0"><span class="font-weight-bold">{{ __('customer/myticket.service_fee') }}:</span> {{ number_format($sumService, 2) }}</p>
-                                @endif
-                                <p class="text-xs mb-0 font-weight-bold" style="color: rgb(43, 163, 43);">{{ __('customer/myticket.total_paid') }}: {{ number_format($sumTotal, 2) }}</p>
                             </td>
                         </tr>
                     </tfoot>

@@ -50,4 +50,7 @@ return [
     'total_earned' => 'Total earned',
     'total_collected' => 'Total collected',
     'total_cancelled' => 'Total cancelled',
+    'no_vendor_share' => 'No vendor share',
+    'collected' => 'Collected',
+    'system_retained' => 'System retained',
 ];

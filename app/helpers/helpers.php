@@ -616,6 +616,114 @@ if (!function_exists('bus_owner_luggage_fee')) {
     }
 }
 
+if (!function_exists('government_levy_percent')) {
+    function government_levy_percent(): float
+    {
+        return \App\Services\FareFormulaService::DEFAULT_GOVERNMENT_LEVY_PERCENT;
+    }
+}
+
+if (!function_exists('booking_gross_service_fee')) {
+    /**
+     * Traveller-facing / full service fee before vendor split (bookings.system_service_fee).
+     */
+    function booking_gross_service_fee($booking): float
+    {
+        $gross = (float) ($booking->system_service_fee ?? 0);
+        if ($gross > 0) {
+            return $gross;
+        }
+
+        return max(0.0, (float) ($booking->service ?? 0) + (float) ($booking->vender_service ?? 0));
+    }
+}
+
+if (!function_exists('booking_system_retained_service_fee')) {
+    /**
+     * Platform-retained service fee after vendor share and government levy on the full service fee.
+     * Prefer this over raw payment_fees.amount — older vendor settlements levied 5% on the
+     * after-vendor pool and overstated the system's retained fee.
+     */
+    function booking_system_retained_service_fee($booking): float
+    {
+        $gross = booking_gross_service_fee($booking);
+        if ($gross <= 0) {
+            return 0.0;
+        }
+
+        $vendorService = (float) ($booking->vender_service ?? 0);
+        $poolAfterVendor = max(0.0, $gross - $vendorService);
+        $levyOnFullService = $gross * (government_levy_percent() / 100);
+
+        return max(0.0, round($poolAfterVendor - $levyOnFullService, 2));
+    }
+}
+
+if (!function_exists('booking_government_levy_on_fare')) {
+    function booking_government_levy_on_fare($booking): float
+    {
+        $stored = (float) ($booking->government_levy ?? 0);
+        if ($stored > 0) {
+            return round($stored, 2);
+        }
+
+        return round((float) ($booking->busFee ?? 0) * government_levy_percent() / 100, 2);
+    }
+}
+
+if (!function_exists('booking_government_levy_on_service')) {
+    /**
+     * Levied on the FULL service fee before the vendor's cut. Older vendor settlements
+     * stored 5% of the after-vendor pool in government_levies, so recalculate from the
+     * booking columns and only fall back to the stored rows when no service fee is known.
+     */
+    function booking_government_levy_on_service($booking): float
+    {
+        $gross = booking_gross_service_fee($booking);
+        if ($gross > 0) {
+            return round($gross * government_levy_percent() / 100, 2);
+        }
+
+        return round((float) $booking->governmentLeviesOnService->sum('amount'), 2);
+    }
+}
+
+if (!function_exists('booking_total_government_levy')) {
+    function booking_total_government_levy($booking): float
+    {
+        return round(booking_government_levy_on_fare($booking) + booking_government_levy_on_service($booking), 2);
+    }
+}
+
+if (!function_exists('government_levy_on_amount')) {
+    function government_levy_on_amount(float $baseAmount): float
+    {
+        return round(max(0.0, $baseAmount) * government_levy_percent() / 100, 2);
+    }
+}
+
+if (!function_exists('booking_gross_commission')) {
+    /** Gross commission extracted from the fare (system remainder + vendor commission). */
+    function booking_gross_commission($booking): float
+    {
+        return max(0.0, (float) ($booking->fee ?? 0) + (float) ($booking->vender_fee ?? 0));
+    }
+}
+
+if (!function_exists('booking_government_levy_on_commission')) {
+    function booking_government_levy_on_commission($booking): float
+    {
+        return government_levy_on_amount(booking_gross_commission($booking));
+    }
+}
+
+if (!function_exists('booking_government_levy_on_luggage')) {
+    function booking_government_levy_on_luggage($booking): float
+    {
+        return government_levy_on_amount(booking_luggage_fee($booking));
+    }
+}
+
 if (!function_exists('booking_seat_list')) {
     function booking_seat_list($seatString): array
     {
@@ -1068,9 +1176,9 @@ if (!function_exists('booking_to_report_row')) {
     {
         $luggageFee = booking_luggage_fee($booking);
         $serviceFee = booking_service_fee($booking);
-        $govLevyOnFare = (float) ($booking->government_levy ?? 0);
-        $govLevyOnService = (float) $booking->governmentLeviesOnService->sum('amount');
-        $totalGovLevy = $govLevyOnFare + $govLevyOnService;
+        $govLevyOnFare = booking_government_levy_on_fare($booking);
+        $govLevyOnService = booking_government_levy_on_service($booking);
+        $totalGovLevy = booking_total_government_levy($booking);
         $customerTotal = (float) ($booking->customer_paid_total ?? 0);
         $busFee = (float) ($booking->busFee ?? 0);
         $insurance = (float) ($booking->bima_amount ?? 0);
@@ -1107,8 +1215,9 @@ if (!function_exists('booking_to_report_row')) {
             'vendor_service' => $booking->vender_service ?? 'N/A',
             'discount' => $booking->discount_amount ?? 'N/A',
             'manifest_discount' => (string) $discountAmount,
-            'gov_levy' => (string) $totalGovLevy,
+            'gov_levy' => (string) $govLevyOnFare,
             'gov_levy_service' => (string) $govLevyOnService,
+            'gov_levy_total' => (string) $totalGovLevy,
             'vat' => $booking->vat ?? 'N/A',
             'total' => (string) $rowTotal,
             'paid_fare' => (string) $rowTotal,
@@ -1161,8 +1270,17 @@ if (!function_exists('schedule_seat_maps')) {
         $grouped = \App\Models\Booking::whereIn('bus_id', $busIds)
             ->whereIn('travel_date', $dates)
             ->whereIn('payment_status', ['Paid', 'Reserved', 'resaved'])
-            ->get(['bus_id', 'travel_date', 'seat', 'customer_name'])
+            ->get(['bus_id', 'travel_date', 'seat', 'customer_name', 'schedule_id'])
             ->groupBy(fn ($booking) => $booking->bus_id . '|' . \Carbon\Carbon::parse($booking->travel_date)->format('Y-m-d'));
+
+        $schedulesPerKey = \App\Models\Schedule::whereIn('bus_id', $busIds)
+            ->whereIn('schedule_date', $dates)
+            ->selectRaw('bus_id, schedule_date, count(*) as schedule_count')
+            ->groupBy('bus_id', 'schedule_date')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                $row->bus_id . '|' . \Carbon\Carbon::parse($row->schedule_date)->format('Y-m-d') => (int) $row->schedule_count,
+            ]);
 
         $maps = [];
         foreach ($schedules as $schedule) {
@@ -1173,9 +1291,16 @@ if (!function_exists('schedule_seat_maps')) {
 
             $date = $schedule->schedule_date ? \Carbon\Carbon::parse($schedule->schedule_date)->format('Y-m-d') : null;
             $key = $bus->id . '|' . $date;
+            // When one bus runs several departures on the same date, bus+date alone
+            // would credit every booking to each departure, so honour schedule_id.
+            $splitBySchedule = ($schedulesPerKey[$key] ?? 1) > 1;
 
             $seatMap = [];
             foreach (($grouped->get($key) ?? collect()) as $booking) {
+                if ($splitBySchedule && (int) $booking->schedule_id > 0 && (int) $booking->schedule_id !== (int) $schedule->id) {
+                    continue;
+                }
+
                 foreach (explode(',', (string) $booking->seat) as $seat) {
                     $seat = trim($seat);
                     if ($seat !== '') {
@@ -1389,6 +1514,81 @@ if (! function_exists('transaction_payment_detail')) {
     }
 }
 
+if (!function_exists('manifest_passenger_is_infant')) {
+    /**
+     * @param  array<string, mixed>  $passenger
+     */
+    function manifest_passenger_is_infant(array $passenger): bool
+    {
+        if (! empty($passenger['is_infant'])) {
+            return filter_var($passenger['is_infant'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (! empty($passenger['infant_child'])) {
+            return (int) $passenger['infant_child'] === 1
+                || filter_var($passenger['infant_child'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $type = strtolower(trim((string) ($passenger['age_group'] ?? $passenger['passenger_type'] ?? '')));
+
+        return in_array($type, ['infant', 'baby', 'newborn'], true);
+    }
+}
+
+if (!function_exists('booking_has_lap_infant')) {
+    /**
+     * Lap / accompanying infant flagged on the booking (`bookings.infant_child`),
+     * not a seated passenger in the passengers JSON.
+     *
+     * @param  \App\Models\Booking|object|array  $booking
+     */
+    function booking_has_lap_infant($booking): bool
+    {
+        $flag = is_array($booking)
+            ? ($booking['infant_child'] ?? 0)
+            : ($booking->infant_child ?? 0);
+
+        return (int) $flag === 1 || $flag === true || $flag === '1';
+    }
+}
+
+if (!function_exists('manifest_infant_companion_row')) {
+    /**
+     * Synthetic manifest row for a lap infant travelling with a paying passenger.
+     *
+     * @param  array<string, mixed>  $baseRow
+     * @return array<string, mixed>
+     */
+    function manifest_infant_companion_row(array $baseRow): array
+    {
+        $adultName = strtoupper(trim((string) ($baseRow['customer_name'] ?? '')));
+        if ($adultName === '' || $adultName === 'N/A') {
+            $label = __('vender/history.infant_passenger');
+        } else {
+            $label = __('vender/history.infant_with_passenger', ['name' => $adultName]);
+        }
+
+        $row = $baseRow;
+        $row['seat'] = '—';
+        $row['customer_name'] = $label;
+        $row['gender_code'] = '';
+        $row['gender'] = '';
+        $row['passenger_type'] = 'INFANT';
+        $row['age_group'] = 'Infant';
+        $row['infant_child'] = 1;
+        $row['id_type'] = '';
+        $row['id_number'] = '';
+        $row['base_fare'] = '0';
+        $row['manifest_discount'] = '0';
+        $row['paid_fare'] = '0';
+        $row['remarks'] = __('vender/history.infant_lap_remark');
+        $row['is_staff'] = false;
+        $row['is_infant_companion'] = true;
+
+        return $row;
+    }
+}
+
 if (!function_exists('expand_bookings_to_manifest_rows')) {
     /**
      * Expand a bookings collection into individual passenger rows for the
@@ -1396,9 +1596,8 @@ if (!function_exists('expand_bookings_to_manifest_rows')) {
      * `passengers` column.  When a booking has no per-passenger breakdown
      * (legacy data), a single row is emitted so nothing is lost.
      *
-     * Each row carries every field from booking_to_report_row() plus optional
-     * passenger-level overrides for name, phone, gender, age_group, id_type,
-     * id_number, and the specific seat label.
+     * Lap infants (`bookings.infant_child`) are appended as their own rows when
+     * they are not already present in the passengers JSON.
      *
      * @param  \Illuminate\Support\Collection  $bookings  Eloquent Booking collection (with relations loaded)
      * @param  array  $rows  Output of booking_to_report_row() — array of associative arrays.
@@ -1418,36 +1617,65 @@ if (!function_exists('expand_bookings_to_manifest_rows')) {
 
             $passengers = booking_passengers_list($booking);
             $seatLabels = booking_seat_list($booking->seat ?? '');
+            $emittedInfant = false;
+            $bookingRows = [];
 
             if (empty($passengers)) {
-                // No per-passenger breakdown — emit the single booking row as-is.
-                $expanded[] = $baseRow;
-                continue;
+                $isSeatedInfant = manifest_passenger_is_infant([
+                    'age_group' => $baseRow['age_group'] ?? null,
+                    'passenger_type' => $baseRow['passenger_type'] ?? null,
+                    'infant_child' => 0,
+                ]);
+                $row = $baseRow;
+                $row['infant_child'] = $isSeatedInfant ? 1 : 0;
+                if ($isSeatedInfant) {
+                    $row['passenger_type'] = 'INFANT';
+                    $emittedInfant = true;
+                }
+                $bookingRows[] = $row;
+            } else {
+                foreach ($passengers as $idx => $passenger) {
+                    if (! is_array($passenger)) {
+                        continue;
+                    }
+
+                    $seatLabel = $seatLabels[$idx] ?? ($passenger['seat'] ?? '');
+                    $passengerName = trim((string) ($passenger['name'] ?? ''));
+                    $passengerPhone = trim((string) ($passenger['phone'] ?? ''));
+                    $isInfant = manifest_passenger_is_infant($passenger);
+
+                    $row = $baseRow;
+                    $row['seat'] = $seatLabel;
+                    $row['customer_name'] = $passengerName !== '' ? $passengerName : ($baseRow['customer_name'] ?? 'N/A');
+                    $row['customer_phone'] = $passengerPhone !== '' ? $passengerPhone : ($baseRow['customer_phone'] ?? 'N/A');
+                    $row['age_group'] = $passenger['age_group'] ?? ($isInfant ? 'Infant' : ($baseRow['age_group'] ?? 'Adult'));
+                    $row['passenger_type'] = $isInfant
+                        ? 'INFANT'
+                        : ($passenger['age_group'] ?? $baseRow['passenger_type'] ?? 'Adult');
+                    $row['infant_child'] = $isInfant ? 1 : 0;
+                    $row['gender_code'] = manifest_gender_code($passenger['gender'] ?? null);
+                    $row['gender'] = $passenger['gender'] ?? $baseRow['gender'] ?? '';
+                    $row['id_type'] = $passenger['id_type'] ?? $baseRow['id_type'] ?? '';
+                    $row['id_number'] = $passenger['id_number'] ?? $baseRow['id_number'] ?? '';
+                    $row['is_staff'] = false;
+
+                    if ($isInfant) {
+                        $emittedInfant = true;
+                    }
+
+                    $bookingRows[] = $row;
+                }
             }
 
-            foreach ($passengers as $idx => $passenger) {
-                if (!is_array($passenger)) {
-                    continue;
-                }
+            if (booking_has_lap_infant($booking) && ! $emittedInfant && ! empty($bookingRows)) {
+                $companionBase = $bookingRows[0];
+                $companionBase['infant_child'] = 0;
+                $bookingRows[0] = $companionBase;
+                $bookingRows[] = manifest_infant_companion_row($companionBase);
+            }
 
-                $seatLabel = $seatLabels[$idx] ?? ($passenger['seat'] ?? '');
-                $passengerName = trim((string) ($passenger['name'] ?? ''));
-                $passengerPhone = trim((string) ($passenger['phone'] ?? ''));
-
-                $row = $baseRow;
-                $row['seat'] = $seatLabel;
-                $row['customer_name'] = $passengerName !== '' ? $passengerName : ($baseRow['customer_name'] ?? 'N/A');
-                $row['customer_phone'] = $passengerPhone !== '' ? $passengerPhone : ($baseRow['customer_phone'] ?? 'N/A');
-                $row['age_group'] = $passenger['age_group'] ?? $baseRow['age_group'] ?? 'Adult';
-                $row['passenger_type'] = $passenger['age_group'] ?? $baseRow['passenger_type'] ?? 'Adult';
-                $row['infant_child'] = in_array(strtolower($row['passenger_type']), ['infant', 'baby', 'newborn']) ? 1 : 0;
-                $row['gender_code'] = manifest_gender_code($passenger['gender'] ?? null);
-                $row['gender'] = $passenger['gender'] ?? $baseRow['gender'] ?? '';
-                $row['id_type'] = $passenger['id_type'] ?? $baseRow['id_type'] ?? '';
-                $row['id_number'] = $passenger['id_number'] ?? $baseRow['id_number'] ?? '';
-                $row['is_staff'] = false;
-
-                $expanded[] = $row;
+            foreach ($bookingRows as $bookingRow) {
+                $expanded[] = $bookingRow;
             }
         }
 

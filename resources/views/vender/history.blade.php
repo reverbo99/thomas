@@ -84,6 +84,62 @@
         </article>
     </div>
 
+    <section class="mb-6">
+        <div class="flex items-center justify-between mb-3 px-1">
+            <h2 class="vendor-side-card__title" style="margin:0">
+                <i class="fas fa-receipt" style="margin-right:0.5rem"></i>{{ __('assistance/dashboard.fee_summary') }}
+                <span class="vendor-kpi__hint" style="display:inline;margin-left:0.5rem;font-weight:400">· {{ $periodLabel }}</span>
+            </h2>
+        </div>
+        <div class="vendor-kpi-grid">
+            <article class="vendor-kpi" style="--kpi-accent:#2E3093">
+                <div class="vendor-kpi__top">
+                    <div class="vendor-kpi__icon"><i class="fas fa-percent"></i></div>
+                    <span class="vendor-kpi__badge">{{ __('assistance/dashboard.commission') }}</span>
+                </div>
+                <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_commission_fee') }}</p>
+                <p class="vendor-kpi__value">{{ convert_money($totalVenderFee ?? 0) }}</p>
+                <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_earned') }}</p>
+            </article>
+            <article class="vendor-kpi" style="--kpi-accent:#0891b2">
+                <div class="vendor-kpi__top">
+                    <div class="vendor-kpi__icon"><i class="fas fa-hand-holding-dollar"></i></div>
+                    <span class="vendor-kpi__badge">{{ __('assistance/dashboard.service') }}</span>
+                </div>
+                <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_service_fee') }}</p>
+                <p class="vendor-kpi__value">{{ convert_money($totalVenderService ?? 0) }}</p>
+                <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_earned') }}</p>
+            </article>
+            <article class="vendor-kpi" style="--kpi-accent:#d97706">
+                <div class="vendor-kpi__top">
+                    <div class="vendor-kpi__icon"><i class="fas fa-box"></i></div>
+                    <span class="vendor-kpi__badge">{{ __('assistance/dashboard.parcel') }}</span>
+                </div>
+                <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_parcel_fee') }}</p>
+                <p class="vendor-kpi__value">{{ convert_money($totalParcelFee ?? 0) }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($parcelCollected ?? 0) }}</p>
+            </article>
+            <article class="vendor-kpi" style="--kpi-accent:#dc2626">
+                <div class="vendor-kpi__top">
+                    <div class="vendor-kpi__icon"><i class="fas fa-suitcase-rolling"></i></div>
+                    <span class="vendor-kpi__badge">{{ __('assistance/dashboard.luggage') }}</span>
+                </div>
+                <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_excess_luggage_fee') }}</p>
+                <p class="vendor-kpi__value">{{ convert_money($totalExcessLuggageFee ?? 0) }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($luggageCollected ?? 0) }}</p>
+            </article>
+            <article class="vendor-kpi" style="--kpi-accent:#6b7280">
+                <div class="vendor-kpi__top">
+                    <div class="vendor-kpi__icon"><i class="fas fa-ban"></i></div>
+                    <span class="vendor-kpi__badge">{{ __('assistance/dashboard.cancelled') }}</span>
+                </div>
+                <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_cancellation_fee') }}</p>
+                <p class="vendor-kpi__value">{{ convert_money($totalCancellationFee ?? 0) }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.system_retained') }}: {{ convert_money($cancellationRetained ?? 0) }}</p>
+            </article>
+        </div>
+    </section>
+
     <section class="vendor-table-card">
         <div class="vendor-table-card__head">
             <div class="vendor-table-card__title-wrap">
@@ -204,6 +260,7 @@
                                     @endphp
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.commission_total') }} {{ convert_money($totalCommission) }}</span>
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.discount') }} {{ convert_money($booking->discount_amount ?? 0) }}</span>
+                                    <span class="vendor-schedule-date__sub block">{{ __('vender/history.government_levy') }} {{ convert_money(booking_government_levy_on_fare($booking)) }}</span>
                                 </td>
                                 <td>
                                     <span class="vendor-tx-amount total-amount" data-total="{{ $rowTotal }}">{{ $currency }} {{ convert_money($rowTotal) }}</span>

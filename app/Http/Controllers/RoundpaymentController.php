@@ -19,6 +19,41 @@ use App\Services\BookingSettlementService;
 
 class RoundpaymentController extends Controller
 {
+    /**
+     * Settle every Unpaid/resaved booking that shares a gateway transaction ref.
+     * Round-trip Mixx/DPO/ClickPesa legs share one ref; if the browser session is
+     * gone the single-booking fallback must not leave the return leg unsettled
+     * (missing commission + government levies).
+     *
+     * @return array<int, \App\Models\Booking>|array{errorMessage: string, transactionToken?: string}|null
+     */
+    public function settleAllByTransactionRef($transToken, $verifyResponse = null, $paymentMethod = null)
+    {
+        if ($transToken === null || $transToken === '') {
+            return null;
+        }
+
+        $bookings = Booking::where('transaction_ref_id', $transToken)
+            ->whereIn('payment_status', ['Unpaid', 'resaved'])
+            ->orderBy('id')
+            ->get();
+
+        if ($bookings->count() < 2) {
+            return null;
+        }
+
+        $settled = [];
+        foreach ($bookings as $booking) {
+            $result = $this->roundtrip($transToken, $transToken, $verifyResponse, $booking->booking_code, $paymentMethod);
+            if (is_array($result) && isset($result['errorMessage'])) {
+                return $result;
+            }
+            $settled[] = $result;
+        }
+
+        return $settled;
+    }
+
     public function roundtrip($transToken = null, $companyRef = null, $verifyResponse = null, $code = null, $paymentMethod = null)
     {
         $booking = Booking::where('booking_code', $code)->first();
@@ -50,6 +85,8 @@ class RoundpaymentController extends Controller
                 'trans_status' => 'success',
                 'trans_token' => $transToken,
                 'payment_method' => $paymentMethod ?? 'dpo',
+                // Consume cancel credit once per settlement call; cleared below so a
+                // paired round-trip leg does not receive the same cancel twice.
                 'cancel_amount' => Session::get('cancel', 0),
             ]);
             $booking = $settled['booking'];
@@ -60,6 +97,7 @@ class RoundpaymentController extends Controller
             $bimaAmount = $booking->bima_amount ?? 0;
 
             DB::commit();
+            Session::forget('cancel');
 
             // --- TRA INTEGRATION ---
             try {

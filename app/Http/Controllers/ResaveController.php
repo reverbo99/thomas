@@ -30,7 +30,7 @@ class ResaveController extends Controller
         $user = auth()->user();
 
         if ($user->role === 'customer') {
-            if ($booking->user_id !== null && (int) $booking->user_id !== (int) $user->id) {
+            if ((int) ($booking->user_id ?? 0) !== (int) $user->id) {
                 return null;
             }
 

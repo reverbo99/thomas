@@ -697,6 +697,7 @@
                         'verifyAction' => route('customer.verify'),
                         'amount' => round($price + $fees, 2),
                         'langNs' => 'customer/busroot',
+                        'supportsReserve' => true,
                     ])
                     @endif
                 </div>

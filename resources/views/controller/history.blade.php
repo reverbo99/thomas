@@ -88,7 +88,8 @@
                                         data-actual-height="{{ $booking->actual_height !== null ? (float) $booking->actual_height : '' }}"
                                         data-actual-width="{{ $booking->actual_width !== null ? (float) $booking->actual_width : '' }}"
                                         data-luggage-refund-amount="{{ $booking->luggage_refund_amount !== null ? (float) $booking->luggage_refund_amount : '' }}"
-                                        data-booking-code="{{ e($booking->booking_code ?? '') }}">
+                                        data-booking-code="{{ e($booking->booking_code ?? '') }}"
+                                        data-infant-child="{{ (int) ($booking->infant_child ?? 0) }}">
                                         <td class="py-2 px-4 text-center">{{ $index + 1 }}</td>
                                         <td class="py-2 px-4">
                                             <div class="flex flex-col">
@@ -136,6 +137,13 @@
                                                     {{ $booking->customer_name ?? __('vender/history.na') }}</p>
                                                 <p class="text-gray-500 mb-0">
                                                     {{ $booking->customer_phone ?? __('vender/history.na') }}</p>
+                                                @if (!empty($booking->infant_child))
+                                                    <p class="mb-0 mt-1">
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium">
+                                                            {{ __('vender/history.infant_badge') }}
+                                                        </span>
+                                                    </p>
+                                                @endif
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">

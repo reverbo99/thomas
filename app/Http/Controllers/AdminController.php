@@ -1057,7 +1057,8 @@ $q->where('id', auth()->user()->campany->id);
             $data = $this->bookingsToReportArray($loadedBookings);
         }
 
-        // Expand multi-passenger bookings into individual manifest rows.
+        // Expand multi-passenger bookings into individual manifest rows
+        // (including lap infants from bookings.infant_child).
         if ($loadedBookings !== null) {
             $data = expand_bookings_to_manifest_rows($loadedBookings, $data);
         }
@@ -1066,58 +1067,81 @@ $q->where('id', auth()->user()->campany->id);
             return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
         }
 
-        $busNumbers = collect($data)
-            ->pluck('bus_number')
-            ->filter(fn ($number) => !empty(trim((string) $number)))
-            ->unique()
-            ->values();
+        // One printable section per trip (bus plate + travel date) so crew and
+        // passengers stay scoped to the same departure.
+        $sections = [];
+        $grouped = collect($data)->groupBy(function ($row) {
+            $busNumber = trim((string) ($row['bus_number'] ?? ''));
+            $travelDate = trim((string) ($row['travel_date'] ?? ''));
 
-        if ($busNumbers->isEmpty()) {
-            return redirect()->back()->with('error', __('vender/history.bus_number_not_found'));
+            return $busNumber . '|' . $travelDate;
+        });
+
+        foreach ($grouped as $tripKey => $tripRows) {
+            [$busNumber] = array_pad(explode('|', (string) $tripKey, 2), 2, '');
+            $busNumber = trim((string) $busNumber);
+            if ($busNumber === '') {
+                continue;
+            }
+
+            $bus = $this->findManifestBus($busNumber, $companyId);
+            if (! $bus) {
+                continue;
+            }
+
+            $rows = $tripRows->sortBy(function ($row) {
+                return [(string) ($row['seat'] ?? ''), (string) ($row['customer_name'] ?? '')];
+            })->values()->all();
+
+            if (empty($rows)) {
+                continue;
+            }
+
+            $staffRows = $this->manifestStaffRows($bus);
+            $sections[] = [
+                'bus' => $bus,
+                'bookings' => array_merge($staffRows, $rows),
+            ];
         }
 
-        if ($busNumbers->count() > 1) {
-            $sections = [];
-            foreach ($busNumbers as $busNumber) {
-                $bus = Bus::where('bus_number', $busNumber)->first();
-                if (!$bus) {
-                    continue;
-                }
+        if (empty($sections)) {
+            return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
+        }
 
-                $rows = collect($data)
-                    ->where('bus_number', $busNumber)
-                    ->sortBy('seat')
-                    ->values()
-                    ->all();
-
-                if (!empty($rows)) {
-                    // Prepend staff rows for this bus.
-                    $staffRows = $this->manifestStaffRows($bus);
-                    $rows = array_merge($staffRows, $rows);
-                    $sections[] = ['bus' => $bus, 'bookings' => $rows];
-                }
-            }
-
-            if (empty($sections)) {
-                return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
-            }
-
-            $pdf = Pdf::loadView('print.manifest_all', compact('sections'));
+        if (count($sections) === 1) {
+            $pdf = Pdf::loadView('print.manifest', [
+                'bookings' => $sections[0]['bookings'],
+                'bus' => $sections[0]['bus'],
+            ]);
             $pdf->setPaper('a4', 'landscape');
 
             return $pdf->download('manifest-' . now()->format('Ymd_His') . '.pdf');
         }
 
-        $number = $busNumbers->first();
-        $bus = Bus::where('bus_number', $number)->first();
+        $pdf = Pdf::loadView('print.manifest_all', compact('sections'));
+        $pdf->setPaper('a4', 'landscape');
 
-        if (!$bus) {
-            return redirect()->back()->with('error', __('vender/history.bus_not_found_number', ['number' => $number]));
+        return $pdf->download('manifest-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    /**
+     * Resolve the bus for a manifest section, preferring the authenticated
+     * company fleet when the caller is a bus owner.
+     */
+    private function findManifestBus(string $busNumber, ?int $companyId)
+    {
+        $query = Bus::where('bus_number', $busNumber);
+        if ($companyId) {
+            $query->where('campany_id', $companyId);
         }
 
-        $busRows = collect($data)->where('bus_number', $number)->sortBy('seat')->values()->all();
+        $bus = $query->first();
+        if ($bus) {
+            return $bus;
+        }
 
-        return $this->generateManifest($busRows, $bus);
+        // Fall back without company scope (admin / shared plate edge cases).
+        return Bus::where('bus_number', $busNumber)->first();
     }
 
     public function generateManifest($data,$bus)

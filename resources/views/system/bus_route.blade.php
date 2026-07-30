@@ -3,401 +3,212 @@
 @section('title', __('system.pages.bus_routes_schedule'))
 
 @section('content')
-<div class="container mx-auto px-4 py-6">
-    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-        <!-- Card Header -->
-        <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <h2 class="text-xl font-semibold text-gray-800 flex items-center">
-                <svg class="h-5 w-5 text-indigo-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-                </svg>
-                {{ __('system.pages.bus_routes_schedule') }}
-            </h2>
-            <div class="mt-3 sm:mt-0 relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
-                <input type="text" id="searchInput" placeholder="{{ __('system.pages.search_routes') }}"
-                       class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+<div class="container mx-auto px-4 py-6 max-w-7xl">
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-semibold text-slate-800">{{ __('system.pages.bus_routes_schedule') }}</h2>
+            <p class="text-sm text-slate-500 mt-1">{{ __('system.pages.schedule_subtitle') }}</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">{{ __('system.pages.schedule_total') }}</p>
+            <p class="text-2xl font-semibold text-slate-800 mt-2">{{ number_format($schedules->total()) }}</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">{{ __('system.pages.schedule_buses_involved') }}</p>
+            <p class="text-2xl font-semibold text-slate-800 mt-2">{{ number_format($busCount) }}</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">{{ __('system.pages.schedule_on_date', ['date' => \Carbon\Carbon::parse($todayDate)->format('d M Y')]) }}</p>
+            <p class="text-2xl font-semibold text-slate-800 mt-2">{{ number_format($todayCount) }}</p>
+        </div>
+    </div>
+
+    <form method="GET" action="{{ route('system.bus_route') }}" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="lg:col-span-2">
+                <label for="search" class="block text-xs font-medium text-slate-500 mb-1">{{ __('system.common.search') }}</label>
+                <input id="search" type="text" name="search" value="{{ $search }}"
+                       placeholder="{{ __('system.pages.schedule_search_placeholder') }}"
+                       class="w-full rounded-lg border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+                <label for="campany_id" class="block text-xs font-medium text-slate-500 mb-1">{{ __('system.common.company') }}</label>
+                <select id="campany_id" name="campany_id" class="w-full rounded-lg border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="">{{ __('system.pages.schedule_all_companies') }}</option>
+                    @foreach ($companies as $company)
+                        <option value="{{ $company->id }}" {{ (int) $companyId === (int) $company->id ? 'selected' : '' }}>
+                            {{ $company->name }}{{ (int) $company->status === 1 ? '' : ' — ' . __('system.common.disabled') }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="scope" class="block text-xs font-medium text-slate-500 mb-1">{{ __('system.pages.schedule_scope') }}</label>
+                <select id="scope" name="scope" class="w-full rounded-lg border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="upcoming" {{ $scope === 'upcoming' ? 'selected' : '' }}>{{ __('system.pages.schedule_scope_upcoming') }}</option>
+                    <option value="past" {{ $scope === 'past' ? 'selected' : '' }}>{{ __('system.pages.schedule_scope_past') }}</option>
+                    <option value="all" {{ $scope === 'all' ? 'selected' : '' }}>{{ __('system.common.all_time') }}</option>
+                </select>
+            </div>
+            <div>
+                <label for="start_date" class="block text-xs font-medium text-slate-500 mb-1">{{ __('system.common.start_date') }}</label>
+                <input id="start_date" type="date" name="start_date" value="{{ $startDate }}"
+                       class="w-full rounded-lg border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+                <label for="end_date" class="block text-xs font-medium text-slate-500 mb-1">{{ __('system.common.end_date') }}</label>
+                <input id="end_date" type="date" name="end_date" value="{{ $endDate }}"
+                       class="w-full rounded-lg border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+                <label for="sort" class="block text-xs font-medium text-slate-500 mb-1">{{ __('system.pages.schedule_sort') }}</label>
+                <select id="sort" name="sort" class="w-full rounded-lg border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="asc" {{ $sort === 'asc' ? 'selected' : '' }}>{{ __('system.pages.schedule_sort_soonest') }}</option>
+                    <option value="desc" {{ $sort === 'desc' ? 'selected' : '' }}>{{ __('system.pages.schedule_sort_latest') }}</option>
+                </select>
+            </div>
+            <div class="flex items-end gap-2 lg:col-span-2">
+                <button type="submit" class="w-full md:w-auto px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition">
+                    {{ __('system.pages.apply_filter') }}
+                </button>
+                <a href="{{ route('system.bus_route') }}" class="w-full md:w-auto text-center px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition">
+                    {{ __('system.pages.reset') }}
+                </a>
             </div>
         </div>
+    </form>
 
-        <!-- Table -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
-            <table id="busesTable" class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="number">
-                            <div class="flex items-center">
-                                No
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="text">
-                            <div class="flex items-center">
-                                Company
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="text">
-                            <div class="flex items-center">
-                                Bus Number
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="text">
-                            <div class="flex items-center">
-                                Main Route
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="text">
-                            <div class="flex items-center">
-                                Next Route
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="text">
-                            <div class="flex items-center">
-                                Bus Fee
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="text">
-                            <div class="flex items-center">
-                                Time (24HRS)
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="date">
-                            <div class="flex items-center">
-                                Date
-                                <svg class="ml-1 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                </svg>
-                            </div>
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ __('system.pages.seats') }}
-                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.common.no') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.common.company') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.schedule_bus') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.common.route') }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.schedule_fare') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.schedule_time') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.common.date') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.seats') }}</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse ($cars as $car)
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ $loop->iteration }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {{ $car->campany->name }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                            {{ $car->bus_number }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ $car->route->from }} → {{ $car->route->to }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ $car->schedule->from }} → {{ $car->schedule->to }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <span class="font-medium text-indigo-600">{{ $currency }} {{ convert_money($car->route->price) }}</span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            @php
-                                $route = $car->schedule->route;
-                                $timeStart = ($route && $route->route_start) ? $route->route_start : $car->schedule->start;
-                                $timeEnd = ($route && $route->route_end) ? $route->route_end : $car->schedule->end;
-                                $timeDisplay = '–';
-                                if ($timeStart && $timeEnd) {
-                                    $timeDisplay = \Carbon\Carbon::parse($timeStart)->format('H:i') . ' → ' . \Carbon\Carbon::parse($timeEnd)->format('H:i');
-                                } elseif ($timeStart) {
-                                    $timeDisplay = \Carbon\Carbon::parse($timeStart)->format('H:i') . ' → –';
-                                } elseif ($timeEnd) {
-                                    $timeDisplay = '– → ' . \Carbon\Carbon::parse($timeEnd)->format('H:i');
-                                }
-                            @endphp
-                            {{ $timeDisplay }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-sort-value="{{ $car->schedule->schedule_date ?? '' }}">
-                            {{ $car->schedule->schedule_date ? \Carbon\Carbon::parse($car->schedule->schedule_date)->format('d M Y') : 'N/A' }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            @php
-                                $seatMap = $car->booked_seat_map ?? [];
-                                $bookedCount = count($seatMap);
-                                $totalSeats = (int) ($car->total_seats ?? 0);
-                                $availableCount = max(0, $totalSeats - $bookedCount);
-                                $layoutData = is_string($car->seate_json) ? $car->seate_json : json_encode($car->seate_json);
-                            @endphp
-                            <button type="button"
-                                class="view-seats-btn inline-flex items-center px-3 py-1.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-md text-xs font-medium hover:bg-indigo-100 transition"
-                                data-bus-number="{{ $car->bus_number }}"
-                                data-company="{{ $car->campany->name ?? '' }}"
-                                data-route="{{ $car->schedule->from }} → {{ $car->schedule->to }}"
-                                data-date="{{ $car->schedule->schedule_date ? \Carbon\Carbon::parse($car->schedule->schedule_date)->format('d M Y') : 'N/A' }}"
-                                data-total-seats="{{ $totalSeats }}"
-                                data-booked-count="{{ $bookedCount }}"
-                                data-available-count="{{ $availableCount }}"
-                                data-layout="{{ $layoutData ?? '' }}"
-                                data-booked-seats="{{ json_encode($seatMap) }}">
-                                <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 7a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2" />
-                                </svg>
-                                {{ __('system.pages.view_seats') }}
-                            </button>
-                        </td>
-                    </tr>
+                <tbody class="divide-y divide-slate-100">
+                    @forelse ($schedules as $schedule)
+                        @php
+                            $bus = $schedule->bus;
+                            $company = $bus?->campany;
+                            $scheduleRoute = $schedule->route;
+                            $busRoute = $bus?->route;
+                            $fare = $scheduleRoute->price ?? $busRoute->price ?? null;
+
+                            $timeStart = $schedule->start ?: ($scheduleRoute->route_start ?? null);
+                            $timeEnd = $schedule->end ?: ($scheduleRoute->route_end ?? null);
+                            $timeDisplay = '–';
+                            if ($timeStart && $timeEnd) {
+                                $timeDisplay = \Carbon\Carbon::parse($timeStart)->format('H:i') . ' → ' . \Carbon\Carbon::parse($timeEnd)->format('H:i');
+                            } elseif ($timeStart) {
+                                $timeDisplay = \Carbon\Carbon::parse($timeStart)->format('H:i') . ' → –';
+                            } elseif ($timeEnd) {
+                                $timeDisplay = '– → ' . \Carbon\Carbon::parse($timeEnd)->format('H:i');
+                            }
+
+                            $scheduleDate = $schedule->schedule_date ? \Carbon\Carbon::parse($schedule->schedule_date) : null;
+                            $departed = false;
+                            if ($scheduleDate) {
+                                $departed = $scheduleDate->format('Y-m-d') < $todayDate
+                                    || ($scheduleDate->format('Y-m-d') === $todayDate && (string) $schedule->start <= $currentTime);
+                            }
+
+                            $seatMap = $schedule->booked_seat_map ?? [];
+                            $bookedCount = count($seatMap);
+                            $totalSeats = (int) ($bus->total_seats ?? 0);
+                            $availableCount = max(0, $totalSeats - $bookedCount);
+                            $layoutData = is_string($bus?->seate_json) ? $bus->seate_json : json_encode($bus?->seate_json);
+                            $routeLabel = trim(($schedule->from ?? '') . ' → ' . ($schedule->to ?? ''), ' →');
+                        @endphp
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-3 text-sm text-slate-500">{{ $schedules->firstItem() + $loop->index }}</td>
+                            <td class="px-4 py-3 text-sm">
+                                <span class="font-medium text-slate-800">{{ $company->name ?? __('system.common.na') }}</span>
+                                @if ($company && (int) $company->status !== 1)
+                                    <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{{ __('system.common.disabled') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-slate-700">
+                                <span class="font-medium">{{ $bus->bus_number ?? __('system.common.na') }}</span>
+                                @if (!empty($bus?->bus_type))
+                                    <span class="block text-xs text-slate-400">{{ $bus->bus_type }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-slate-700">
+                                {{ $routeLabel !== '' ? $routeLabel : __('system.common.na') }}
+                                @if ($busRoute && ($busRoute->from !== $schedule->from || $busRoute->to !== $schedule->to))
+                                    <span class="block text-xs text-slate-400">{{ __('system.pages.schedule_main_route') }}: {{ $busRoute->from }} → {{ $busRoute->to }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-right font-medium text-indigo-600">
+                                @if ($fare !== null)
+                                    {{ $currency }} {{ convert_money($fare) }}
+                                @else
+                                    {{ __('system.common.na') }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{{ $timeDisplay }}</td>
+                            <td class="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
+                                {{ $scheduleDate ? $scheduleDate->format('D, d M Y') : __('system.common.na') }}
+                                @if ($departed)
+                                    <span class="block mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">{{ __('system.pages.schedule_departed') }}</span>
+                                @else
+                                    <span class="block mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{{ __('system.pages.schedule_upcoming') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-sm">
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-xs text-slate-500">{{ $bookedCount }}/{{ $totalSeats }}</span>
+                                    <button type="button"
+                                        class="view-seats-btn inline-flex items-center px-3 py-1.5 border border-indigo-200 text-indigo-700 bg-indigo-50 rounded-md text-xs font-medium hover:bg-indigo-100 transition"
+                                        data-bus-number="{{ $bus->bus_number ?? '' }}"
+                                        data-company="{{ $company->name ?? '' }}"
+                                        data-route="{{ $routeLabel }}"
+                                        data-date="{{ $scheduleDate ? $scheduleDate->format('d M Y') : '' }}"
+                                        data-total-seats="{{ $totalSeats }}"
+                                        data-booked-count="{{ $bookedCount }}"
+                                        data-available-count="{{ $availableCount }}"
+                                        data-layout="{{ $layoutData ?? '' }}"
+                                        data-booked-seats="{{ json_encode($seatMap) }}">
+                                        <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 7a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2" />
+                                        </svg>
+                                        {{ __('system.pages.view_seats') }}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
                     @empty
-                    <tr>
-                        <td colspan="9" class="px-6 py-12 text-center">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                            </svg>
-                            <h3 class="mt-2 text-sm font-medium text-gray-900">{{ __('system.pages.no_bus_routes') }}</h3>
-                            <p class="mt-1 text-sm text-gray-500">There are currently no scheduled bus routes.</p>
-                        </td>
-                    </tr>
+                        <tr>
+                            <td colspan="8" class="px-4 py-12 text-center">
+                                <svg class="mx-auto h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                                </svg>
+                                <h3 class="mt-2 text-sm font-medium text-slate-800">{{ __('system.pages.no_bus_routes') }}</h3>
+                                <p class="mt-1 text-sm text-slate-500">{{ __('system.pages.schedule_empty_hint') }}</p>
+                            </td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-
-        <!-- Pagination -->
-        <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div class="text-sm text-gray-500 mb-3 sm:mb-0">
-                Showing <span class="font-medium" id="startItem">1</span> to <span class="font-medium" id="endItem">{{ min(10, count($cars)) }}</span> of <span class="font-medium" id="totalItems">{{ count($cars) }}</span> results
+        @if ($schedules->hasPages())
+            <div class="px-4 py-3 border-t border-slate-200">
+                {{ $schedules->links() }}
             </div>
-            <nav class="flex items-center space-x-2" id="pagination">
-                <!-- Pagination will be inserted here by JavaScript -->
-            </nav>
-        </div>
+        @endif
     </div>
 </div>
 
 @include('partials.seat_arrangement_modal')
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const table = document.getElementById('busesTable');
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr:not([colspan])'));
-    const searchInput = document.getElementById('searchInput');
-    const sortableHeaders = table.querySelectorAll('.sortable');
-    const itemsPerPage = 10;
-    let currentPage = 1;
-    let currentSort = {
-        column: 7, // Default sort by Date column
-        direction: 'desc'
-    };
-
-    // Initialize table
-    function initTable() {
-        updateTable();
-        setupPagination();
-        updatePagination();
-    }
-
-    // Filter and sort rows
-    function updateTable() {
-        const searchTerm = searchInput.value.toLowerCase();
-
-        // Filter rows
-        const filteredRows = rows.filter(row => {
-            const cells = row.querySelectorAll('td');
-            return Array.from(cells).some(cell => 
-                cell.textContent.toLowerCase().includes(searchTerm)
-            );
-        });
-
-        // Sort rows
-        filteredRows.sort((a, b) => {
-            const aValue = a.querySelectorAll('td')[currentSort.column].getAttribute('data-sort-value') || 
-                          a.querySelectorAll('td')[currentSort.column].textContent;
-            const bValue = b.querySelectorAll('td')[currentSort.column].getAttribute('data-sort-value') || 
-                          b.querySelectorAll('td')[currentSort.column].textContent;
-
-            if (currentSort.column === 7) { // Date column
-                const aDate = aValue && aValue !== 'N/A' ? new Date(aValue) : null;
-                const bDate = bValue && bValue !== 'N/A' ? new Date(bValue) : null;
-
-                if (!aDate && !bDate) return 0;
-                if (!aDate) return 1;
-                if (!bDate) return -1;
-
-                return currentSort.direction === 'asc' ? 
-                    aDate - bDate : 
-                    bDate - aDate;
-            } else {
-                return currentSort.direction === 'asc' ? 
-                    aValue.localeCompare(bValue) : 
-                    bValue.localeCompare(aValue);
-            }
-        });
-
-        // Clear existing rows
-        while (tbody.firstChild) {
-            tbody.removeChild(tbody.firstChild);
-        }
-
-        // Paginate and add filtered/sorted rows
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedRows = filteredRows.slice(startIndex, endIndex);
-
-        paginatedRows.forEach(row => tbody.appendChild(row));
-
-        // Update info
-        document.getElementById('startItem').textContent = filteredRows.length > 0 ? startIndex + 1 : 0;
-        document.getElementById('endItem').textContent = Math.min(endIndex, filteredRows.length);
-        document.getElementById('totalItems').textContent = filteredRows.length;
-    }
-
-    // Setup pagination
-    function setupPagination() {
-        const pagination = document.getElementById('pagination');
-        pagination.innerHTML = '';
-
-        const totalPages = Math.ceil(rows.length / itemsPerPage);
-        
-        // Previous button
-        const prevButton = document.createElement('button');
-        prevButton.className = 'px-3 py-1 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50';
-        prevButton.disabled = currentPage === 1;
-        prevButton.innerHTML = 'Previous';
-        prevButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (currentPage > 1) {
-                currentPage--;
-                updateTable();
-                updatePagination();
-            }
-        });
-        pagination.appendChild(prevButton);
-
-        // Page numbers
-        const maxVisiblePages = 5;
-        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-        
-        if (endPage - startPage + 1 < maxVisiblePages) {
-            startPage = Math.max(1, endPage - maxVisiblePages + 1);
-        }
-
-        if (startPage > 1) {
-            const firstPageButton = document.createElement('button');
-            firstPageButton.className = 'px-3 py-1 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50';
-            firstPageButton.textContent = '1';
-            firstPageButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                currentPage = 1;
-                updateTable();
-                updatePagination();
-            });
-            pagination.appendChild(firstPageButton);
-            
-            if (startPage > 2) {
-                const ellipsis = document.createElement('span');
-                ellipsis.className = 'px-3 py-1 text-sm text-gray-500';
-                ellipsis.textContent = '...';
-                pagination.appendChild(ellipsis);
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            const pageButton = document.createElement('button');
-            pageButton.className = `px-3 py-1 rounded-md border text-sm font-medium ${i === currentPage ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`;
-            pageButton.textContent = i;
-            pageButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                currentPage = i;
-                updateTable();
-                updatePagination();
-            });
-            pagination.appendChild(pageButton);
-        }
-
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                const ellipsis = document.createElement('span');
-                ellipsis.className = 'px-3 py-1 text-sm text-gray-500';
-                ellipsis.textContent = '...';
-                pagination.appendChild(ellipsis);
-            }
-            
-            const lastPageButton = document.createElement('button');
-            lastPageButton.className = 'px-3 py-1 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50';
-            lastPageButton.textContent = totalPages;
-            lastPageButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                currentPage = totalPages;
-                updateTable();
-                updatePagination();
-            });
-            pagination.appendChild(lastPageButton);
-        }
-
-        // Next button
-        const nextButton = document.createElement('button');
-        nextButton.className = 'px-3 py-1 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50';
-        nextButton.disabled = currentPage === totalPages;
-        nextButton.innerHTML = 'Next';
-        nextButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (currentPage < totalPages) {
-                currentPage++;
-                updateTable();
-                updatePagination();
-            }
-        });
-        pagination.appendChild(nextButton);
-    }
-
-    // Update pagination active state
-    function updatePagination() {
-        setupPagination(); // Rebuild pagination controls
-    }
-
-    // Event listeners
-    searchInput.addEventListener('input', () => {
-        currentPage = 1;
-        updateTable();
-        updatePagination();
-    });
-
-    sortableHeaders.forEach((header, index) => {
-        header.addEventListener('click', () => {
-            // Update sort direction
-            if (currentSort.column === index) {
-                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.column = index;
-                currentSort.direction = 'desc';
-            }
-
-            // Update table
-            updateTable();
-        });
-    });
-
-    // Initialize table
-    initTable();
-});
-</script>
 @endsection

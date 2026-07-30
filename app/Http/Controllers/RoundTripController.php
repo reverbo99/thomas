@@ -1451,10 +1451,47 @@ class RoundTripController extends Controller
             'payment_method' => $payment_method
         ]);
 
-        $canonicalAmount = session()->get('booking_form')['payable_amount'] ?? $request->amount;
+        $canonicalAmount = $this->resolveRoundTripPayableAmount($request->amount);
         $isResave = $request->has('resave_ticket') && $request->input('resave_ticket') == '1';
 
         return $this->pay($canonicalAmount, $user, $payment_method, $isResave);
+    }
+
+    /**
+     * Prefer summed per-leg payables over a stale/missing booking_form.payable_amount.
+     */
+    private function resolveRoundTripPayableAmount($requestAmount): float
+    {
+        $form = session()->get('booking_form', []);
+        if (isset($form['payable_amount']) && is_numeric($form['payable_amount']) && (float) $form['payable_amount'] > 0) {
+            return round((float) $form['payable_amount'], 2);
+        }
+
+        if (session()->has('firstbooking') && session()->has('secondbooking')) {
+            $d1 = $this->roundtripLegData(session()->get('firstbooking'));
+            $d2 = $this->roundtripLegData(session()->get('secondbooking'));
+            $a1 = (float) ($d1['payable_amount'] ?? (($d1['price'] ?? 0) + ($d1['fees'] ?? 0)));
+            $a2 = (float) ($d2['payable_amount'] ?? (($d2['price'] ?? 0) + ($d2['fees'] ?? 0)));
+            if ($a1 > 0 && $a2 > 0) {
+                return round($a1 + $a2, 2);
+            }
+        }
+
+        $existing1 = session()->get('booking1');
+        $existing2 = session()->get('booking2');
+        if ($existing1 && $existing2) {
+            $b1 = $existing1 instanceof Booking ? $existing1 : Booking::find($existing1);
+            $b2 = $existing2 instanceof Booking ? $existing2 : Booking::find($existing2);
+            if (
+                $b1 && $b2
+                && in_array($b1->payment_status, ['Unpaid', 'resaved'], true)
+                && in_array($b2->payment_status, ['Unpaid', 'resaved'], true)
+            ) {
+                return round((float) $b1->amount + (float) $b2->amount, 2);
+            }
+        }
+
+        return round((float) ($requestAmount ?? 0), 2);
     }
 
     private function resaveSuccessRedirect()
@@ -1815,16 +1852,16 @@ class RoundTripController extends Controller
             ]);
 
             try {
-                // Process cash payment for both bookings
+                // Process cash once — CashController settles BOTH legs when booking1/booking2 are in session.
                 $cashController = new CashController();
-
-                // Process first booking
-                $result1 = $cashController->cash($booking1, uniqid('Round_Cash_'));
-                // Process second booking  
-                $result2 = $cashController->cash($booking2, uniqid('Round_Cash_'));
+                $cashResult = $cashController->cash($booking1, uniqid('Round_Cash_'));
 
                 // Clear only booking_form; keep booking1/booking2/is_round for success page (paymentSuccess() will clear them)
                 session()->forget(['booking_form']);
+
+                if ($cashResult instanceof \Illuminate\Http\RedirectResponse || $cashResult instanceof \Illuminate\View\View) {
+                    return $cashResult;
+                }
 
                 return redirect()->to(round_trip_route('payment_success'))->with('success', 'Round trip bookings created successfully via cash!');
             } catch (\Exception $e) {
@@ -1973,6 +2010,46 @@ class RoundTripController extends Controller
      */
     private function processTestPayment($amount, $user, $method, $isResave = false)
     {
+        $existingBooking1 = session()->get('booking1');
+        $existingBooking2 = session()->get('booking2');
+        $reuseBookings = session()->get('is_round')
+            && $existingBooking1
+            && $existingBooking2
+            && in_array($existingBooking1->payment_status ?? '', ['Unpaid', 'resaved'], true)
+            && in_array($existingBooking2->payment_status ?? '', ['Unpaid', 'resaved'], true);
+
+        if ($reuseBookings) {
+            $booking1 = Booking::find($existingBooking1->id);
+            $booking2 = Booking::find($existingBooking2->id);
+            if (!$booking1 || !$booking2) {
+                $reuseBookings = false;
+            }
+        }
+
+        if ($reuseBookings) {
+            if ($isResave) {
+                $roundResaveRef = round_trip_resaved_group_prefix() . strtoupper((string) Str::uuid());
+                $resaveUpdate = [
+                    'payment_status' => 'resaved',
+                    'resaved_until' => Carbon::now()->addDay(),
+                    'transaction_ref_id' => $roundResaveRef,
+                    'payment_method' => 'test_mode',
+                ];
+                $booking1->update($resaveUpdate);
+                $booking2->update($resaveUpdate);
+                session()->forget(['firstbooking', 'secondbooking', 'booking_form', 'booking1', 'booking2', 'is_round']);
+
+                return $this->resaveSuccessRedirect();
+            }
+
+            Session::put('booking1', $booking1);
+            Session::put('booking2', $booking2);
+            Session::put('is_round', true);
+            session()->forget(['firstbooking', 'secondbooking', 'booking_form']);
+
+            return redirect()->route('test.payment.process');
+        }
+
         if (!session()->has('firstbooking') || !session()->has('secondbooking')) {
             return $this->redirectRoundTripCheckout()
                 ->with('error', __('all.booking_session_lost_seats'));

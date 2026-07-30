@@ -78,6 +78,12 @@
             color: #1e40af;
         }
 
+        .manifest-table tr.infant-row td {
+            background-color: #fef3c7;
+            font-weight: 600;
+            color: #92400e;
+        }
+
         .text-center {
             text-align: center;
         }
@@ -117,7 +123,7 @@
                 <th style="width: 2%;">Sex</th>
                 <th style="width: 7%;">Phone</th>
                 <th style="width: 4%;">Type</th>
-                <th style="width: 3%;">Infant</th>
+                <th style="width: 3%;">{{ __('system.pages.infant') }}</th>
                 <th style="width: 4%;">ID Type</th>
                 <th style="width: 5%;">Id no</th>
                 <th style="width: 8%;">PNR</th>
@@ -134,7 +140,12 @@
         <tbody>
             @if (isset($bookings) && is_array($bookings) && count($bookings) > 0)
                 @foreach ($bookings as $index => $booking)
-                    <tr class="{{ !empty($booking['is_staff']) ? 'staff-row' : '' }}">
+                    @php
+                        $rowClass = !empty($booking['is_staff'])
+                            ? 'staff-row'
+                            : ((!empty($booking['infant_child']) || !empty($booking['is_infant_companion'])) ? 'infant-row' : '');
+                    @endphp
+                    <tr class="{{ $rowClass }}">
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td>{{ $booking['seat'] ?? '' }}</td>
                         <td>{{ $booking['route_label'] ?? '' }}</td>
@@ -142,7 +153,7 @@
                         <td class="text-center">{{ $booking['gender_code'] ?? '' }}</td>
                         <td>{{ $booking['customer_phone'] ?? '' }}</td>
                         <td>{{ $booking['passenger_type'] ?? 'Adult' }}</td>
-                        <td class="text-center">{{ !empty($booking['infant_child']) ? 'Yes' : 'No' }}</td>
+                        <td class="text-center">{{ !empty($booking['infant_child']) ? __('vender/history.yes') : __('vender/history.no') }}</td>
                         <td>{{ $booking['id_type'] ?? '' }}</td>
                         <td>{{ $booking['id_number'] ?? '' }}</td>
                         <td>{{ $booking['booking_code'] ?? '' }}</td>

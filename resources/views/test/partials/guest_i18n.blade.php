@@ -18,6 +18,7 @@
         'something_went_wrong' => __('all.error_try_again'),
         'unable_load_booking_form' => __('all.unable_load_booking_form'),
         'amount_label' => __('all.amount_label'),
+        'reserve_ticket_button' => __('customer/busroot.resave_ticket_button'),
     ];
 @endphp
 <script>

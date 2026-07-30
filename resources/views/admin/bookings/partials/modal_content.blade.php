@@ -72,7 +72,7 @@
                 </div>
                 @endif
                 <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">Service Fee:</span>
+                    <span class="text-muted">{{ __('all.service_fee') }}:</span>
                     <span class="fw-bold">{{ $currency }} {{ convert_money($breakdownServiceFee) }}</span>
                 </div>
                 @if ($booking->bima == 1)

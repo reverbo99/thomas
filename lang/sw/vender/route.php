@@ -32,6 +32,7 @@ return [
     'point_name' => 'Jina la Kituo',
     'amount_tsh' => 'Kiasi (Tsh)',
     'action' => 'Kitendo',
+    'actions' => 'Kitendo',
     'pickup_point' => 'Kituo cha Kuchukulia Abiria',
     'dropping_point' => 'Kituo cha Kushushia Abiria',
     'enter_point_name' => 'Ingiza jina la kituo',

@@ -86,6 +86,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 pane.setAttribute('hidden', '');
             }
         });
+        const nextBtn = paymentRoot.querySelector('[data-inline-pay-next]');
+        if (nextBtn) {
+            if (!nextBtn.dataset.defaultLabel) {
+                nextBtn.dataset.defaultLabel = nextBtn.textContent.trim();
+            }
+            if (activeKey === 'reserve') {
+                nextBtn.textContent = t('reserve_ticket_button', 'Reserve Ticket');
+            } else {
+                nextBtn.textContent = nextBtn.dataset.defaultLabel;
+            }
+        }
     }
 
     function updateInlinePayPhoneDisplay(paymentRoot) {

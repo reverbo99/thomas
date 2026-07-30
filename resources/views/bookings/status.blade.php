@@ -84,7 +84,7 @@
                             </div>
                             @endif
                             <div class="flex justify-between">
-                                <span class="text-gray-600">Service Fee:</span>
+                                <span class="text-gray-600">{{ __('all.service_fee') }}:</span>
                                 <span class="font-medium text-gray-600">{{ number_format($breakdownServiceFee, 2) }}</span>
                             </div>
                             @if ($booking->vender_id > 0)

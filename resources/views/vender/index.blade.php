@@ -85,13 +85,14 @@
         <div class="flex items-center justify-between mb-3 px-1">
             <h2 class="vendor-side-card__title" style="margin:0">
                 <i class="fas fa-receipt" style="margin-right:0.5rem"></i>{{ __('assistance/dashboard.fee_summary') }}
+                <span class="vendor-kpi__hint" style="display:inline;margin-left:0.5rem;font-weight:400">· {{ $filters[$filter] ?? $filters['month'] }}</span>
             </h2>
-            <a href="{{ route('vender.history') }}" class="page-btn page-btn--outline" style="font-size:0.8125rem;padding:0.4rem 0.9rem">
+            <a href="{{ route('vender.history', ['period' => $filter]) }}" class="page-btn page-btn--outline" style="font-size:0.8125rem;padding:0.4rem 0.9rem">
                 <i class="fas fa-clock-rotate-left" style="margin-right:0.35rem"></i>{{ __('assistance/dashboard.view_details') }}
             </a>
         </div>
         <div class="vendor-kpi-grid">
-            {{-- Commission Fee --}}
+            {{-- Commission Fee (credited to commission wallet) --}}
             <article class="vendor-kpi" style="--kpi-accent:#2E3093">
                 <div class="vendor-kpi__top">
                     <div class="vendor-kpi__icon"><i class="fas fa-percent"></i></div>
@@ -102,7 +103,7 @@
                 <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_earned') }}</p>
             </article>
 
-            {{-- Service Fee --}}
+            {{-- Service Fee (credited to commission wallet) --}}
             <article class="vendor-kpi" style="--kpi-accent:#0891b2">
                 <div class="vendor-kpi__top">
                     <div class="vendor-kpi__icon"><i class="fas fa-hand-holding-dollar"></i></div>
@@ -113,7 +114,7 @@
                 <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_earned') }}</p>
             </article>
 
-            {{-- Parcel Fee --}}
+            {{-- Parcel: no vendor share in settlement --}}
             <article class="vendor-kpi" style="--kpi-accent:#d97706">
                 <div class="vendor-kpi__top">
                     <div class="vendor-kpi__icon"><i class="fas fa-box"></i></div>
@@ -121,10 +122,10 @@
                 </div>
                 <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_parcel_fee') }}</p>
                 <p class="vendor-kpi__value">{{ convert_money($totalParcelFee) }}</p>
-                <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_collected') }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($parcelCollected) }}</p>
             </article>
 
-            {{-- Excess Luggage Fee --}}
+            {{-- Excess luggage: system + bus owner only --}}
             <article class="vendor-kpi" style="--kpi-accent:#dc2626">
                 <div class="vendor-kpi__top">
                     <div class="vendor-kpi__icon"><i class="fas fa-suitcase-rolling"></i></div>
@@ -132,10 +133,10 @@
                 </div>
                 <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_excess_luggage_fee') }}</p>
                 <p class="vendor-kpi__value">{{ convert_money($totalExcessLuggageFee) }}</p>
-                <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_collected') }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($luggageCollected) }}</p>
             </article>
 
-            {{-- Cancellation Fee --}}
+            {{-- Cancellation retention: AdminWallet only --}}
             <article class="vendor-kpi" style="--kpi-accent:#6b7280">
                 <div class="vendor-kpi__top">
                     <div class="vendor-kpi__icon"><i class="fas fa-ban"></i></div>
@@ -143,7 +144,7 @@
                 </div>
                 <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_cancellation_fee') }}</p>
                 <p class="vendor-kpi__value">{{ convert_money($totalCancellationFee) }}</p>
-                <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/dashboard.total_cancelled') }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.system_retained') }}: {{ convert_money($cancellationRetained) }}</p>
             </article>
         </div>
     </section>

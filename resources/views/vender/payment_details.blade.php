@@ -95,6 +95,11 @@
                                         aria-controls="tab5">
                                         <i class="fas fa-sim-card mr-2"></i> {{ __('all.pay_with_airtel_money') }}
                                     </button>
+                                    <button type="button" class="w-full text-left px-4 py-3 rounded-lg bg-white hover:bg-gray-100 text-blue-700"
+                                        id="tab6-btn" data-bs-toggle="tab" data-bs-target="#tab6" role="tab"
+                                        aria-controls="tab6">
+                                        <i class="fas fa-bookmark mr-2"></i> {{ __('customer/busroot.resave_ticket') }}
+                                    </button>
                                 </div>
                             </div>
                             
@@ -415,6 +420,49 @@
                                             <p id="vend_airtel_status_msg" class="text-sm text-center hidden"></p>
                                         </div>
                                     </div>
+
+                                    {{-- Reserve for later payment (24h seat hold) --}}
+                                    <div id="tab6" class="tab-pane" role="tabpanel" aria-labelledby="tab6-btn">
+                                        <form id="resave-form" action="{{ route('vender.verify') }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="payment_method" value="resave">
+                                            <input type="hidden" name="resave_ticket" value="1">
+                                            <input type="hidden" name="amount" value="{{ round($price + $fees, 2) }}">
+                                            <div class="space-y-4">
+                                                <div class="p-4 bg-yellow-50 rounded-lg">
+                                                    <p class="text-sm text-yellow-700 mb-1">
+                                                        {{ __('customer/busroot.resave_warning') }}
+                                                    </p>
+                                                    <p class="text-lg font-bold text-yellow-800">
+                                                        {{ __('customer/busroot.total_to_resave') }}
+                                                        {{ $currency }} {{ convert_money($price + $fees) }}
+                                                    </p>
+                                                </div>
+                                                <p class="text-gray-700">
+                                                    {{ __('customer/busroot.resave_description_vendor') }}
+                                                </p>
+                                                <div class="flex items-start">
+                                                    <div class="flex items-center h-5">
+                                                        <input id="resave_terms" name="resave_terms" type="checkbox"
+                                                            value="1" checked
+                                                            class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded">
+                                                    </div>
+                                                    <div class="ml-3 text-sm">
+                                                        <label for="resave_terms" class="font-medium text-gray-700">
+                                                            {{ __('customer/busroot.i_accept') }}
+                                                            <a href="{{ route('ticket.purchase') }}"
+                                                                class="text-blue-600 hover:text-blue-500">{{ __('customer/busroot.terms_and_conditions') }}</a>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <button type="submit"
+                                                    class="w-full mt-4 py-3 px-6 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-medium rounded-lg shadow-md transition-all duration-300 flex items-center justify-center">
+                                                    <i class="fas fa-bookmark mr-2"></i>
+                                                    {{ __('customer/busroot.resave_ticket_button') }}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -426,6 +474,8 @@
                     'amount' => round($price + $fees, 2),
                     'langNs' => 'customer/busroot',
                     'formIdSuffix' => '_vender',
+                    'supportsReserve' => true,
+                    'reserveDescription' => __('customer/busroot.resave_description_vendor'),
                 ])
                 @endif
             </div>
@@ -459,6 +509,16 @@
                             <span class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                             <span class="text-sm font-medium text-gray-500">{{ $currency }} {{ convert_money($price - $ins) }}</span>
                         </div>
+
+                        @if (($government_levy ?? 0) > 0)
+                        <div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">{{ __('customer/busroot.government_levy', ['percent' => (float) government_levy_percent()]) }}</span>
+                                <span class="text-sm font-medium text-gray-500">{{ $currency }} {{ convert_money($government_levy) }}</span>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1 mb-0">{{ __('customer/busroot.government_levy_included_note') }}</p>
+                        </div>
+                        @endif
 
                         <div class="border-t border-gray-200 pt-2 mt-2 flex justify-between">
                             <span class="text-base font-semibold">{{ __('customer/busroot.total_payable') }}</span>
@@ -665,6 +725,43 @@
         // Submit form
         this.submit();
     });
+
+    var resaveForm = document.getElementById('resave-form');
+    if (resaveForm) {
+        resaveForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const code = document.getElementById('countrycode').value;
+            const phone = normalizePhoneTo255(document.getElementById('contactNumber').value);
+            const email = document.getElementById('contactEmail').value;
+
+            if (!phone) {
+                alert(vendPayI18n.enterPhone);
+                return;
+            }
+
+            const codeInput = document.createElement('input');
+            codeInput.type = 'hidden';
+            codeInput.name = 'countrycode';
+            codeInput.value = code;
+
+            const phoneInput = document.createElement('input');
+            phoneInput.type = 'hidden';
+            phoneInput.name = 'contactNumber';
+            phoneInput.value = phone;
+
+            const emailInput = document.createElement('input');
+            emailInput.type = 'hidden';
+            emailInput.name = 'contactEmail';
+            emailInput.value = email;
+
+            this.appendChild(codeInput);
+            this.appendChild(phoneInput);
+            this.appendChild(emailInput);
+
+            this.submit();
+        });
+    }
 
     // Tab functionality
     document.querySelectorAll('[role="tablist"] button').forEach(button => {

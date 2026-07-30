@@ -431,6 +431,20 @@ class PDOController extends Controller
             }
         }
 
+        // Session lost: settle every unpaid leg sharing this DPO transaction token.
+        $roundByRef = (new RoundpaymentController())->settleAllByTransactionRef($transToken, $verifyResponse, 'dpo');
+        if (is_array($roundByRef) && isset($roundByRef['errorMessage'])) {
+            return view('dpo.error', [
+                'message' => $roundByRef['errorMessage'] ?? 'Booking not found',
+                'transactionToken' => $transToken,
+            ]);
+        }
+        if (is_array($roundByRef) && count($roundByRef) >= 2) {
+            session()->forget(['booking1', 'booking2', 'is_round', 'booking_form']);
+            $red = new RedirectController();
+            return $red->showRoundTripBookingStatus($roundByRef[0], $roundByRef[1]);
+        }
+
         $code = session('booking')->booking_code;
         $booking = Booking::where('booking_code', $code)->first();
 

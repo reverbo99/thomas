@@ -193,10 +193,6 @@
             extract(booking_per_seat_payment_amounts($data, $seatIndex, $seatCount));
             $printPassengerName = booking_passenger_name_for_seat($data, $seatIndex, $printSeat);
             $printPassengerPhone = booking_passenger_phone_for_seat($data, $seatIndex, $printSeat);
-            $printTotalPaid = $breakdownAmountPaid;
-            if (($data->bima ?? 0) == 1) {
-                $printTotalPaid = max(0, $breakdownAmountPaid - $breakdownInsurance);
-            }
             $seatQrPayload = trim(($data->booking_code ?? 'N/A') . '|' . $printSeat, '|');
             // PNG + fixed img size keeps TRA and Ticket QRs identical (HTML table QRs scale with data length)
             $seatQrPng = DNS2D::getBarcodePNG($seatQrPayload, 'QRCODE', 4, 4, [0, 0, 0]);
@@ -277,14 +273,6 @@
                     <tr>
                         <td>Bus fare:</td>
                         <td>{{ number_format($breakdownTicketFee, 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Service fee:</td>
-                        <td>{{ number_format($breakdownServiceFee, 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Total paid:</td>
-                        <td>{{ number_format($printTotalPaid, 2) }}</td>
                     </tr>
                 </table>
             </div>

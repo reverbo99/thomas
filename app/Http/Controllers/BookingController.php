@@ -1139,8 +1139,8 @@ class BookingController extends Controller
                 $round = new RoundpaymentController();
                 $code1 = $booking1->booking_code ?? 'N/A';
                 $code2 = $booking2->booking_code ?? 'N/A';
-                $data1 = $round->roundtrip($transactionRefId, $transactionRefId, $verificationCode, $code1);
-                $data2 = $round->roundtrip($transactionRefId, $transactionRefId, $verificationCode, $code2);
+                $data1 = $round->roundtrip($transactionRefId, $transactionRefId, $verificationCode, $code1, 'mixx');
+                $data2 = $round->roundtrip($transactionRefId, $transactionRefId, $verificationCode, $code2, 'mixx');
                 // If roundtrip returned error (e.g. booking not found), show payment failed
                 if (is_array($data1) && isset($data1['errorMessage'])) {
                     $go = new RoundTripController();
@@ -1152,6 +1152,17 @@ class BookingController extends Controller
                 }
                 $red = new RedirectController();
                 return $red->showRoundTripBookingStatus($data1, $data2);
+            }
+
+            // Session lost: both RT legs share transaction_ref_id — settle all unpaid legs.
+            $roundByRef = (new RoundpaymentController())->settleAllByTransactionRef($transactionRefId, $verificationCode, 'mixx');
+            if (is_array($roundByRef) && isset($roundByRef['errorMessage'])) {
+                $go = new RoundTripController();
+                return $go->paymentFailed($roundByRef['errorMessage'] ?? 'Booking not found');
+            }
+            if (is_array($roundByRef) && count($roundByRef) >= 2) {
+                $red = new RedirectController();
+                return $red->showRoundTripBookingStatus($roundByRef[0], $roundByRef[1]);
             }
 
             // Retrieve booking

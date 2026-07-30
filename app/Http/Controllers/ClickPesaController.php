@@ -1592,6 +1592,26 @@ class ClickPesaController extends Controller
             }
         }
 
+        // Session lost: settle every unpaid leg that shares this ClickPesa order ref.
+        $refCandidates = array_values(array_unique(array_filter([
+            $transToken,
+            $transToken ? preg_replace('/[^a-zA-Z0-9]/', '', $transToken) : null,
+        ])));
+        foreach ($refCandidates as $ref) {
+            $roundByRef = (new RoundpaymentController())->settleAllByTransactionRef($ref, $verifyResponse, 'clickpesa');
+            if (is_array($roundByRef) && isset($roundByRef['errorMessage'])) {
+                return view('clickpesa.error', [
+                    'message' => $roundByRef['errorMessage'] ?? __('all.booking_not_found'),
+                    'reference' => $transToken,
+                ]);
+            }
+            if (is_array($roundByRef) && count($roundByRef) >= 2) {
+                session()->forget(['booking1', 'booking2', 'is_round', 'booking_form']);
+                $red = new RedirectController();
+                return $red->showRoundTripBookingStatus($roundByRef[0], $roundByRef[1]);
+            }
+        }
+
         // Try to get booking from session first
         $booking = null;
         $sessionBooking = session('booking');

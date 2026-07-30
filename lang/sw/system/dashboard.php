@@ -6,7 +6,7 @@ return [
     'todays_revenue' => 'Mapato ya Leo',
     'total_revenue' => 'Jumla ya Mapato',
     'insurance_amount' => 'Kiasi cha Bima',
-    'commission_fees' => 'Ada za Tume',
+    'commission_fees' => 'Ada za Kamisheni',
     'service_fees' => 'Ada za Huduma',
     'available_balance' => 'Salio Lililopo',
     'view_balance_details' => 'Angalia maelezo ya salio',

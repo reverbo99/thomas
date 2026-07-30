@@ -36,6 +36,16 @@ class RedirectController extends Controller
             }
         }
 
+        // Round-trip gateways share one transaction_ref across both legs.
+        $paidSiblings = Booking::with('bus.route', 'schedule', 'campany.busOwnerAccount', 'campany.user')
+            ->where('transaction_ref_id', $transactionRefId)
+            ->where('payment_status', 'Paid')
+            ->orderBy('id')
+            ->get();
+        if ($paidSiblings->count() >= 2) {
+            return $this->showRoundTripBookingStatus($paidSiblings[0], $paidSiblings[1]);
+        }
+
         $data = Booking::with('bus.route', 'schedule', 'campany.busOwnerAccount', 'campany.user')
             ->where('transaction_ref_id', $transactionRefId)
             ->orWhere('id', $transactionRefId)
@@ -52,6 +62,7 @@ class RedirectController extends Controller
             $isPendingByRef = (string) $data->transaction_ref_id === (string) $transactionRefId
                 || (string) $data->id === (string) $transactionRefId;
             if ($isPendingByRef) {
+                // Still waiting: if a second unpaid/resaved sibling exists, keep processing.
                 return view('payments.processing', ['data' => $data]);
             }
             return view('payments.failed', compact('data'));
