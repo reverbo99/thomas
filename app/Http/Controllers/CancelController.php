@@ -29,6 +29,10 @@ class CancelController extends Controller
             return back()->with('error', __('all.booking_not_found'));
         }
 
+        if (auth()->check() && auth()->user()->role === 'customer' && (int) $booking->user_id !== (int) auth()->id()) {
+            return back()->with('error', __('all.booking_not_found'));
+        }
+
         if ($booking->payment_status === 'Cancel') {
             return back()->with('error', __('all.booking_already_cancelled'));
         }

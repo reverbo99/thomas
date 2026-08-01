@@ -61,6 +61,7 @@ class CustomerController extends Controller
     public function mybooking(Request $request)
     {
         $user = Auth::user();
+        $this->claimGuestBookingsForCustomer($user);
         $query = $this->customerBookingQuery($user);
 
         $period = $request->query('period', '');
@@ -83,6 +84,7 @@ class CustomerController extends Controller
     public function printReport(Request $request)
     {
         $user = Auth::user();
+        $this->claimGuestBookingsForCustomer($user);
         $query = $this->customerBookingQuery($user)
             ->with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService']);
 
@@ -116,24 +118,54 @@ class CustomerController extends Controller
         return $pdf->download('my-tickets-' . now()->format('Y-m-d') . '.pdf');
     }
 
+    /**
+     * Attach unowned guest bookings that match this customer's contact details.
+     * Never claim bookings already owned by another user or created by a vendor.
+     */
+    private function claimGuestBookingsForCustomer($user): void
+    {
+        $email = trim((string) ($user->email ?? ''));
+        $phone = $user->contact ?? $user->phone ?? null;
+        $normalizedPhone = !empty($phone)
+            ? normalize_tanzania_phone_for_booking((string) $phone)
+            : '';
+
+        if ($email === '' && $normalizedPhone === '') {
+            return;
+        }
+
+        Booking::query()
+            ->where(function ($q) {
+                $q->whereNull('user_id')->orWhere('user_id', 0);
+            })
+            ->where(function ($q) {
+                $q->whereNull('vender_id')
+                    ->orWhere('vender_id', '')
+                    ->orWhere('vender_id', 0);
+            })
+            ->where(function ($q) use ($email, $normalizedPhone) {
+                if ($email !== '') {
+                    $q->orWhere('customer_email', $email);
+                }
+                if ($normalizedPhone !== '') {
+                    $q->orWhere('customer_phone', $normalizedPhone);
+                }
+            })
+            ->update(['user_id' => $user->id]);
+    }
+
     private function customerBookingQuery($user)
     {
+        // Only tickets owned by this account — never match other users by shared email/phone.
         return Booking::with('bus.route', 'vender', 'campany.busOwnerAccount')
-            ->where(function ($query) use ($user) {
-                $query->where('user_id', $user->id);
+            ->where('user_id', $user->id);
+    }
 
-                if (!empty($user->email)) {
-                    $query->orWhere('customer_email', $user->email);
-                }
-
-                $phone = $user->contact ?? $user->phone ?? null;
-                if (!empty($phone)) {
-                    $normalizedPhone = normalize_tanzania_phone_for_booking((string) $phone);
-                    if ($normalizedPhone !== '') {
-                        $query->orWhere('customer_phone', $normalizedPhone);
-                    }
-                }
-            });
+    private function findOwnedBookingOrFail($id): Booking
+    {
+        return Booking::where('id', $id)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
     }
 
     public function mybooking_search(Request $request)
@@ -929,15 +961,13 @@ class CustomerController extends Controller
 
     public function edit($id)
     {
-        $booking = Booking::find($id);
+        $booking = $this->findOwnedBookingOrFail($id);
         return view('customer.edit', compact('booking'));
     }
 
     public function update(Request $request)
     {
-        //return $request->all();
-
-        $booking = Booking::find($request->booking_id);
+        $booking = $this->findOwnedBookingOrFail($request->booking_id);
         $booking->update([
             'customer_name' => $request->name,
             'customer_email' => $request->email,

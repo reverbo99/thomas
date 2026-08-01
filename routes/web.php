@@ -648,8 +648,8 @@ Route::middleware('auth')->group(function () {
         Route::post('get_form', [BookingController::class, 'get_form'])->name('customer.get_form');
         Route::get('/seats', [BookingController::class, 'seates'])->name('customer.seats');
         Route::post('/get_seats', [BookingController::class, 'get_seats'])->name('customer.get_seats');
-        Route::get('/booking/payment', [BookingController::class, 'payment'])->name('customer.pay');
-        Route::post('/booking/payment', [BookingController::class, 'payment_info'])->name('customer.payment_store');
+        Route::get('/booking/payment', [CustomerController::class, 'payment'])->name('customer.pay');
+        Route::post('/booking/payment', [CustomerController::class, 'payment_info'])->name('customer.payment_store');
         Route::post('/booking/payment/data', [CustomerController::class, 'get_payment'])->name('customer.verify');
 
         Route::get('/by_route', [CustomerController::class, 'by_route'])->name('customer.by_route');
