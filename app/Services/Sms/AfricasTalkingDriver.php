@@ -88,8 +88,17 @@ class AfricasTalkingDriver implements SmsDriver
         if (!$response->successful()) {
             // AT returns plain text on auth/validation errors.
             $body = trim($response->body());
+            $hint = '';
+            if ($response->status() === 401) {
+                $hint = ' Check Username matches the AT dashboard (not the app display name),'
+                    . ' re-paste the API key and Save, and keep Sandbox off for live keys.';
+            }
 
-            return SmsResult::fail('HTTP ' . $response->status() . ($body !== '' ? ': ' . mb_substr($body, 0, 180) : ''));
+            return SmsResult::fail(
+                'HTTP ' . $response->status()
+                . ($body !== '' ? ': ' . mb_substr($body, 0, 180) : '')
+                . $hint
+            );
         }
 
         $recipient = $response->json('SMSMessageData.Recipients.0');

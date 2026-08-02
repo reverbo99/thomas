@@ -2587,18 +2587,19 @@ class SystemController extends Controller
             'sms_driver' => in_array($request->input('sms_driver'), SmsManager::DRIVERS, true)
                 ? $request->input('sms_driver')
                 : 'smscotz',
-            'sms_sender_id' => $request->input('sms_sender_id'),
-            'at_username' => $request->input('at_username'),
+            'sms_sender_id' => trim((string) $request->input('sms_sender_id', '')),
+            'at_username' => trim((string) $request->input('at_username', '')),
             'at_sandbox' => $request->boolean('at_sandbox'),
-            'cotz_username' => $request->input('cotz_username'),
+            'cotz_username' => trim((string) $request->input('cotz_username', '')),
         ]);
 
         // Secrets are write-only in the form: a blank box means "keep what is
         // already stored", so we never round-trip them through the browser.
         $secrets = [];
         foreach (['at_api_key', 'cotz_password'] as $field) {
-            if (filled($request->input($field))) {
-                $secrets[$field] = $request->input($field);
+            $value = trim((string) $request->input($field, ''));
+            if ($value !== '') {
+                $secrets[$field] = $value;
             }
         }
         if ($secrets) {

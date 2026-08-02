@@ -41,9 +41,14 @@ class SmsManager
         $services = config('services.sms', []);
         $at = config('services.africastalking', []);
 
-        $pick = fn (string $column, $fromEnv) => filled($v = $this->attr($settings, $column))
-            ? (string) $v
-            : (string) ($fromEnv ?? '');
+        $pick = function (string $column, $fromEnv) use ($settings) {
+            $v = $this->attr($settings, $column);
+            if (filled($v)) {
+                return trim((string) $v);
+            }
+
+            return trim((string) ($fromEnv ?? ''));
+        };
 
         $driver = $pick('sms_driver', $services['driver'] ?? 'smscotz');
         if (!in_array($driver, self::DRIVERS, true)) {
