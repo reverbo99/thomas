@@ -2,64 +2,35 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Log;
+use App\Services\Sms\SmsManager;
+use App\Services\Sms\SmsResult;
 
 class SmsController extends Controller
 {
+    public function __construct(private ?SmsManager $manager = null)
+    {
+        $this->manager = $manager ?: app(SmsManager::class);
+    }
+
     /**
-     * Send SMS via external API. Handles network/API errors without throwing.
+     * Send SMS through the configured gateway. Handles network/API errors
+     * without throwing.
      *
-     * @param string|null $destination Phone number (255… or local digits)
+     * @param string|null $destination Phone number in any local or international shape
      * @param string $message Message text
      * @return string|false Message ID on success, false on failure
      */
     public function sms_send($destination, $message)
     {
-        $destination = preg_replace('/[^0-9]/', '', (string) $destination);
-        if ($destination === '' || strlen($destination) < 9) {
-            Log::warning('SMS skipped: invalid or empty destination', [
-                'destination_raw' => $destination,
-            ]);
-            return false;
-        }
+        return $this->manager->sendLegacy($destination, (string) $message);
+    }
 
-        $sms = config('services.sms', []);
-        $username = $sms['username'] ?? 'HIGHLINK';
-        $password = $sms['password'] ?? '';
-        $senderid = $sms['sender_id'] ?? 'HIGHLINK';
-
-        $messageEnc = urlencode($message);
-        $url = 'https://www.sms.co.tz/api.php?do=sms&username=' . rawurlencode($username)
-            . '&password=' . rawurlencode($password)
-            . '&senderid=' . rawurlencode($senderid)
-            . '&dest=' . rawurlencode($destination)
-            . '&msg=' . $messageEnc;
-
-        $fetch = @file_get_contents($url);
-
-        if ($fetch === false) {
-            Log::warning('SMS API request failed', [
-                'destination' => $destination,
-                'url' => preg_replace('/password=[^&]+/', 'password=***', $url),
-            ]);
-            return false;
-        }
-
-        $result = explode(',', $fetch);
-        $result_status = $result[0] ?? '';
-        $result_status_detail = $result[1] ?? 'Unknown';
-
-        if ($result_status === 'OK') {
-            $result_id = $result[2] ?? '';
-
-            return $result_id;
-        }
-
-        Log::info('SMS API returned error', [
-            'destination' => $destination,
-            'status' => $result_status_detail,
-        ]);
-
-        return false;
+    /**
+     * Same send, but with the full gateway outcome (status, cost, error) for
+     * callers that need to report it — e.g. the admin test-send form.
+     */
+    public function send($destination, string $message, ?string $driver = null): SmsResult
+    {
+        return $this->manager->send($destination, $message, $driver);
     }
 }

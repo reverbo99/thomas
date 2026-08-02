@@ -41,4 +41,6 @@ return [
     'role_update_error' => 'Hitilafu katika kusasisha jukumu la mtumiaji: :error',
     'access_created' => 'Ruhusa imeundwa kwa mafanikio!',
     'access_updated' => 'Ruhusa imesasishwa kwa mafanikio!',
+    'sms_test_sent' => 'SMS ya majaribio imepokelewa na :driver (kitambulisho: :id).',
+    'sms_test_failed' => 'SMS ya majaribio imeshindikana kwenye :driver: :error',
 ];

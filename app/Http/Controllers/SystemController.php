@@ -36,6 +36,7 @@ use App\Models\Coaster;
 use App\Models\Parcel;
 use App\Models\SpecialHireOrder;
 use App\Models\SpecialHireWithdrawalRequest;
+use App\Services\Sms\SmsManager;
 use Illuminate\Support\Facades\Schema;
 
 class SystemController extends Controller
@@ -2538,6 +2539,16 @@ class SystemController extends Controller
     
     public function setting_update(Request $request)
     {
+        $request->validate([
+            'sms_driver' => ['nullable', Rule::in(SmsManager::DRIVERS)],
+            // Alphanumeric sender ids are capped at 11 characters by the networks.
+            'sms_sender_id' => ['nullable', 'string', 'max:11'],
+            'at_username' => ['nullable', 'string', 'max:100'],
+            'at_api_key' => ['nullable', 'string', 'max:255'],
+            'cotz_username' => ['nullable', 'string', 'max:100'],
+            'cotz_password' => ['nullable', 'string', 'max:255'],
+        ]);
+
         $settings = Setting::first();
 
         if (!$settings) {
@@ -2573,9 +2584,64 @@ class SystemController extends Controller
             'test_mode' => $request->boolean('test_mode'),
             'enforce_2fa' => $request->boolean('enforce_2fa'),
             'enforce_customer_email_verification' => $request->boolean('enforce_customer_email_verification'),
+            'sms_driver' => in_array($request->input('sms_driver'), SmsManager::DRIVERS, true)
+                ? $request->input('sms_driver')
+                : 'smscotz',
+            'sms_sender_id' => $request->input('sms_sender_id'),
+            'at_username' => $request->input('at_username'),
+            'at_sandbox' => $request->boolean('at_sandbox'),
+            'cotz_username' => $request->input('cotz_username'),
         ]);
 
+        // Secrets are write-only in the form: a blank box means "keep what is
+        // already stored", so we never round-trip them through the browser.
+        $secrets = [];
+        foreach (['at_api_key', 'cotz_password'] as $field) {
+            if (filled($request->input($field))) {
+                $secrets[$field] = $request->input($field);
+            }
+        }
+        if ($secrets) {
+            $settings->update($secrets);
+        }
+
+        SmsManager::flushConfig();
+
         return back()->with('success', __('system.messages.settings_updated'));
+    }
+
+    /**
+     * Fire a one-off SMS through the currently configured gateway so the admin
+     * can confirm the credentials before relying on them.
+     */
+    public function sms_test(Request $request)
+    {
+        $data = $request->validate([
+            'test_phone' => ['required', 'string', 'max:20'],
+            'test_message' => ['nullable', 'string', 'max:300'],
+        ]);
+
+        SmsManager::flushConfig();
+
+        $manager = app(SmsManager::class);
+        $config = $manager->config();
+        $message = $data['test_message'] ?: __('system.settings.sms_test_default_message');
+
+        $result = $manager->send($data['test_phone'], $message);
+
+        if ($result->success) {
+            return back()->with('success', __('system.messages.sms_test_sent', [
+                'driver' => $config['driver'],
+                'id' => $result->messageId ?: '-',
+            ]));
+        }
+
+        return back()->withErrors([
+            'test_phone' => __('system.messages.sms_test_failed', [
+                'driver' => $config['driver'],
+                'error' => $result->error ?: 'unknown error',
+            ]),
+        ])->withInput();
     }
 
     public function refunds()

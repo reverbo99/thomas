@@ -212,6 +212,12 @@ Route::any('/vender/dpo/callback', [VenderWalletController::class, 'handlePdoCal
 Route::any('/vender/dpo/cancel', [VenderWalletController::class, 'handlePdoCallback'])->name('vender.dpo.cancel');
 
 
+use App\Http\Controllers\Webhooks\AfricasTalkingWebhookController;
+// Africa's Talking delivery reports. Public by design — register this URL in
+// the AT dashboard (SMS > SMS Callback URLs > Delivery Reports).
+Route::post('/webhooks/africastalking/dlr', [AfricasTalkingWebhookController::class, 'deliveryReport'])
+    ->name('webhooks.africastalking.dlr');
+
 Route::view('/dpo/example', 'dpo.example')->name('dpo.example');
 // General Routes (Accessible to all authenticated users)
 Route::get('/', function () {
@@ -539,6 +545,7 @@ Route::middleware('auth')->group(function () {
         Route::post('profile/update', [SystemController::class, 'update_profile_bus'])->name('profile.update.bus');
         Route::get('settings', [SystemController::class, 'setting'])->name('system.setting');
         Route::post('settings', [SystemController::class, 'setting_update'])->name('setting.update');
+        Route::post('settings/sms/test', [SystemController::class, 'sms_test'])->name('setting.sms.test');
         Route::post('vender/percentage', [SystemController::class, 'vender_percent'])->name('vender.percent');
 
         Route::get('/refunds', [SystemController::class, 'refunds'])->name('system.refunds');

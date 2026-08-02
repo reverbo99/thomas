@@ -28,7 +28,27 @@ class Setting extends Model
             'test_mode',
             'enforce_2fa',
             'enforce_customer_email_verification',
+            'sms_driver',
+            'sms_sender_id',
+            'at_username',
+            'at_api_key',
+            'at_sandbox',
+            'cotz_username',
+            'cotz_password',
         ];
+
+    protected $casts = [
+        'at_sandbox' => 'boolean',
+        // Gateway secrets are stored encrypted at rest; they are only ever
+        // decrypted inside the SMS drivers, never rendered back to the form.
+        'at_api_key' => 'encrypted',
+        'cotz_password' => 'encrypted',
+    ];
+
+    protected $hidden = [
+        'at_api_key',
+        'cotz_password',
+    ];
 
     public static function requiresCustomerEmailVerification(): bool
     {

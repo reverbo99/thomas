@@ -41,4 +41,6 @@ return [
     'role_update_error' => 'Error updating user role: :error',
     'access_created' => 'Access created successfully!',
     'access_updated' => 'Access updated successfully!',
+    'sms_test_sent' => 'Test SMS accepted by :driver (message id: :id).',
+    'sms_test_failed' => 'Test SMS failed on :driver: :error',
 ];

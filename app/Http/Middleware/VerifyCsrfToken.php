@@ -13,6 +13,7 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         '/tigo/callback',
-        '/tigo/redirect'
+        '/tigo/redirect',
+        'webhooks/africastalking/dlr',
     ];
 }

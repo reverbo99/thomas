@@ -31,12 +31,32 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+     | SMS gateways. Everything here is a fallback: the admin Settings page
+     | (settings table) takes precedence when a value has been filled in there.
+     */
     'sms' => [
-        'username' => env('SMS_API_USERNAME', 'HIGHLINK'),
-        'password' => env('SMS_API_PASSWORD', 'ifxcs1ud'),
+        // 'smscotz' | 'africastalking'
+        'driver' => env('SMS_DRIVER', 'smscotz'),
         'sender_id' => env('SMS_API_SENDER_ID', 'HIGHLINK'),
+        // Country code prepended to local numbers (Tanzania by default).
+        'default_country_code' => env('SMS_DEFAULT_COUNTRY_CODE', '255'),
+        // sms.co.tz credentials
+        'username' => env('SMS_API_USERNAME', 'HIGHLINK'),
+        'password' => env('SMS_API_PASSWORD'),
     ],
-    
+
+    'africastalking' => [
+        // The AT application name; "sandbox" for the free test app.
+        'username' => env('AT_USERNAME'),
+        'api_key' => env('AT_API_KEY'),
+        'sandbox' => env('AT_SANDBOX', true),
+        // Optional shared secret appended to the delivery-report callback URL
+        // registered in the AT dashboard (?token=...). Blank disables the check.
+        'dlr_token' => env('AT_DLR_TOKEN'),
+    ],
+
+
     'airtel' => [
         'base_url' => env('AIRTEL_API_BASE_URL', 'https://openapi.airtel.africa'),
         'client_id' => env('AIRTEL_CLIENT_ID'),
