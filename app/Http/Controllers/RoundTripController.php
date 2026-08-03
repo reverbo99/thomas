@@ -1272,7 +1272,7 @@ class RoundTripController extends Controller
         $bus_info['customer_name'] = $request->customer;
         $bus_info['gender'] = $request->gender;
         $bus_info['age'] = $request->age;
-        $bus_info['infant_child'] = $request->infant_child ?? 0;
+        $bus_info['infant_child'] = $request->boolean('infant_child') ? 1 : 0;
         $bus_info['age_group'] = $request->age_group;
         $bus_info['category'] = $request->category;
         $time = session()->get('time', []);
@@ -1281,7 +1281,8 @@ class RoundTripController extends Controller
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? 0;
         $bus_info['cancel_key'] = $request->key ?? '';
-        $bus_info['has_excess_luggage'] = $request->excess_luggage ?? 0;
+        $bus_info['excess_luggage'] = $request->boolean('excess_luggage') ? 1 : 0;
+        $bus_info['has_excess_luggage'] = $bus_info['excess_luggage'];
         $bus_info['excess_luggage_fee'] = 0; // Initialize to 0
         $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null;
         $bus_info['estimated_weight'] = $request->estimated_weight ?? null;

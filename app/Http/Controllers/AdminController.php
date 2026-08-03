@@ -1583,13 +1583,19 @@ $q->where('id', auth()->user()->campany->id);
             return redirect()->back()->with('error', __('vender/earning.no_company_account'));
         }
 
-        $resavedBookings = Booking::whereHas('bus', function ($query) use ($companyId) {
-            $query->where('campany_id', $companyId);
-        })
-        ->where('payment_status', 'resaved')
-        ->with(['bus.busname', 'schedule', 'user'])
-        ->latest()
-        ->paginate(15);
+        // Scope via booking.campany_id OR bus.campany_id, and include both
+        // modern `resaved` and legacy `Reserved` payment statuses.
+        $resavedBookings = Booking::query()
+            ->where(function ($q) use ($companyId) {
+                $q->where('campany_id', $companyId)
+                    ->orWhereHas('bus', function ($busQuery) use ($companyId) {
+                        $busQuery->where('campany_id', $companyId);
+                    });
+            })
+            ->whereIn('payment_status', ['resaved', 'Reserved'])
+            ->with(['bus.busname', 'schedule', 'user', 'route_name'])
+            ->latest()
+            ->paginate(15);
 
         return view('controller.resaved_tickets', compact('resavedBookings'));
     }

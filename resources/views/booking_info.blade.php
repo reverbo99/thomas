@@ -121,8 +121,9 @@
                                             </button>
                                         </form>
                                     @elseif ($book->payment_status == 'resaved')
-                                        <a href="{{ route('login') }}" class="page-btn text-xs py-2 px-3 page-btn--outline">
-                                            {{ __('auth.login') ?? 'Login' }} · {{ __('customer/busroot.proceed_to_pay') }}
+                                        <a href="{{ route('guest.pay.resaved', ['id' => $book->id]) }}" class="page-btn text-xs py-2 px-3">
+                                            <i class="fas fa-credit-card" aria-hidden="true"></i>
+                                            {{ __('customer/busroot.proceed_to_pay') }}
                                         </a>
                                     @else
                                         <span class="text-gray-400 text-xs">—</span>

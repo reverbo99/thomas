@@ -89,10 +89,68 @@ class BookingController extends Controller
                 ->withInput();
         }
 
+        $this->rememberGuestBookingLookup($bookings, $data);
+
         return view('booking_info', [
             'bookings' => $bookings,
             'searchQuery' => $data,
         ]);
+    }
+
+    /**
+     * Remember which booking IDs a guest may continue paying after booking lookup.
+     */
+    private function rememberGuestBookingLookup($bookings, ?string $contact = null): void
+    {
+        session()->put(
+            'guest_booking_lookup_ids',
+            collect($bookings)->pluck('id')->map(fn ($id) => (int) $id)->values()->all()
+        );
+        if ($contact !== null && $contact !== '') {
+            session()->put('guest_booking_lookup_contact', $contact);
+        }
+    }
+
+    /**
+     * Continue / pay a reserved (resaved) ticket found via public booking lookup.
+     */
+    public function payResavedTicket($id)
+    {
+        $bookingId = (int) $id;
+        $allowedIds = session('guest_booking_lookup_ids', []);
+        if (!is_array($allowedIds) || !in_array($bookingId, array_map('intval', $allowedIds), true)) {
+            return redirect()->route('info')
+                ->with('error', __('all.session_expired_try_again'));
+        }
+
+        $booking = Booking::with(['route_name', 'bus.busname', 'schedule', 'campany'])
+            ->where('id', $bookingId)
+            ->where('payment_status', 'resaved')
+            ->first();
+
+        if (!$booking) {
+            return redirect()->route('info')
+                ->with('error', __('all.no_bookings_found_for_contact'));
+        }
+
+        $partner = round_trip_resaved_partner($booking);
+        if ($partner !== null && ($partner->payment_status ?? '') === 'resaved') {
+            $legs = sort_round_trip_resaved_legs([$booking, $partner]);
+            app(RoundTripController::class)->loadResavedRoundTripCheckout($legs[0], $legs[1]);
+
+            return redirect()->to(round_trip_route('checkout'));
+        }
+
+        $setting = Setting::first();
+        // amount already stores full payable; don't recalculate/add service fee again.
+        $amounts = booking_payment_amounts($booking);
+        $fees = (float) ($amounts['breakdownServiceFee'] ?? 0);
+        $ins = (float) ($amounts['breakdownInsurance'] ?? 0);
+        $dis = (float) ($booking->discount_amount ?? 0);
+        $price = max(0, (float) $booking->amount - $fees);
+        $test_mode = (bool) ($setting->test_mode ?? false);
+
+        return view('pay_resaved', compact('booking', 'price', 'fees', 'dis', 'ins', 'test_mode'));
     }
 
     /**
@@ -206,6 +264,8 @@ class BookingController extends Controller
             return redirect()->route('info')
                 ->withErrors(['data' => __('all.no_bookings_found_for_contact')]);
         }
+
+        $this->rememberGuestBookingLookup($bookings, $email);
 
         return view('booking_info', [
             'bookings' => $bookings,
@@ -661,7 +721,7 @@ class BookingController extends Controller
         $bus_info['customer_name'] = $request->customer;
         $bus_info['gender'] = $request->gender;
         $bus_info['age'] = $request->age;
-        $bus_info['infant_child'] = $request->infant_child ?? 0;
+        $bus_info['infant_child'] = $request->boolean('infant_child') ? 1 : 0;
         $bus_info['age_group'] = $request->age_group;
         $bus_info['category'] = $request->category;
         $bus_info['start'] = session()->get('time')['start'];
@@ -669,10 +729,10 @@ class BookingController extends Controller
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? 0;
         $bus_info['cancel_key'] = $request->key ?? '';
-        $bus_info['excess_luggage'] = $request->excess_luggage ?? 0; // Add excess luggage checkbox value
-        $bus_info['has_excess_luggage'] = $request->excess_luggage ?? 0; // Canonical DB flag
-        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
-        $bus_info['estimated_weight'] = $request->estimated_weight ?? null; // Customer-declared weight, for the excess luggage receipt
+        $bus_info['excess_luggage'] = $request->boolean('excess_luggage') ? 1 : 0;
+        $bus_info['has_excess_luggage'] = $bus_info['excess_luggage'];
+        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null;
+        $bus_info['estimated_weight'] = $request->estimated_weight ?? null;
         session()->put('booking_form', $bus_info);
 
         $insuranceError = process_booking_insurance_input($request, $bus_info);
@@ -732,13 +792,19 @@ class BookingController extends Controller
 
         // Handle excess luggage fee for public flow (same logic as customer/vendor controllers)
         $excessLuggageFee = 0;
-        if ((session()->get('booking_form')['excess_luggage'] ?? 0) == 1) {
+        $bus_info = session()->get('booking_form', []);
+        if ((int) ($bus_info['excess_luggage'] ?? 0) === 1) {
             $excessLuggageFee = 2500; // TSh. 2,500
-            $bus_info = session()->get('booking_form', []);
             $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
-            session()->put('booking_form', $bus_info);
+        } else {
+            $bus_info['has_excess_luggage'] = 0;
+            $bus_info['excess_luggage_fee'] = 0;
+            $bus_info['excess_luggage'] = 0;
+            $bus_info['excess_luggage_description'] = null;
+            $bus_info['estimated_weight'] = null;
         }
+        session()->put('booking_form', $bus_info);
 
         if (!is_null(session()->get('booking_form')['discount'])) {
             $base = session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount;
@@ -840,8 +906,12 @@ class BookingController extends Controller
 
         session()->put('booking_form', $bus_info);
 
+        $isResave = $request->boolean('resave_ticket')
+            && auth()->check()
+            && in_array(auth()->user()->role, ['customer', 'vender'], true);
+
         $canonicalAmount = session()->get('booking_form')['payable_amount'] ?? $request->amount;
-        return $this->pay($canonicalAmount, $user, $payment_method);
+        return $this->pay($canonicalAmount, $user, $payment_method, $isResave);
     }
 
     private function generateRandomId()
@@ -858,13 +928,13 @@ class BookingController extends Controller
         return $randomString . "-" . $randomNumber;
     }
 
-    public function pay($amount, $user, $method)
+    public function pay($amount, $user, $method, $isResave = false)
     {
         // Check if test mode is enabled
         $settings = \App\Models\Setting::first();
         if ($settings && ($settings->test_mode ?? false)) {
             // Test mode is enabled - redirect to test payment controller
-            return $this->processTestPayment($amount, $user, $method);
+            return $this->processTestPayment($amount, $user, $method, $isResave);
         }
 
         $tigo = new TigosecureController();
@@ -910,9 +980,10 @@ class BookingController extends Controller
             'amount' => round($amount),
             'gender' => session()->get('booking_form')['gender'],
             'age' => session()->get('booking_form')['age'],
-            'infant_child' => session()->get('booking_form')['infant_child'],
+            'infant_child' => session()->get('booking_form')['infant_child'] ?? 0,
             'age_group' => session()->get('booking_form')['age_group'],
-            'payment_status' => 'Unpaid', // Set initial status to Unpaid
+            'payment_status' => $isResave ? 'resaved' : 'Unpaid',
+            'resaved_until' => $isResave ? Carbon::now()->addDay() : null,
             'customer_phone' => session()->get('booking_form')['customer_number'],
             'customer_name' => session()->get('booking_form')['customer_name'],
             'passengers' => booking_passengers_for_storage($bookingForm),
@@ -948,6 +1019,18 @@ class BookingController extends Controller
                 'data' => $bookingData,
             ]);
             return response()->json(['status' => 'error', 'message' => __('all.failed_create_booking')], 500);
+        }
+
+        if ($isResave) {
+            session()->forget('booking_form');
+            if (auth()->check() && auth()->user()->role === 'vender') {
+                return redirect()->route('vender.resaved.tickets')->with('success', __('all.ticket_resaved_success_24h'));
+            }
+            if (auth()->check() && auth()->user()->role === 'customer') {
+                return redirect()->route('customer.mybooking')->with('success', __('all.ticket_resaved_success_24h'));
+            }
+
+            return redirect()->route('info')->with('success', __('all.ticket_resaved_success_24h'));
         }
 
         // Initiate payment and get transactionRefId
@@ -1025,7 +1108,7 @@ class BookingController extends Controller
      * @param string $method
      * @return \Illuminate\Http\RedirectResponse
      */
-    private function processTestPayment($amount, $user, $method)
+    private function processTestPayment($amount, $user, $method, $isResave = false)
     {
         $bookingForm = session()->get('booking_form');
         $bima = $bookingForm['bima'] ?? 0;
@@ -1056,9 +1139,10 @@ class BookingController extends Controller
             'amount' => round($amount),
             'gender' => $bookingForm['gender'],
             'age' => $bookingForm['age'],
-            'infant_child' => $bookingForm['infant_child'],
+            'infant_child' => $bookingForm['infant_child'] ?? 0,
             'age_group' => $bookingForm['age_group'],
-            'payment_status' => 'Unpaid',
+            'payment_status' => $isResave ? 'resaved' : 'Unpaid',
+            'resaved_until' => $isResave ? Carbon::now()->addDay() : null,
             'customer_phone' => $bookingForm['customer_number'],
             'customer_name' => $bookingForm['customer_name'],
             'passengers' => booking_passengers_for_storage($bookingForm),
@@ -1096,6 +1180,18 @@ class BookingController extends Controller
                 'data' => $bookingData,
             ]);
             return redirect()->route('home')->with('error', __('all.failed_create_booking_test_mode'));
+        }
+
+        if ($isResave) {
+            session()->forget('booking_form');
+            if (auth()->check() && auth()->user()->role === 'vender') {
+                return redirect()->route('vender.resaved.tickets')->with('success', __('all.ticket_reserved_success_24h'));
+            }
+            if (auth()->check() && auth()->user()->role === 'customer') {
+                return redirect()->route('customer.mybooking')->with('success', __('all.ticket_reserved_success_24h'));
+            }
+
+            return redirect()->route('info')->with('success', __('all.ticket_reserved_success_24h'));
         }
 
         // Store booking in session for test payment controller

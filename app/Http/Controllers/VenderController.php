@@ -554,7 +554,7 @@ class VenderController extends Controller
         $bus_info['customer_name'] = $request->customer;
         $bus_info['gender'] = $request->gender;
         $bus_info['age'] = $request->age;
-        $bus_info['infant_child'] = $request->infant_child ?? 0;
+        $bus_info['infant_child'] = $request->boolean('infant_child') ? 1 : 0;
         $bus_info['age_group'] = $request->age_group;
         $bus_info['category'] = $request->category;
         $bus_info['start'] = session()->get('time')['start'];
@@ -562,9 +562,10 @@ class VenderController extends Controller
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? 0;
         $bus_info['cancel_key'] = $request->key ?? '';
-        $bus_info['excess_luggage'] = $request->excess_luggage ?? 0; // Add excess luggage checkbox value
-        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
-        $bus_info['estimated_weight'] = $request->estimated_weight ?? null; // Customer-declared weight, for the excess luggage receipt
+        $bus_info['excess_luggage'] = $request->boolean('excess_luggage') ? 1 : 0;
+        $bus_info['has_excess_luggage'] = $bus_info['excess_luggage'];
+        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null;
+        $bus_info['estimated_weight'] = $request->estimated_weight ?? null;
         session()->put('booking_form', $bus_info);
 
         $insuranceError = process_booking_insurance_input($request, $bus_info);
@@ -589,13 +590,20 @@ class VenderController extends Controller
 
         $total_amount = session()->get('booking_form')['total_amount'];
         $excessLuggageFee = 0;
+        $bus_info = session()->get('booking_form', []);
 
-        if (session()->get('booking_form')['excess_luggage'] == 1) {
+        if ((int) ($bus_info['excess_luggage'] ?? 0) === 1) {
             $excessLuggageFee = self::EXCESS_LUGGAGE_FEE;
-            $bus_info = session()->get('booking_form', []);
+            $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
-            session()->put('booking_form', $bus_info);
+        } else {
+            $bus_info['has_excess_luggage'] = 0;
+            $bus_info['excess_luggage_fee'] = 0;
+            $bus_info['excess_luggage'] = 0;
+            $bus_info['excess_luggage_description'] = null;
+            $bus_info['estimated_weight'] = null;
         }
+        session()->put('booking_form', $bus_info);
 
         if (!is_null(session()->get('booking_form')['discount'])) {
             $base = session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount;
@@ -1459,16 +1467,11 @@ class VenderController extends Controller
         }
 
         $setting = Setting::first();
-        $formulaService = app(FareFormulaService::class);
-        $seatCount = max(1, count(array_filter(array_map('trim', explode(',', (string) $booking->seat)))));
-        $price = (float) $booking->amount;
-        $fees = $formulaService->calculateTravellerServiceFee(
-            (float) ($booking->busFee ?: $booking->amount),
-            $setting,
-            $seatCount
-        );
-        $dis = $booking->discount_amount ?? 0;
-        $ins = $booking->bima_amount ?? 0;
+        $amounts = booking_payment_amounts($booking);
+        $fees = (float) ($amounts['breakdownServiceFee'] ?? 0);
+        $ins = (float) ($amounts['breakdownInsurance'] ?? 0);
+        $dis = (float) ($booking->discount_amount ?? 0);
+        $price = max(0, (float) $booking->amount - $fees);
         $test_mode = (bool) ($setting->test_mode ?? false);
 
         return view('vender.pay_resaved', compact('booking', 'price', 'fees', 'dis', 'ins', 'test_mode'));

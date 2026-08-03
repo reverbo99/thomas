@@ -91,6 +91,8 @@ return [
     'adult' => 'Adult',
     'child' => 'Child',
     'senior' => 'Senior',
+    'infant' => 'Infant',
+    'phone' => 'Phone',
     // From seats.blade.php
     'select_your_seats' => 'Select Your Seats',
     'yutong_f12_bus' => 'Yutong F12 Bus -',

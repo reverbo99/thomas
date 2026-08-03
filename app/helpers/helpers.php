@@ -1104,7 +1104,14 @@ if (!function_exists('booking_payment_amounts')) {
 
         if ($breakdownStoredTotal > 0) {
             $breakdownAmountPaid = $breakdownStoredTotal;
-            $breakdownServiceFee = max(0, $breakdownStoredTotal - $breakdownTicketFee - $breakdownLuggageFee - $breakdownInsurance);
+            // Prefer residual from customer_paid_total when it yields a positive
+            // service share; never wipe a known column-based service fee to 0.
+            $residualService = max(0, $breakdownStoredTotal - $breakdownTicketFee - $breakdownLuggageFee - $breakdownInsurance);
+            if ($residualService > 0) {
+                $breakdownServiceFee = $residualService;
+            } elseif ($breakdownServiceFee <= 0) {
+                $breakdownServiceFee = 0.0;
+            }
             $breakdownUseStoredTotal = true;
         } else {
             if ($breakdownServiceFee <= 0 && $breakdownTicketFee > 0) {

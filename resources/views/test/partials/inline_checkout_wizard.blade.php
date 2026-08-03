@@ -97,9 +97,32 @@
             <div class="inline-extras-form__fields">
                 <div class="inline-extras-form__row inline-extras-form__row--full">
                     <label class="inline-extras-form__check">
-                        <input type="checkbox" name="excess_luggage" value="1" id="excessLuggage_{{ $inlineUid }}">
-                        <span>{{ __('all.excess_luggage_inline') }}</span>
+                        <input type="checkbox" name="infant_child" value="1" id="infantChild_{{ $inlineUid }}">
+                        <span>{{ __('customer/busroot.user_has_infant_child') }}</span>
                     </label>
+                </div>
+
+                <div class="inline-extras-form__row inline-extras-form__row--full">
+                    <label class="inline-extras-form__check">
+                        <input type="checkbox" name="excess_luggage" value="1" id="excessLuggage_{{ $inlineUid }}" data-inline-luggage-toggle>
+                        <span>{{ __('customer/busroot.excess_luggage', [
+                            'dimensions' => '60X45X50',
+                            'weight' => '20kg',
+                            'fee' => ($currency . ' ' . convert_money(2500)),
+                        ]) }}</span>
+                    </label>
+                    <div class="inline-extras-form__luggage-fields hidden mt-2" data-inline-luggage-fields>
+                        <div class="booking-field mb-2">
+                            <label class="booking-field__label" for="excessLuggageDesc_{{ $inlineUid }}">{{ __('customer/busroot.excess_luggage_description') }}</label>
+                            <input type="text" class="page-input" name="excess_luggage_description" id="excessLuggageDesc_{{ $inlineUid }}"
+                                placeholder="{{ __('customer/busroot.e_g_1_extra_bag_large_box') }}" disabled>
+                        </div>
+                        <div class="booking-field">
+                            <label class="booking-field__label" for="estimatedWeight_{{ $inlineUid }}">{{ __('customer/busroot.estimated_weight_kg') }}</label>
+                            <input type="number" step="0.1" min="0" class="page-input" name="estimated_weight" id="estimatedWeight_{{ $inlineUid }}"
+                                placeholder="20" disabled>
+                        </div>
+                    </div>
                 </div>
 
                 @if ($insuranceEligible)
@@ -192,10 +215,17 @@
             'maxSeatsMsg' => __('customer/busroot.max_seats_limit'),
             'useUsd' => session('currency') == 'Usd',
             'ageGroupLabel' => __('customer/busroot.age_group'),
+            'adultLabel' => __('customer/busroot.adult'),
+            'childLabel' => __('customer/busroot.child'),
+            'seniorLabel' => __('customer/busroot.senior'),
+            'infantLabel' => __('customer/busroot.infant'),
+            'fullNameLabel' => __('customer/busroot.full_name') ?? __('all.full_name') ?? 'Full name',
+            'phoneLabel' => __('customer/busroot.phone') ?? __('all.phone') ?? 'Phone',
             'prepareUrl' => $inlinePrepareUrl,
             'walletLookupUrl' => $inlineWalletUrl,
             'distance' => $distance,
             'fees' => $fees ?? 0,
+            'excessLuggageFee' => 2500,
         ]) !!}
     </script>
 </div>

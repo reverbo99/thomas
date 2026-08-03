@@ -5,7 +5,10 @@
     $verifyAction = route($br['verify']);
     $isCustomerPayment = ($br['channel'] ?? '') === 'customer';
     $isVendorPayment = ($br['channel'] ?? '') === 'vender';
-    $supportsReserve = $isCustomerPayment || $isVendorPayment;
+    // Logged-in customers can reserve even when booking via the public (guest) search routes.
+    $supportsReserve = $isCustomerPayment
+        || $isVendorPayment
+        || (auth()->check() && auth()->user()->role === 'customer');
 @endphp
 
 <div class="inline-payment"
@@ -292,7 +295,7 @@
             @endif
             <div class="inline-payment__line">
                 <dt>{{ __('all.bus_fare') }}</dt>
-                <dd>{{ $currency }} {{ convert_money($price - ($ins ?? 0)) }}</dd>
+                    <dd>{{ $currency }} {{ convert_money($price - ($ins ?? 0) - ($excess_luggage_fee ?? 0)) }}</dd>
             </div>
             <div class="inline-payment__line inline-payment__line--total">
                 <dt>{{ __('all.total_payable') }}</dt>

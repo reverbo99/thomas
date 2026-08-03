@@ -11,45 +11,48 @@ use Symfony\Component\HttpFoundation\Response;
 class Reserved
 {
     /**
-     * Handle an incoming request.
+     * Expire unpaid seat holds without hard-deleting them.
+     *
+     * Previous behaviour hard-deleted `Reserved`/`resaved` rows on every request
+     * once within 6 hours of departure (or when schedule start was missing and
+     * defaulted to midnight). That wiped holds before bus owners or customers
+     * could see/pay them. Align with `bookings:check-expired-resaved`: mark Fail
+     * when `resaved_until` (or 24h from create) has passed.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Delete all schedules where schedule_date is before today
-        //Schedule::where('schedule_date', '<', now()->startOfDay())->delete();
+        $bookings = Booking::query()
+            ->whereIn('payment_status', ['Reserved', 'resaved'])
+            ->get(['id', 'payment_status', 'resaved_until', 'created_at']);
 
-        $bookings = Booking::where('payment_status', 'Reserved')
-            ->orWhere('payment_status', 'resaved')
-            ->get();
+        $now = Carbon::now();
 
         foreach ($bookings as $booking) {
-            // Check if booking should be deleted 6 hours before trip
-            if ($booking->travel_date && $booking->schedule) {
-                try {
-                    $travelDateTime = Carbon::parse($booking->travel_date . ' ' . ($booking->schedule->start ?? '00:00:00'));
-                    $sixHoursBefore = $travelDateTime->copy()->subHours(6);
-                    $now = Carbon::now();
-
-                    // If it's 6 hours before trip and not paid, delete it
-                    if ($now >= $sixHoursBefore && $booking->payment_status !== 'Paid') {
-                        $booking->delete();
-                        continue;
-                    }
-                } catch (\Exception $e) {
-                    // If date parsing fails, continue with old logic
-                }
-            }
-
-            // Old logic: delete if created more than 1 day ago
-            $mda = Carbon::parse($booking->created_at)->addDays(1);
-            $now = Carbon::now();
-
-            if($now > $mda && $booking->payment_status !== 'Paid') {
-                $booking->delete();
+            if ($this->shouldExpireHold($booking, $now)) {
+                $booking->update(['payment_status' => 'Fail']);
             }
         }
+
         return $next($request);
+    }
+
+    private function shouldExpireHold(Booking $booking, Carbon $now): bool
+    {
+        if (! empty($booking->resaved_until)) {
+            try {
+                return $now->greaterThan(Carbon::parse($booking->resaved_until));
+            } catch (\Exception $e) {
+                // fall through to created_at window
+            }
+        }
+
+        try {
+            return $booking->created_at
+                && $now->greaterThan(Carbon::parse($booking->created_at)->addDay());
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 }

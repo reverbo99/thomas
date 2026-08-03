@@ -746,6 +746,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const insuranceFieldsWrap = extrasForm?.querySelector('[data-inline-insurance-fields]');
         const insuranceType = document.getElementById('insuranceType_' + uid);
         const insuranceDate = document.getElementById('insuranceDate_' + uid);
+        const luggageToggle = document.getElementById('excessLuggage_' + uid);
+        const luggageFieldsWrap = extrasForm?.querySelector('[data-inline-luggage-fields]');
+        const luggageDesc = document.getElementById('excessLuggageDesc_' + uid);
+        const luggageWeight = document.getElementById('estimatedWeight_' + uid);
 
         let layout = null;
         try {
@@ -789,7 +793,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (listEl) listEl.textContent = count > 0 ? selectedSeats.join(', ') : config.noneLabel;
             if (totalEl) totalEl.textContent = formatMoney(total);
-            if (fareDisplay) fareDisplay.value = formatMoney(total);
+            if (fareDisplay) fareDisplay.value = formatMoney(total + extrasAddonsTotal());
             syncWizardState();
         }
 
@@ -799,6 +803,26 @@ document.addEventListener('DOMContentLoaded', function () {
             insuranceFieldsWrap.classList.toggle('hidden', !enabled);
             if (insuranceType) insuranceType.disabled = !enabled;
             if (insuranceDate) insuranceDate.disabled = !enabled;
+        }
+
+        function toggleInlineLuggageFields() {
+            if (!luggageToggle || !luggageFieldsWrap) return;
+            const enabled = !!luggageToggle.checked;
+            luggageFieldsWrap.classList.toggle('hidden', !enabled);
+            if (luggageDesc) luggageDesc.disabled = !enabled;
+            if (luggageWeight) luggageWeight.disabled = !enabled;
+            if (!enabled) {
+                if (luggageDesc) luggageDesc.value = '';
+                if (luggageWeight) luggageWeight.value = '';
+            }
+        }
+
+        function extrasAddonsTotal() {
+            let addons = 0;
+            if (luggageToggle?.checked) {
+                addons += Number(config.excessLuggageFee || 2500);
+            }
+            return addons;
         }
 
         function applySeatSelectionUI() {
@@ -855,19 +879,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     '<p class="inline-passenger-card__seat"><i class="fas fa-chair"></i> Seat ' + seat + '</p>' +
                     '<div class="inline-passenger-card__fields">' +
                     '<div class="booking-field">' +
-                    '<label class="booking-field__label">Full name <span class="text-red-500">*</span></label>' +
+                    '<label class="booking-field__label">' + (config.fullNameLabel || 'Full name') + ' <span class="text-red-500">*</span></label>' +
                     '<input type="text" class="page-input" data-passenger-name="' + seat + '" maxlength="30" required>' +
                     '</div>' +
                     '<div class="booking-field">' +
-                    '<label class="booking-field__label">Phone <span class="text-red-500">*</span></label>' +
+                    '<label class="booking-field__label">' + (config.phoneLabel || 'Phone') + ' <span class="text-red-500">*</span></label>' +
                     '<input type="tel" class="page-input" data-passenger-phone="' + seat + '" maxlength="12" required>' +
                     '</div>' +
                     '<div class="booking-field booking-field--full">' +
                     '<label class="booking-field__label">' + (config.ageGroupLabel || 'Age Group') + ' <span class="text-red-500">*</span></label>' +
                     '<select class="page-input" data-passenger-age-group="' + seat + '" required>' +
-                    '<option value="Adult">Adult</option>' +
-                    '<option value="Child">Child</option>' +
-                    '<option value="Senior">Senior</option>' +
+                    '<option value="Adult">' + (config.adultLabel || 'Adult') + '</option>' +
+                    '<option value="Child">' + (config.childLabel || 'Child') + '</option>' +
+                    '<option value="Infant">' + (config.infantLabel || 'Infant') + '</option>' +
+                    '<option value="Senior">' + (config.seniorLabel || 'Senior') + '</option>' +
                     '</select>' +
                     '</div>' +
                     '</div>';
@@ -1056,6 +1081,15 @@ document.addEventListener('DOMContentLoaded', function () {
             insuranceToggle.dataset.bound = '1';
             insuranceToggle.addEventListener('change', toggleInlineInsuranceFields);
             toggleInlineInsuranceFields();
+        }
+
+        if (luggageToggle && !luggageToggle.dataset.bound) {
+            luggageToggle.dataset.bound = '1';
+            luggageToggle.addEventListener('change', function () {
+                toggleInlineLuggageFields();
+                updateTotals();
+            });
+            toggleInlineLuggageFields();
         }
 
         if (extrasForm && !extrasForm.dataset.bound) {

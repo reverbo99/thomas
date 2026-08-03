@@ -121,16 +121,32 @@ class CustomerController extends Controller
     /**
      * Attach unowned guest bookings that match this customer's contact details.
      * Never claim bookings already owned by another user or created by a vendor.
+     * Phone matching uses TZ number variants so reserved tickets remain visible/payable.
      */
     private function claimGuestBookingsForCustomer($user): void
     {
         $email = trim((string) ($user->email ?? ''));
         $phone = $user->contact ?? $user->phone ?? null;
-        $normalizedPhone = !empty($phone)
-            ? normalize_tanzania_phone_for_booking((string) $phone)
-            : '';
+        $phoneVariants = [];
 
-        if ($email === '' && $normalizedPhone === '') {
+        if (!empty($phone)) {
+            $raw = (string) $phone;
+            $normalized = normalize_tanzania_phone_for_booking($raw);
+            if ($normalized !== '') {
+                $phoneVariants[] = $normalized;
+                $canonical = normalize_tanzania_phone_to_canonical($normalized);
+                if ($canonical !== null) {
+                    $phoneVariants = array_merge($phoneVariants, tanzania_phone_booking_lookup_variants($canonical));
+                }
+            }
+            $canonicalRaw = normalize_tanzania_phone_to_canonical($raw);
+            if ($canonicalRaw !== null) {
+                $phoneVariants = array_merge($phoneVariants, tanzania_phone_booking_lookup_variants($canonicalRaw));
+            }
+            $phoneVariants = array_values(array_unique(array_filter($phoneVariants)));
+        }
+
+        if ($email === '' && empty($phoneVariants)) {
             return;
         }
 
@@ -143,12 +159,12 @@ class CustomerController extends Controller
                     ->orWhere('vender_id', '')
                     ->orWhere('vender_id', 0);
             })
-            ->where(function ($q) use ($email, $normalizedPhone) {
+            ->where(function ($q) use ($email, $phoneVariants) {
                 if ($email !== '') {
-                    $q->orWhere('customer_email', $email);
+                    $q->orWhereRaw('LOWER(customer_email) = ?', [strtolower($email)]);
                 }
-                if ($normalizedPhone !== '') {
-                    $q->orWhere('customer_phone', $normalizedPhone);
+                if (!empty($phoneVariants)) {
+                    $q->orWhereIn('customer_phone', $phoneVariants);
                 }
             })
             ->update(['user_id' => $user->id]);
@@ -163,6 +179,8 @@ class CustomerController extends Controller
 
     private function findOwnedBookingOrFail($id): Booking
     {
+        $this->claimGuestBookingsForCustomer(Auth::user());
+
         return Booking::where('id', $id)
             ->where('user_id', Auth::id())
             ->firstOrFail();
@@ -432,7 +450,7 @@ class CustomerController extends Controller
         $bus_info['customer_name'] = $request->customer;
         $bus_info['gender'] = $request->gender;
         $bus_info['age'] = $request->age;
-        $bus_info['infant_child'] = $request->infant_child ?? 0;
+        $bus_info['infant_child'] = $request->boolean('infant_child') ? 1 : 0;
         $bus_info['age_group'] = $request->age_group;
         $bus_info['category'] = $request->category;
         $bus_info['start'] = session()->get('time')['start'];
@@ -440,9 +458,10 @@ class CustomerController extends Controller
         $bus_info['discount'] = $request->discount ?? '';
         $bus_info['cancel_amount'] = $request->amount_cancel ?? ($bus_info['cancel_amount'] ?? 0);
         $bus_info['cancel_key'] = $request->key ?? ($bus_info['cancel_key'] ?? '');
-        $bus_info['excess_luggage'] = $request->excess_luggage ?? 0; // Add excess luggage checkbox value
-        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null; // Add excess luggage description
-        $bus_info['estimated_weight'] = $request->estimated_weight ?? null; // Customer-declared weight, for the excess luggage receipt
+        $bus_info['excess_luggage'] = $request->boolean('excess_luggage') ? 1 : 0;
+        $bus_info['has_excess_luggage'] = $bus_info['excess_luggage'];
+        $bus_info['excess_luggage_description'] = $request->excess_luggage_description ?? null;
+        $bus_info['estimated_weight'] = $request->estimated_weight ?? null;
         session()->put('booking_form', $bus_info);
 
         $insuranceError = process_booking_insurance_input($request, $bus_info);
@@ -467,13 +486,20 @@ class CustomerController extends Controller
 
         $total_amount = session()->get('booking_form')['total_amount'];
         $excessLuggageFee = 0;
+        $bus_info = session()->get('booking_form', []);
 
-        if (session()->get('booking_form')['excess_luggage'] == 1) {
+        if ((int) ($bus_info['excess_luggage'] ?? 0) === 1) {
             $excessLuggageFee = self::EXCESS_LUGGAGE_FEE;
-            $bus_info = session()->get('booking_form', []);
+            $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
-            session()->put('booking_form', $bus_info);
+        } else {
+            $bus_info['has_excess_luggage'] = 0;
+            $bus_info['excess_luggage_fee'] = 0;
+            $bus_info['excess_luggage'] = 0;
+            $bus_info['excess_luggage_description'] = null;
+            $bus_info['estimated_weight'] = null;
         }
+        session()->put('booking_form', $bus_info);
 
         if (!is_null(session()->get('booking_form')['discount'])) {
             $base = session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount;
@@ -644,10 +670,11 @@ class CustomerController extends Controller
             'distance' => session()->get('booking_form')['route_distance'],
             'busFee' => session()->get('booking_form')['dispo'] ?? session()->get('booking_form')['total_amount'],
             'schedule_id' => session()->get('booking_form')['schedule_id'],
-            'excess_luggage' => session()->get('booking_form')['excess_luggage'], // Add excess luggage
-            'has_excess_luggage' => session()->get('booking_form')['excess_luggage'] ?? 0, // Canonical DB flag
-            'excess_luggage_fee' => session()->get('booking_form')['excess_luggage_fee'] ?? 0, // Keep luggage out of the service fee
-            'excess_luggage_description' => session()->get('booking_form')['excess_luggage_description'], // Add excess luggage description
+            'has_excess_luggage' => (int) (session()->get('booking_form')['has_excess_luggage']
+                ?? session()->get('booking_form')['excess_luggage']
+                ?? 0),
+            'excess_luggage_fee' => (int) (session()->get('booking_form')['excess_luggage_fee'] ?? 0),
+            'excess_luggage_description' => session()->get('booking_form')['excess_luggage_description'],
             'estimated_weight' => session()->get('booking_form')['estimated_weight'] ?? null,
         ];
 
@@ -880,10 +907,9 @@ class CustomerController extends Controller
             'busFee' => $bookingForm['dispo'] ?? $bookingForm['total_amount'],
             'schedule_id' => $bookingForm['schedule_id'],
             'cancel_key' => $bookingForm['cancel_key'] ?? null,
-            'excess_luggage' => $bookingForm['excess_luggage'],
-            'has_excess_luggage' => $bookingForm['excess_luggage'] ?? 0, // Canonical DB flag
-            'excess_luggage_fee' => $bookingForm['excess_luggage_fee'] ?? 0, // Keep luggage out of the service fee
-            'excess_luggage_description' => $bookingForm['excess_luggage_description'],
+            'has_excess_luggage' => (int) ($bookingForm['has_excess_luggage'] ?? $bookingForm['excess_luggage'] ?? 0),
+            'excess_luggage_fee' => (int) ($bookingForm['excess_luggage_fee'] ?? 0),
+            'excess_luggage_description' => $bookingForm['excess_luggage_description'] ?? null,
             'estimated_weight' => $bookingForm['estimated_weight'] ?? null,
             'transaction_ref_id' => $xcode,
             'payment_method' => 'test_mode',
@@ -979,6 +1005,8 @@ class CustomerController extends Controller
 
     public function cancelResavedTicket($id)
     {
+        $this->claimGuestBookingsForCustomer(Auth::user());
+
         $booking = Booking::where('id', $id)
                           ->where('user_id', Auth::id())
                           ->where('payment_status', 'resaved')
@@ -996,6 +1024,8 @@ class CustomerController extends Controller
 
     public function payResavedTicket($id)
     {
+        $this->claimGuestBookingsForCustomer(Auth::user());
+
         $booking = Booking::with(['route_name', 'bus.busname', 'schedule', 'campany'])
                           ->where('id', $id)
                           ->where('user_id', Auth::id())
@@ -1011,15 +1041,13 @@ class CustomerController extends Controller
         }
 
         $setting = Setting::first();
-        $price = $booking->amount; // Use the amount from the resaved booking
-        $fees = $setting->service + ($setting->service_percentage / 100 * ($booking->amount * 100 / 118));
-        $dis = $booking->discount_amount ?? 0;
-        $ins = $booking->bima_amount ?? 0;
-
-        // We need to set up a session for the payment process, similar to the initial booking flow.
-        // This is a simplified version, as the full booking_form session might not be available.
-        // For now, we'll pass direct values to the view.
-        // If the payment gateway requires a full booking_form session, we might need to reconstruct it.
+        // amount already stores full payable (fare + extras + service). Deriving display
+        // rows from booking_payment_amounts avoids double-counting service fee at checkout.
+        $amounts = booking_payment_amounts($booking);
+        $fees = (float) ($amounts['breakdownServiceFee'] ?? 0);
+        $ins = (float) ($amounts['breakdownInsurance'] ?? 0);
+        $dis = (float) ($booking->discount_amount ?? 0);
+        $price = max(0, (float) $booking->amount - $fees);
 
         $test_mode = (bool) ($setting->test_mode ?? false);
 

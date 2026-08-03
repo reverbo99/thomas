@@ -161,22 +161,30 @@
                                         </td>
                                         <td class="py-2 px-4">
                                             @php
-                                                $govLevyOnFare = (float) ($booking->government_levy ?? 0);
+                                                $govLevyOnFare = booking_government_levy_on_fare($booking);
+                                                $govLevyOnService = booking_government_levy_on_service($booking);
                                                 $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
+                                                $rowServiceFee = booking_service_fee($booking);
                                             @endphp
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"
+                                                data-service-fee="{{ $rowServiceFee }}"
                                                 data-discount="{{ $booking->discount_amount ?? 0 }}"
-                                                data-gov-levy="{{ $govLevyOnFare }}"
+                                                data-gov-levy="{{ $govLevyOnFare + $govLevyOnService }}"
                                                 data-vat="{{ $booking->vat ?? 0 }}">
                                                 <p class="text-gray-500 font-medium mb-0">
                                                     {{ __('vender/history.commission_total') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($totalCommission) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">
+                                                    {{ __('vender/history.service_fee') }}
+                                                    {{ $currency ?? 'TSH' }} {{ convert_money($rowServiceFee) }}</p>
+                                                <p class="text-gray-500 font-medium mb-0">
                                                     {{ __('vender/history.discount') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($booking->discount_amount ?? 0) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnFare) }}</p>
+                                                <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy_service') }}
+                                                    {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnService) }}</p>
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">
@@ -212,14 +220,14 @@
                                                     <form action="{{ route('ticket.print') }}" method="POST">
                                                         @csrf
                                                         <input type="hidden" name="data"
-                                                            value="{{ $booking }}">
+                                                            value='{{ json_encode(["id" => $booking->id, "booking_code" => $booking->booking_code]) }}'>
                                                         <button type="submit"
                                                             class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{{ __('vender/history.print_ticket') }}</button>
                                                     </form>
                                                     <form action="{{ route('print.service') }}" method="POST">
                                                         @csrf
                                                         <input type="hidden" name="data"
-                                                            value="{{ $booking }}">
+                                                            value='{{ json_encode(["id" => $booking->id, "booking_code" => $booking->booking_code]) }}'>
                                                         <button type="submit"
                                                             class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{{ __('vender/history.print_service') }}</button>
                                                     </form>

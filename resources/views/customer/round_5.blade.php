@@ -128,11 +128,11 @@
                                                 </div>
                                                 <div id="excessLuggageDescriptionField" class="hidden mt-2">
                                                     <label for="excess_luggage_description" class="block text-sm font-medium text-gray-700 mb-1">
-                                                        Excess Luggage Description
+                                                        {{ __('customer/busroot.excess_luggage_description') }}
                                                     </label>
                                                     <input type="text" name="excess_luggage_description" id="excess_luggage_description"
                                                            class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                           placeholder="e.g., 1 extra bag, large box">
+                                                           placeholder="{{ __('customer/busroot.e_g_1_extra_bag_large_box') }}">
                                                     <label for="estimated_weight" class="block text-sm font-medium text-gray-700 mb-1 mt-2">
                                                         {{ __('customer/busroot.estimated_weight_kg') }}
                                                     </label>
@@ -150,6 +150,7 @@
                                                         required>
                                                         <option value="Adult">{{ __('customer/busroot.adult') }}</option>
                                                         <option value="Child">{{ __('customer/busroot.child') }}</option>
+                                                        <option value="Infant">{{ __('customer/busroot.infant') }}</option>
                                                         <option value="Senior">{{ __('customer/busroot.senior') }}</option>
                                                     </select>
                                                 </div>

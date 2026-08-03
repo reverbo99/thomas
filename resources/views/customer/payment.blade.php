@@ -157,6 +157,7 @@
                                             class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
                                         <option value="Adult">{{ __('customer/busroot.adult') }}</option>
                                         <option value="Child">{{ __('customer/busroot.child') }}</option>
+                                        <option value="Infant">{{ __('customer/busroot.infant') }}</option>
                                         <option value="Senior">{{ __('customer/busroot.senior') }}</option>
                                     </select>
                                 </div>

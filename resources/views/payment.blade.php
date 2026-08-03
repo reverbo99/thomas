@@ -117,7 +117,7 @@
                                     <input type="checkbox" id="infant_child" name="infant_child" value="1" 
                                            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
                                     <label for="infant_child" class="ml-2 block text-sm font-medium text-gray-700">
-                                        User has infant child
+                                        {{ __('customer/busroot.user_has_infant_child') }}
                                     </label>
                                 </div>
 
@@ -128,16 +128,16 @@
                                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                                onchange="toggleExcessLuggageDescription()">
                                         <label for="excess_luggage_root_payment" class="ml-2 block text-sm font-medium text-gray-700">
-                                            {{ __('all.excess_luggage') }} (60X45X50, 20kg) - {{ $currency }} {{ convert_money(2500) }}
+                                            {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money(2500))]) }}
                                         </label>
                                     </div>
                                     <div id="excessLuggageDescriptionField" class="hidden mt-2">
                                         <label for="excess_luggage_description" class="block text-sm font-medium text-gray-700 mb-1">
-                                            Excess Luggage Description
+                                            {{ __('customer/busroot.excess_luggage_description') }}
                                         </label>
                                         <input type="text" name="excess_luggage_description" id="excess_luggage_description"
                                                class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                               placeholder="e.g., 1 extra bag, large box">
+                                               placeholder="{{ __('customer/busroot.e_g_1_extra_bag_large_box') }}">
                                         <label for="estimated_weight" class="block text-sm font-medium text-gray-700 mb-1 mt-2">
                                             {{ __('customer/busroot.estimated_weight_kg') }}
                                         </label>
@@ -150,13 +150,14 @@
                                 <!-- Age Group -->
                                 <div>
                                     <label for="age_group" class="block text-sm font-medium text-gray-700 mb-1">
-                                        Age Group <span class="text-red-500">*</span>
+                                        {{ __('customer/busroot.age_group') }} <span class="text-red-500">*</span>
                                     </label>
                                     <select name="age_group" id="age_group" 
                                             class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
-                                        <option value="Adult">Adult</option>
-                                        <option value="Child">Child</option>
-                                        <option value="Senior">Senior</option>
+                                        <option value="Adult">{{ __('customer/busroot.adult') }}</option>
+                                        <option value="Child">{{ __('customer/busroot.child') }}</option>
+                                        <option value="Infant">{{ __('customer/busroot.infant') }}</option>
+                                        <option value="Senior">{{ __('customer/busroot.senior') }}</option>
                                     </select>
                                 </div>
                                 

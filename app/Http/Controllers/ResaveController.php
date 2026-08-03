@@ -15,7 +15,8 @@ use App\Http\Controllers\CashController;
 class ResaveController extends Controller
 {
     /**
-     * Load a resaved booking the current user (customer or vendor) is allowed to pay.
+     * Load a resaved booking the current payer is allowed to pay.
+     * Customers and vendors use auth ownership; guests use booking-info lookup session.
      */
     private function findResavedBookingForPayer(int $bookingId): ?Booking
     {
@@ -23,29 +24,68 @@ class ResaveController extends Controller
             ->where('payment_status', 'resaved')
             ->first();
 
-        if (!$booking || !auth()->check()) {
+        if (!$booking) {
             return null;
         }
 
-        $user = auth()->user();
+        if (auth()->check()) {
+            $user = auth()->user();
 
-        if ($user->role === 'customer') {
-            if ((int) ($booking->user_id ?? 0) !== (int) $user->id) {
+            if ($user->role === 'customer') {
+                if ((int) ($booking->user_id ?? 0) === (int) $user->id) {
+                    return $booking;
+                }
+
+                // Orphan reserved tickets (pre-user_id fix / phone-variant mismatch): claim then allow pay.
+                if ((int) ($booking->user_id ?? 0) === 0
+                    && (empty($booking->vender_id) || (string) $booking->vender_id === '0')
+                ) {
+                    $email = trim((string) ($user->email ?? ''));
+                    $phone = $user->contact ?? $user->phone ?? null;
+                    $emailMatch = $email !== ''
+                        && strcasecmp((string) ($booking->customer_email ?? ''), $email) === 0;
+                    $phoneMatch = false;
+                    if (!empty($phone)) {
+                        $variants = [];
+                        $normalized = normalize_tanzania_phone_for_booking((string) $phone);
+                        if ($normalized !== '') {
+                            $variants[] = $normalized;
+                            $canonical = normalize_tanzania_phone_to_canonical($normalized);
+                            if ($canonical !== null) {
+                                $variants = array_merge($variants, tanzania_phone_booking_lookup_variants($canonical));
+                            }
+                        }
+                        $phoneMatch = in_array((string) ($booking->customer_phone ?? ''), array_map('strval', $variants), true);
+                    }
+
+                    if ($emailMatch || $phoneMatch) {
+                        $booking->user_id = $user->id;
+                        $booking->save();
+
+                        return $booking;
+                    }
+                }
+
                 return null;
             }
 
-            return $booking;
-        }
+            if ($user->role === 'vender') {
+                if ((string) $booking->vender_id !== (string) $user->id) {
+                    return null;
+                }
 
-        if ($user->role === 'vender') {
-            if ((string) $booking->vender_id !== (string) $user->id) {
-                return null;
+                return $booking;
             }
 
-            return $booking;
+            return null;
         }
 
-        return null;
+        $allowedIds = session('guest_booking_lookup_ids', []);
+        if (!is_array($allowedIds)) {
+            return null;
+        }
+
+        return in_array($bookingId, array_map('intval', $allowedIds), true) ? $booking : null;
     }
 
     private function resavedTicketsListRoute(): string
@@ -54,7 +94,11 @@ class ResaveController extends Controller
             return route('vender.resaved.tickets');
         }
 
-        return route('customer.mybooking');
+        if (auth()->check() && auth()->user()->role === 'customer') {
+            return route('customer.mybooking');
+        }
+
+        return route('info');
     }
 
     private function payResavedRoute(int $bookingId): string
@@ -63,7 +107,11 @@ class ResaveController extends Controller
             return route('vender.pay.resaved', ['id' => $bookingId]);
         }
 
-        return route('customer.pay.resaved', ['id' => $bookingId]);
+        if (auth()->check() && auth()->user()->role === 'customer') {
+            return route('customer.pay.resaved', ['id' => $bookingId]);
+        }
+
+        return route('guest.pay.resaved', ['id' => $bookingId]);
     }
 
     /**

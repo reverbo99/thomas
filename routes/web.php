@@ -330,9 +330,10 @@ Route::post('/refund', [RefundController::class, 'get_booking'])->name('customer
 
 Route::post('/resaved-tickets/mix/', [ResaveController::class, 'byMix'])->name('resaved.mix');
 Route::post('/resaved-tickets/pdo/', [ResaveController::class, 'byPdo'])->name('resaved.pdo');
-Route::post('/resaved-tickets/clickpesa/', [ResaveController::class, 'byClickPesa'])->name('resaved.clickpesa')->middleware('auth');
+Route::post('/resaved-tickets/clickpesa/', [ResaveController::class, 'byClickPesa'])->name('resaved.clickpesa');
 Route::post('/resaved-tickets/cash/', [ResaveController::class, 'byCash'])->name('resaved.cash')->middleware('auth');
-Route::post('/resaved-tickets/test-pay', [ResaveController::class, 'testPayResaved'])->name('resaved.test.pay')->middleware('auth');
+Route::post('/resaved-tickets/test-pay', [ResaveController::class, 'testPayResaved'])->name('resaved.test.pay');
+Route::get('/pay-resaved/{id}', [BookingController::class, 'payResavedTicket'])->name('guest.pay.resaved');
 
 
 

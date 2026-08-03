@@ -219,7 +219,7 @@
                                                                     <span
                                                                         class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                                                                     <span class="text-sm font-medium text-gray-500">{{ $currency }}
-                                                                        {{ convert_money($price - $ins) }}</span>
+                                                                        {{ convert_money($price - $ins - ($excess_luggage_fee ?? 0)) }}</span>
                                                                 </div>
                                                                 <div
                                                                     class="border-t border-gray-200 pt-2 mt-2 flex justify-between">
@@ -352,7 +352,7 @@
                                                                     <span
                                                                         class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                                                                     <span class="text-sm font-medium text-gray-500">{{ $currency }}
-                                                                        {{ convert_money($price - $ins) }}</span>
+                                                                        {{ convert_money($price - $ins - ($excess_luggage_fee ?? 0)) }}</span>
                                                                 </div>
                                                                 <div
                                                                     class="border-t border-gray-200 pt-2 mt-2 flex justify-between">
@@ -418,7 +418,7 @@
                                                                     <span
                                                                         class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                                                                     <span class="text-sm font-medium text-gray-500">{{ $currency }}
-                                                                        {{ convert_money($price - $ins) }}</span>
+                                                                        {{ convert_money($price - $ins - ($excess_luggage_fee ?? 0)) }}</span>
                                                                 </div>
                                                                 <div
                                                                     class="border-t border-gray-200 pt-2 mt-2 flex justify-between">
@@ -527,7 +527,7 @@
                                                                     <span
                                                                         class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                                                                     <span class="text-sm font-medium text-gray-500">{{ $currency }}
-                                                                        {{ convert_money($price - $ins) }}</span>
+                                                                        {{ convert_money($price - $ins - ($excess_luggage_fee ?? 0)) }}</span>
                                                                 </div>
                                                                 <div
                                                                     class="border-t border-gray-200 pt-2 mt-2 flex justify-between">
@@ -627,7 +627,7 @@
                                                                     <span
                                                                         class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                                                                     <span class="text-sm font-medium text-gray-500">{{ $currency }}
-                                                                        {{ convert_money($price - $ins) }}</span>
+                                                                        {{ convert_money($price - $ins - ($excess_luggage_fee ?? 0)) }}</span>
                                                                 </div>
                                                                 <div
                                                                     class="border-t border-gray-200 pt-2 mt-2 flex justify-between">
@@ -735,7 +735,7 @@
                             <div class="flex justify-between">
                                 <span class="text-sm text-gray-600">{{ __('customer/busroot.bus_fare') }}</span>
                                 <span class="text-sm font-medium text-gray-500">{{ $currency }}
-                                    {{ convert_money($price - $ins) }}</span>
+                                    {{ convert_money($price - $ins - ($excess_luggage_fee ?? 0)) }}</span>
                             </div>
 
                             <div class="border-t border-gray-200 pt-2 mt-2 flex justify-between">

@@ -49,10 +49,16 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $booking->booking_code }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $booking->bus->bus_number ?? 'N/A' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $booking->customer_name ?? $booking->user->name ?? 'N/A' }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $booking->schedule ? ($booking->schedule->from ?? 'N/A') . ' - ' . ($booking->schedule->to ?? 'N/A') : 'N/A' }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    @php
+                                        $routeFrom = $booking->schedule->from ?? $booking->route_name->from ?? null;
+                                        $routeTo = $booking->schedule->to ?? $booking->route_name->to ?? null;
+                                    @endphp
+                                    {{ $routeFrom && $routeTo ? $routeFrom . ' - ' . $routeTo : 'N/A' }}
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $booking->travel_date ? \Carbon\Carbon::parse($booking->travel_date)->format('Y-m-d') : 'N/A' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $booking->seat ?? 'N/A' }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $currency }} {{ convert_money($booking->amount ?? 0) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $currency ?? 'TSH' }} {{ convert_money($booking->amount ?? $booking->busFee ?? 0) }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $booking->resaved_until ? \Carbon\Carbon::parse($booking->resaved_until)->format('Y-m-d H:i') : 'N/A' }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">{{ ucfirst($booking->payment_status ?? __('vender/resaved_tickets.resaved')) }}</span>
