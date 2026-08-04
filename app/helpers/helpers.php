@@ -1194,19 +1194,55 @@ if (!function_exists('booking_to_report_row')) {
             ? round($customerTotal)
             : round($busFee + $luggageFee + $serviceFee + $insurance);
 
+        // Manifest "Paid fare" excludes the platform service fee (product requirement).
+        $paidFare = $customerTotal > 0
+            ? round(max(0, $customerTotal - $serviceFee))
+            : round($busFee + $luggageFee + $insurance);
+
         $routeFrom = optional($booking->schedule)->from ?? optional(optional($booking->bus)->route)->from ?? 'N/A';
         $routeTo = optional($booking->schedule)->to ?? optional(optional($booking->bus)->route)->to ?? 'N/A';
         $routeLabel = strtoupper(trim($routeFrom . '-' . $routeTo, '-'));
         $discountAmount = round((float) ($booking->discount_amount ?? 0));
 
+        $travelDateRaw = $booking->travel_date
+            ? \Carbon\Carbon::parse($booking->travel_date)
+            : null;
+        $travelDate = $travelDateRaw ? $travelDateRaw->format('Y-m-d') : 'N/A';
+        $depTime = optional($booking->schedule)->start;
+        $arrTime = optional($booking->schedule)->end;
+        $formatManifestTime = static function ($time) {
+            if ($time === null || $time === '') {
+                return '';
+            }
+            try {
+                return \Carbon\Carbon::parse($time)->format('H:i');
+            } catch (\Throwable $e) {
+                return (string) $time;
+            }
+        };
+        $departureLabel = $travelDate;
+        $depFmt = $formatManifestTime($depTime);
+        if ($depFmt !== '') {
+            $departureLabel .= ' ' . $depFmt;
+        }
+        $arrivalLabel = $travelDate;
+        $arrFmt = $formatManifestTime($arrTime);
+        if ($arrFmt !== '') {
+            $arrivalLabel .= ' ' . $arrFmt;
+        }
+
         return [
             'booking_code' => $booking->booking_code ?? 'N/A',
-            'company_name' => optional($booking->campany)->name ?? 'N/A',
+            'company_name' => optional($booking->campany)->name
+                ?? optional(optional($booking->bus)->campany)->name
+                ?? 'N/A',
             'route_from' => $routeFrom,
             'route_to' => $routeTo,
             'route_label' => $routeLabel !== '' ? $routeLabel : 'N/A',
             'bus_number' => optional($booking->bus)->bus_number ?? 'N/A',
-            'travel_date' => $booking->travel_date ? \Carbon\Carbon::parse($booking->travel_date)->format('Y-m-d') : 'N/A',
+            'travel_date' => $travelDate,
+            'departure_datetime' => $departureLabel,
+            'arrival_datetime' => $arrivalLabel,
             'seat' => $booking->seat ?? 'N/A',
             'pickup_point' => $booking->pickup_point ?? 'N/A',
             'dropping_point' => $booking->dropping_point ?? '',
@@ -1227,13 +1263,13 @@ if (!function_exists('booking_to_report_row')) {
             'gov_levy_total' => (string) $totalGovLevy,
             'vat' => $booking->vat ?? 'N/A',
             'total' => (string) $rowTotal,
-            'paid_fare' => (string) $rowTotal,
+            'paid_fare' => (string) $paidFare,
             'gender' => $booking->gender ?? 'N/A',
             'gender_code' => manifest_gender_code($booking->gender ?? null),
             'age' => $booking->age ?? 'N/A',
             'age_group' => $booking->age_group ?? 'N/A',
             'passenger_type' => $booking->age_group ?: 'Adult',
-            'infant_child' => $booking->infant_child ?? 0,
+            'infant_child' => (int) ($booking->infant_child ?? 0),
             'issue_date' => $booking->created_at ? $booking->created_at->format('d-m-y H:i') : '',
             'issue_by' => manifest_issue_by($booking),
             'id_type' => '',

@@ -28,6 +28,7 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\TwoFactorAuthController; // Add this line
 use App\Http\Controllers\VenderController;
 use App\Http\Controllers\VenderWalletController;
+use App\Http\Controllers\ExcessLuggageController;
 use App\Http\Controllers\SpecialHireController;
 use App\Http\Controllers\ParcelController;
 use App\Http\Controllers\TigosecureController;
@@ -436,12 +437,35 @@ Route::middleware('auth')->group(function () {
         Route::get('/calculate-transfer-amounts', [AdminController::class, 'calculateTransferAmounts'])->name('calculate.transfer.amounts');
         Route::post('/booking/excess-luggage/{booking}', [AdminController::class, 'updateExcessLuggage'])->name('booking.excess_luggage.update');
         Route::get('/booking/excess-luggage/{booking}/receipt', [AdminController::class, 'printExcessLuggageReceipt'])->name('excess_luggage.receipt.print');
+
+        Route::prefix('/excess-luggage')->name('bus_owner.excess_luggage.')->group(function () {
+            Route::get('/', [ExcessLuggageController::class, 'index'])->name('index');
+            Route::get('/lookup', [ExcessLuggageController::class, 'lookupForm'])->name('lookup');
+            Route::post('/lookup', [ExcessLuggageController::class, 'lookup'])->name('lookup.post');
+            Route::get('/{booking}', [ExcessLuggageController::class, 'show'])->name('show');
+            Route::post('/{booking}/weigh', [ExcessLuggageController::class, 'weighIn'])->name('weigh');
+            Route::post('/{booking}/pay', [ExcessLuggageController::class, 'pay'])->name('pay');
+            Route::post('/{booking}/assign', [ExcessLuggageController::class, 'assign'])->name('assign');
+            Route::post('/{booking}/reclaim', [ExcessLuggageController::class, 'reclaim'])->name('reclaim');
+            Route::get('/{booking}/print', [ExcessLuggageController::class, 'printReceipt'])->name('print');
+        });
         
         // Bus Owner Parcel Management
         Route::prefix('/parcels')->name('bus_owner.parcels.')->group(function () {
              Route::get('/', [AdminController::class, 'busOwnerParcels'])->name('index');
+             Route::get('/find-bus', [ParcelController::class, 'searchBus'])->name('find_bus');
+             Route::get('/manifest', [ParcelController::class, 'manifest'])->name('manifest');
+             Route::get('/create/{bus_id}', [ParcelController::class, 'create'])->name('create');
+             Route::post('/store', [ParcelController::class, 'store'])->name('store');
              Route::post('/update-status/{id}', [ParcelController::class, 'updateStatus'])->name('update_status');
              Route::post('/toggle-acceptance', [ParcelController::class, 'toggleAcceptance'])->name('toggle_acceptance');
+             Route::post('/capacity', [ParcelController::class, 'updateCapacity'])->name('capacity');
+             Route::get('/{id}', [ParcelController::class, 'show'])->name('show');
+             Route::post('/{id}/pay', [ParcelController::class, 'pay'])->name('pay');
+             Route::post('/{id}/assign', [ParcelController::class, 'assign'])->name('assign');
+             Route::post('/{id}/depart', [ParcelController::class, 'depart'])->name('depart');
+             Route::post('/{id}/arrive', [ParcelController::class, 'arrive'])->name('arrive');
+             Route::post('/{id}/collect', [ParcelController::class, 'collect'])->name('collect');
              Route::get('/{id}/print', [ParcelController::class, 'print'])->name('print');
         });
     });
@@ -492,6 +516,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/system_payments', [SystemController::class, 'system_payments'])->name('system.payments');
         Route::get('/system_payments/export/pdf', [SystemController::class, 'systemIncomeReportPdf'])->name('system.payments.pdf');
         Route::get('/system_payments/export/csv', [SystemController::class, 'systemIncomeReportCsv'])->name('system.payments.csv');
+        Route::get('/excess-luggage', [ExcessLuggageController::class, 'adminIndex'])->name('system.excess_luggage');
+        Route::get('/parcels', [ParcelController::class, 'adminIndex'])->name('system.parcels');
+        Route::get('/parcels/manifest', [ParcelController::class, 'adminManifest'])->name('system.parcels.manifest');
         Route::get('/government-levy', [SystemController::class, 'governmentLevyReport'])->name('system.government_levy');
         Route::get('/government-levy/export/pdf', [SystemController::class, 'governmentLevyReportPdf'])->name('system.government_levy.pdf');
         Route::get('/government-levy/export/csv', [SystemController::class, 'governmentLevyReportCsv'])->name('system.government_levy.csv');
@@ -638,7 +665,25 @@ Route::middleware('auth')->group(function () {
             Route::get('/find-bus', [ParcelController::class, 'searchBus'])->name('find_bus');
             Route::get('/create/{bus_id}', [ParcelController::class, 'create'])->name('create');
             Route::post('/store', [ParcelController::class, 'store'])->name('store');
+            Route::get('/{id}', [ParcelController::class, 'show'])->name('show');
+            Route::post('/{id}/pay', [ParcelController::class, 'pay'])->name('pay');
+            Route::post('/{id}/assign', [ParcelController::class, 'assign'])->name('assign');
+            Route::post('/{id}/depart', [ParcelController::class, 'depart'])->name('depart');
+            Route::post('/{id}/arrive', [ParcelController::class, 'arrive'])->name('arrive');
+            Route::post('/{id}/collect', [ParcelController::class, 'collect'])->name('collect');
             Route::get('/{id}/print', [ParcelController::class, 'print'])->name('print');
+        });
+
+        Route::prefix('/excess-luggage')->name('vender.excess_luggage.')->group(function () {
+            Route::get('/', [ExcessLuggageController::class, 'index'])->name('index');
+            Route::get('/lookup', [ExcessLuggageController::class, 'lookupForm'])->name('lookup');
+            Route::post('/lookup', [ExcessLuggageController::class, 'lookup'])->name('lookup.post');
+            Route::get('/{booking}', [ExcessLuggageController::class, 'show'])->name('show');
+            Route::post('/{booking}/weigh', [ExcessLuggageController::class, 'weighIn'])->name('weigh');
+            Route::post('/{booking}/pay', [ExcessLuggageController::class, 'pay'])->name('pay');
+            Route::post('/{booking}/assign', [ExcessLuggageController::class, 'assign'])->name('assign');
+            Route::post('/{booking}/reclaim', [ExcessLuggageController::class, 'reclaim'])->name('reclaim');
+            Route::get('/{booking}/print', [ExcessLuggageController::class, 'printReceipt'])->name('print');
         });
     });
 

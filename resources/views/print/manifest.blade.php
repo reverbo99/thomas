@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passenger Manifest</title>
+    <title>{{ __('vender/history.passenger_list') }}</title>
     <style>
         @page {
             size: A4 landscape;
@@ -17,7 +17,7 @@
 
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 7px;
+            font-size: 8px;
             margin: 0;
             padding: 0;
             color: #000;
@@ -29,16 +29,18 @@
         }
 
         .manifest-header h1 {
-            font-size: 11px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
             font-weight: 700;
             margin: 0 0 4px;
             text-transform: uppercase;
         }
 
         .servicer-row {
-            font-size: 7px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 8px;
             margin: 0 0 2px;
-            line-height: 1.4;
+            line-height: 1.45;
         }
 
         .servicer-row span {
@@ -49,6 +51,7 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
         .manifest-table th,
@@ -59,17 +62,18 @@
             word-wrap: break-word;
             overflow-wrap: break-word;
             line-height: 1.25;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
         .manifest-table thead th {
             background-color: #f2f2f2;
-            font-weight: normal;
+            font-weight: bold;
             text-align: center;
-            font-size: 7px;
+            font-size: 7.5px;
         }
 
         .manifest-table tbody td {
-            font-size: 7px;
+            font-size: 8px;
         }
 
         .manifest-table tr.staff-row td {
@@ -101,14 +105,28 @@
 </head>
 
 <body>
+    @php
+        $metaRow = collect($bookings ?? [])->first(fn ($row) => empty($row['is_staff'])) ?? ($bookings[0] ?? []);
+        $companyName = $metaRow['company_name']
+            ?? optional(optional($bus ?? null)->campany)->name
+            ?? 'N/A';
+        $routeLabel = $metaRow['route_label'] ?? 'N/A';
+        $departureAt = $metaRow['departure_datetime'] ?? ($metaRow['travel_date'] ?? now()->format('Y-m-d'));
+        $arrivalAt = $metaRow['arrival_datetime'] ?? ($metaRow['travel_date'] ?? 'N/A');
+        $busNumber = $metaRow['bus_number'] ?? (optional($bus ?? null)->bus_number ?? 'N/A');
+    @endphp
     <div class="manifest-header">
-        <h1>Passenger Manifest</h1>
-        @if (isset($bus))
+        <h1>{{ $companyName }}, {{ __('vender/history.passenger_list') }}</h1>
+        @if (isset($bus) || !empty($bookings))
             <div class="servicer-row">
-                <span><strong>Bus:</strong> {{ $bookings[0]['bus_number'] ?? 'N/A' }}</span>
-                <span><strong>Driver:</strong> {{ $bus->driver_name ?? 'N/A' }} ({{ $bus->driver_contact ?? 'N/A' }})</span>
-                <span><strong>Conductor:</strong> {{ $bus->conductor_name ?? 'N/A' }} ({{ $bus->conductor ?? 'N/A' }})</span>
-                <span><strong>Date:</strong> {{ $bookings[0]['travel_date'] ?? now()->format('Y-m-d') }}</span>
+                <span><strong>{{ __('vender/history.manifest_route') }}:</strong> {{ $routeLabel }}</span>
+                <span><strong>{{ __('vender/history.manifest_bus') }}:</strong> {{ $busNumber }}</span>
+                <span><strong>{{ __('vender/history.manifest_driver') }}:</strong> {{ $bus->driver_name ?? 'N/A' }} ({{ $bus->driver_contact ?? 'N/A' }})</span>
+                <span><strong>{{ __('vender/history.manifest_conductor') }}:</strong> {{ $bus->conductor_name ?? 'N/A' }} ({{ $bus->conductor ?? 'N/A' }})</span>
+            </div>
+            <div class="servicer-row">
+                <span><strong>{{ __('vender/history.departure_datetime') }}:</strong> {{ $departureAt }}</span>
+                <span><strong>{{ __('vender/history.arrival_datetime') }}:</strong> {{ $arrivalAt }}</span>
             </div>
         @endif
     </div>
@@ -117,43 +135,44 @@
         <thead>
             <tr>
                 <th style="width: 2%;">#</th>
-                <th style="width: 5%;">Seat</th>
-                <th style="width: 7%;">Route</th>
-                <th style="width: 8%;">Name</th>
-                <th style="width: 2%;">Sex</th>
-                <th style="width: 7%;">Phone</th>
-                <th style="width: 4%;">Type</th>
-                <th style="width: 3%;">{{ __('system.pages.infant') }}</th>
-                <th style="width: 4%;">ID Type</th>
-                <th style="width: 5%;">Id no</th>
-                <th style="width: 8%;">PNR</th>
-                <th style="width: 6%;">Issue date</th>
-                <th style="width: 5%;">Issue by</th>
-                <th style="width: 6%;">From</th>
-                <th style="width: 6%;">To</th>
-                <th style="width: 5%;">Base Fare</th>
-                <th style="width: 4%;">Discount</th>
-                <th style="width: 5%;">Paid fare</th>
-                <th style="width: 5%;">Remarks</th>
+                <th style="width: 5%;">{{ __('vender/history.manifest_seat') }}</th>
+                <th style="width: 9%;">{{ __('vender/history.manifest_name') }}</th>
+                <th style="width: 2%;">{{ __('vender/history.manifest_sex') }}</th>
+                <th style="width: 7%;">{{ __('vender/history.manifest_phone') }}</th>
+                <th style="width: 4%;">{{ __('vender/history.manifest_type') }}</th>
+                <th style="width: 4%;">{{ __('vender/history.manifest_infant') }}</th>
+                <th style="width: 4%;">{{ __('vender/history.manifest_id_type') }}</th>
+                <th style="width: 5%;">{{ __('vender/history.manifest_id_no') }}</th>
+                <th style="width: 8%;">{{ __('vender/history.manifest_pnr') }}</th>
+                <th style="width: 6%;">{{ __('vender/history.manifest_issue_date') }}</th>
+                <th style="width: 5%;">{{ __('vender/history.manifest_issue_by') }}</th>
+                <th style="width: 7%;">{{ __('vender/history.pickup_point') }}</th>
+                <th style="width: 7%;">{{ __('vender/history.dropping_point') }}</th>
+                <th style="width: 5%;">{{ __('vender/history.manifest_base_fare') }}</th>
+                <th style="width: 4%;">{{ __('vender/history.manifest_discount') }}</th>
+                <th style="width: 5%;">{{ __('vender/history.manifest_paid_fare') }}</th>
+                <th style="width: 5%;">{{ __('vender/history.manifest_remarks') }}</th>
             </tr>
         </thead>
         <tbody>
             @if (isset($bookings) && is_array($bookings) && count($bookings) > 0)
                 @foreach ($bookings as $index => $booking)
                     @php
+                        $infantCount = !empty($booking['is_infant_companion'])
+                            ? 1
+                            : (int) ($booking['infant_child'] ?? 0);
                         $rowClass = !empty($booking['is_staff'])
                             ? 'staff-row'
-                            : ((!empty($booking['infant_child']) || !empty($booking['is_infant_companion'])) ? 'infant-row' : '');
+                            : (($infantCount > 0 || !empty($booking['is_infant_companion'])) ? 'infant-row' : '');
                     @endphp
                     <tr class="{{ $rowClass }}">
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td>{{ $booking['seat'] ?? '' }}</td>
-                        <td>{{ $booking['route_label'] ?? '' }}</td>
                         <td>{{ strtoupper($booking['customer_name'] ?? '') }}</td>
                         <td class="text-center">{{ $booking['gender_code'] ?? '' }}</td>
                         <td>{{ $booking['customer_phone'] ?? '' }}</td>
                         <td>{{ $booking['passenger_type'] ?? 'Adult' }}</td>
-                        <td class="text-center">{{ !empty($booking['infant_child']) ? __('vender/history.yes') : __('vender/history.no') }}</td>
+                        <td class="text-center">{{ $infantCount }}</td>
                         <td>{{ $booking['id_type'] ?? '' }}</td>
                         <td>{{ $booking['id_number'] ?? '' }}</td>
                         <td>{{ $booking['booking_code'] ?? '' }}</td>
@@ -169,7 +188,7 @@
                 @endforeach
             @else
                 <tr>
-                    <td colspan="19" class="no-data">No bookings available</td>
+                    <td colspan="18" class="no-data">{{ __('vender/history.no_booking_data_manifest') }}</td>
                 </tr>
             @endif
         </tbody>

@@ -41,6 +41,7 @@ class Access extends Model
         'SCHEDULES' => 'schedules',
         'CITIES' => 'cities',
         'BOOKING_HISTORY' => 'history',
+        'EXCESS_LUGGAGE' => 'bus_owner.excess_luggage.index',
         'RESAVED_TICKETS' => 'resaved.tickets',
         'EARNINGS_PAYMENTS' => 'erning',
         'LOCAL_BUS_OWNERS' => 'local.bus.owners',

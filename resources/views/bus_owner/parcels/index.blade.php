@@ -24,6 +24,10 @@
             <h1 class="text-2xl font-bold text-gray-800">{{ __('vender/parcels.parcel_management') }}</h1>
             <p class="mt-1 text-sm text-gray-500">{{ __('vender/parcels.manage_status_subtitle') }}</p>
         </div>
+        <div class="flex flex-wrap gap-2 mt-3 md:mt-0">
+            <a href="{{ route('bus_owner.parcels.find_bus') }}" class="inline-flex items-center rounded-lg bg-teal-600 px-4 py-2 text-sm text-white">{{ __('vender/parcels.add_new_parcel') }}</a>
+            <a href="{{ route('bus_owner.parcels.manifest') }}" class="inline-flex items-center rounded-lg border px-4 py-2 text-sm">{{ __('vender/parcels.manifest_title') }}</a>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -51,6 +55,13 @@
                     </span>
                 </form>
             </div>
+            <form action="{{ route('bus_owner.parcels.capacity') }}" method="POST" class="mt-3 flex items-center gap-2">
+                @csrf
+                <input type="hidden" name="bus_id" value="{{ $bus->id }}">
+                <label class="text-xs text-gray-500">{{ __('vender/parcels.max_weight_kg') }}</label>
+                <input type="number" step="0.1" min="0" name="max_parcel_weight_kg" value="{{ $bus->max_parcel_weight_kg }}" class="w-24 rounded border-gray-300 text-sm">
+                <button class="text-xs text-teal-700">{{ __('vender/parcels.save') ?? 'Save' }}</button>
+            </form>
         </div>
         @endforeach
     </div>
@@ -76,7 +87,9 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($parcels as $parcel)
                         <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $parcel->parcel_number }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <a href="{{ route('bus_owner.parcels.show', $parcel->id) }}" class="text-teal-700 hover:underline">{{ $parcel->parcel_number }}</a>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $parcel->bus->bus_number }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $parcel->parcel_type }}</td>
                             <td class="px-6 py-4 text-sm text-gray-500">

@@ -20,6 +20,8 @@ return [
     'logout' => 'Logout',
     'resaved_tickets' => 'Reserved Tickets',
     'transfer_booking' => 'Transfer Booking',
+    'excess_luggage' => 'Excess Luggage',
+    'parcels' => 'Parcels',
     'local_bus_owners' => 'Bus Owner Assistance',
     'bus_owner_panel' => 'Bus Owner Panel',
 ];

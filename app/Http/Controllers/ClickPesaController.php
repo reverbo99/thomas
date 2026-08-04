@@ -186,8 +186,11 @@ class ClickPesaController extends Controller
             ]);
 
             // CRITICAL: Store the order reference in the booking immediately
-            // This ensures we can find the booking later even if session is lost
+            // This ensures we can find the booking later even if session is lost.
+            // Skip for excess-luggage top-ups — those use luggage_payment_ref only.
+            // Skip for parcel payments — those use payment_ref on parcels.
             try {
+                if (!Session::has('excess_luggage_payment') && !Session::has('parcel_payment')) {
                 $sessionBooking = session('booking');
                 if ($sessionBooking && isset($sessionBooking->booking_code)) {
                     Booking::where('booking_code', $sessionBooking->booking_code)
@@ -219,6 +222,28 @@ class ClickPesaController extends Controller
                         'order_reference' => $orderRef,
                         'transaction_id' => $transactionId,
                     ]);
+                }
+                } else {
+                    // Keep luggage_payment_ref OR parcel payment_ref in sync with ClickPesa order reference.
+                    if (Session::has('excess_luggage_payment')) {
+                        $meta = Session::get('excess_luggage_payment');
+                        if (is_array($meta) && !empty($meta['booking_id'])) {
+                            Booking::whereKey($meta['booking_id'])->update([
+                                'luggage_payment_ref' => $orderRef,
+                            ]);
+                            $meta['order_ref'] = $orderRef;
+                            Session::put('excess_luggage_payment', $meta);
+                        }
+                    } elseif (Session::has('parcel_payment')) {
+                        $meta = Session::get('parcel_payment');
+                        if (is_array($meta) && !empty($meta['parcel_id'])) {
+                            \App\Models\Parcel::whereKey($meta['parcel_id'])->update([
+                                'payment_ref' => $orderRef,
+                            ]);
+                            $meta['order_ref'] = $orderRef;
+                            Session::put('parcel_payment', $meta);
+                        }
+                    }
                 }
             } catch (\Exception $e) {
                 Log::warning('ClickPesa: Could not store order reference in booking', [
@@ -560,6 +585,82 @@ class ClickPesaController extends Controller
                             'reference' => $reference,
                         ]);
                     }
+                }
+
+                // Excess luggage top-up (order ref contains XLUG)
+                $luggageSvc = app(\App\Services\ExcessLuggageService::class);
+                $luggageBooking = $luggageSvc->findByPaymentReference((string) $reference);
+                if ($luggageBooking && (
+                    $luggageBooking->luggage_payment_status === \App\Services\ExcessLuggageService::PAYMENT_PENDING
+                    || $luggageBooking->luggage_status === \App\Services\ExcessLuggageService::STATUS_AWAITING_PAYMENT
+                    || str_contains(strtoupper((string) $reference), 'XLUG')
+                )) {
+                    try {
+                        $luggageSvc->confirmTopUpPayment($luggageBooking, (string) $reference);
+                    } catch (\Throwable $e) {
+                        Log::error('Excess luggage ClickPesa confirm failed', [
+                            'booking_id' => $luggageBooking->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        return view('clickpesa.error', [
+                            'message' => $e->getMessage(),
+                            'reference' => $reference,
+                        ]);
+                    }
+
+                    $returnMeta = Session::pull('excess_luggage_payment');
+                    Session::forget('booking');
+                    $returnRoute = $returnMeta['return_route'] ?? null;
+                    $bookingId = $returnMeta['booking_id'] ?? $luggageBooking->id;
+                    if ($returnRoute && \Illuminate\Support\Facades\Route::has($returnRoute)) {
+                        return redirect()
+                            ->route($returnRoute, $bookingId)
+                            ->with('success', __('vender/luggage.payment_success'));
+                    }
+
+                    return view('clickpesa.success', [
+                        'message' => __('vender/luggage.payment_success'),
+                        'reference' => $reference,
+                    ]);
+                }
+
+                // Parcel payment (order ref contains PCL)
+                $parcelFlow = app(\App\Services\ParcelFlowService::class);
+                $parcel = $parcelFlow->findByPaymentReference((string) $reference);
+                if ($parcel && (
+                    in_array($parcel->payment_status, [
+                        \App\Services\ParcelFlowService::PAY_PENDING,
+                        \App\Services\ParcelFlowService::PAY_UNPAID,
+                    ], true)
+                    || str_contains(strtoupper((string) $reference), 'PCL')
+                )) {
+                    try {
+                        $parcel = $parcelFlow->confirmPayment($parcel, (string) $reference, 'clickpesa');
+                        app(ParcelController::class)->finalizeAfterPayment($parcel);
+                    } catch (\Throwable $e) {
+                        Log::error('Parcel ClickPesa confirm failed', [
+                            'parcel_id' => $parcel->id ?? null,
+                            'error' => $e->getMessage(),
+                        ]);
+                        return view('clickpesa.error', [
+                            'message' => $e->getMessage(),
+                            'reference' => $reference,
+                        ]);
+                    }
+
+                    $returnMeta = Session::pull('parcel_payment');
+                    $returnRoute = $returnMeta['return_route'] ?? 'vender.parcels.show';
+                    $parcelId = $returnMeta['parcel_id'] ?? $parcel->id;
+                    if (\Illuminate\Support\Facades\Route::has($returnRoute)) {
+                        return redirect()
+                            ->route($returnRoute, $parcelId)
+                            ->with('success', __('vender/parcels.payment_success'));
+                    }
+
+                    return view('clickpesa.success', [
+                        'message' => __('vender/parcels.payment_success'),
+                        'reference' => $reference,
+                    ]);
                 }
 
                 $vender = Session::get('vender') ?? '';

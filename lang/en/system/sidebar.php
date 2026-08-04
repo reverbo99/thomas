@@ -21,6 +21,8 @@ return [
     'special_hire' => 'Special Hire',
     'special_hire_overview' => 'Special Hire Overview',
     'system_income' => 'System Income',
+    'excess_luggage' => 'Excess Luggage',
+    'parcels' => 'Parcels',
     'government_levy' => 'Government Levy',
     'payment_request' => 'Payment Request',
     'refunds' => 'Refunds',

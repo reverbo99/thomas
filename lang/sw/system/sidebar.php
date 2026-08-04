@@ -21,6 +21,8 @@ return [
     'special_hire' => 'Kukodi Maalum',
     'special_hire_overview' => 'Muhtasari wa Kukodi Maalum',
     'system_income' => 'Mapato ya Mfumo',
+    'excess_luggage' => 'Mzigo wa Ziada',
+    'parcels' => 'Mizigo',
     'government_levy' => 'Ushuru wa Serikali',
     'payment_request' => 'Ombi la Malipo',
     'refunds' => 'Marejesho',

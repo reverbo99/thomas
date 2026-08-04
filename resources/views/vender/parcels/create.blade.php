@@ -38,9 +38,13 @@
             </div>
         @endif
 
-        <form action="{{ route('vender.parcels.store') }}" method="POST" class="space-y-5">
+        <form action="{{ route($storeRoute ?? 'vender.parcels.store') }}" method="POST" class="space-y-5">
             @csrf
             <input type="hidden" name="bus_id" value="{{ $bus->id }}">
+
+            @if(session('error'))
+                <div class="booking-alert booking-alert--error mb-4">{{ session('error') }}</div>
+            @endif
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div class="vendor-form-field">
@@ -126,9 +130,37 @@
                 </div>
             </div>
 
+            <div class="vendor-parcel-form-card__section">
+                <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.destination_agent') }}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="vendor-form-field">
+                        <label for="receiving_agent_name">{{ __('vender/parcels.receiving_agent_name') }}</label>
+                        <input type="text" name="receiving_agent_name" id="receiving_agent_name" value="{{ old('receiving_agent_name') }}" class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="receiving_agent_phone">{{ __('vender/parcels.receiving_agent_phone') }}</label>
+                        <input type="text" name="receiving_agent_phone" id="receiving_agent_phone" value="{{ old('receiving_agent_phone') }}" class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="delivery_rider_name">{{ __('vender/parcels.delivery_rider_name') }}</label>
+                        <input type="text" name="delivery_rider_name" id="delivery_rider_name" value="{{ old('delivery_rider_name') }}" class="page-input">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="delivery_rider_phone">{{ __('vender/parcels.delivery_rider_phone') }}</label>
+                        <input type="text" name="delivery_rider_phone" id="delivery_rider_phone" value="{{ old('delivery_rider_phone') }}" class="page-input">
+                    </div>
+                </div>
+            </div>
+
             <div class="vendor-form-field">
                 <label for="amount_paid">{{ __('vender/parcels.amount_paid', ['currency' => $currency]) }}</label>
                 <input type="number" name="amount_paid" id="amount_paid" step="0.01" value="{{ old('amount_paid') }}" required class="page-input" placeholder="0.00">
+            </div>
+
+            <div class="vendor-form-field">
+                <label for="phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
+                <input type="text" name="phone" id="phone" value="{{ old('phone') }}" class="page-input" placeholder="07XXXXXXXX">
+                <p class="text-xs text-gray-500 mt-1">{{ __('vender/parcels.clickpesa_hint') }}</p>
             </div>
 
             <div class="vendor-form-field">
@@ -137,11 +169,11 @@
             </div>
 
             <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                <a href="{{ route('vender.parcels.find_bus') }}" class="page-btn page-btn--outline">
+                <a href="{{ route(($storeRoute ?? '') === 'bus_owner.parcels.store' ? 'bus_owner.parcels.find_bus' : 'vender.parcels.find_bus') }}" class="page-btn page-btn--outline">
                     <i class="fas fa-arrow-left"></i> {{ __('vender/parcels.back') }}
                 </a>
                 <button type="submit" class="page-btn">
-                    {{ __('vender/parcels.save_parcel') }} <i class="fas fa-check"></i>
+                    {{ __('vender/parcels.pay_and_register') }} <i class="fas fa-mobile-alt"></i>
                 </button>
             </div>
         </form>

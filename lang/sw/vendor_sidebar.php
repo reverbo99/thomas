@@ -20,6 +20,8 @@ return [
     'logout' => 'Ondoka',
     'resaved_tickets' => 'Tiketi Zilizohifadhiwa',
     'transfer_booking' => 'Hamisha Uhifadhi',
+    'excess_luggage' => 'Mzigo wa Ziada',
+    'parcels' => 'Mizigo',
     'local_bus_owners' => 'Msaidizi',
     'bus_owner_panel' => 'Jopo la Mmiliki wa Basi',
 ];

@@ -190,6 +190,16 @@
                     <td>Excess luggage fee paid:</td>
                     <td>{{ number_format((float) ($booking->excess_luggage_fee ?? 0), 2) }}</td>
                 </tr>
+                <tr>
+                    <td>Status:</td>
+                    <td>{{ !empty($status) ? strtoupper(str_replace('_', ' ', $status)) : 'DECLARED' }}</td>
+                </tr>
+                @if(!empty($booking->bus->bus_number))
+                <tr>
+                    <td>Assigned bus:</td>
+                    <td>{{ $booking->bus->bus_number }}</td>
+                </tr>
+                @endif
             </table>
         </div>
 

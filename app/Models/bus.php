@@ -32,7 +32,8 @@ class bus extends Model
         'customer_service_contact_4',
         'bus_model',
         'seate_json',
-        'accept_parcels'
+        'accept_parcels',
+        'max_parcel_weight_kg',
     ];
 
     protected $casts = [

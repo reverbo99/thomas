@@ -1209,7 +1209,12 @@ class SystemController extends Controller
      */
     private function commissionableParcelsQuery()
     {
-        return Parcel::query()->where('status', '!=', 'cancelled');
+        return Parcel::query()
+            ->where('status', '!=', 'cancelled')
+            ->where(function ($q) {
+                $q->where('payment_status', 'paid')
+                    ->orWhereNull('payment_status'); // legacy parcels created before payment gate
+            });
     }
 
     private function paidSpecialHireCommissionQuery()

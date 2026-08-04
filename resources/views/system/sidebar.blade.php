@@ -147,6 +147,18 @@
                     </a>
                 </li>
                 <li>
+                    <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-gray-700 transition-colors {{ request()->routeIs('system.excess_luggage') ? 'bg-blue-500' : '' }}" href="{{ route('system.excess_luggage') }}">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                        {{ __('system.sidebar.excess_luggage') }}
+                    </a>
+                </li>
+                <li>
+                    <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-gray-700 transition-colors {{ request()->routeIs('system.parcels*') ? 'bg-blue-500' : '' }}" href="{{ route('system.parcels') }}">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                        {{ __('system.sidebar.parcels') }}
+                    </a>
+                </li>
+                <li>
                     <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-gray-700 transition-colors {{ request()->routeIs('system.government_levy') ? 'bg-blue-500' : '' }}" href="{{ route('system.government_levy') }}">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-2.21 0-4 1.12-4 2.5S9.79 13 12 13s4 1.12 4 2.5S14.21 18 12 18s-4-1.12-4-2.5M12 6v2m0 10v2"></path></svg>
                         {{ __('system.sidebar.government_levy') }}

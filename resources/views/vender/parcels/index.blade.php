@@ -114,7 +114,7 @@
                         @foreach ($parcels as $parcel)
                             <tr class="parcel-row">
                                 <td class="row-index text-gray-400">{{ ($parcels->currentPage() - 1) * $parcels->perPage() + $loop->iteration }}</td>
-                                <td><span class="font-semibold">{{ $parcel->parcel_number }}</span></td>
+                                <td><a href="{{ route('vender.parcels.show', $parcel->id) }}" class="font-semibold text-teal-700 hover:underline">{{ $parcel->parcel_number }}</a></td>
                                 <td><span class="vendor-tx-method">{{ $parcel->parcel_type }}</span></td>
                                 <td>
                                     <span class="vendor-schedule-busno">{{ $parcel->bus->bus_number ?? '—' }}</span>

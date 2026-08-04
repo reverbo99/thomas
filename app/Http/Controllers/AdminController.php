@@ -1130,7 +1130,7 @@ $q->where('id', auth()->user()->campany->id);
      */
     private function findManifestBus(string $busNumber, ?int $companyId)
     {
-        $query = Bus::where('bus_number', $busNumber);
+        $query = Bus::with('campany')->where('bus_number', $busNumber);
         if ($companyId) {
             $query->where('campany_id', $companyId);
         }
@@ -1141,7 +1141,7 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         // Fall back without company scope (admin / shared plate edge cases).
-        return Bus::where('bus_number', $busNumber)->first();
+        return Bus::with('campany')->where('bus_number', $busNumber)->first();
     }
 
     public function generateManifest($data,$bus)
@@ -1743,35 +1743,23 @@ $q->where('id', auth()->user()->campany->id);
             'luggage_refund_amount' => 'nullable|numeric',
         ]);
 
+        $svc = app(\App\Services\ExcessLuggageService::class);
+
         if ($request->luggage_action === 'remove') {
-            $booking->update([
-                'has_excess_luggage' => 0,
-                'excess_luggage_fee' => 0,
-                'excess_luggage_description' => null,
-                'actual_weight' => null,
-                'actual_length' => null,
-                'actual_height' => null,
-                'actual_width' => null,
-                'luggage_refund_amount' => null,
-            ]);
+            $svc->clear($booking);
 
             return back()->with('success', __('vender/luggage.removed_success'));
         }
 
-        $booking->update([
-            'has_excess_luggage' => 1,
-            'excess_luggage_fee' => $request->excess_luggage_fee,
-            'excess_luggage_description' => $request->excess_luggage_description,
-            // actual_weight/length/height/width are recorded here at the weigh-in step; estimated_weight
-            // was already declared by the customer/vendor at booking time and is
-            // left untouched. luggage_refund_amount is a manual figure staff can
-            // note after comparing the two — the flat fee itself is never recalculated.
-            'actual_weight' => $request->actual_weight,
-            'actual_length' => $request->actual_length,
-            'actual_height' => $request->actual_height,
-            'actual_width' => $request->actual_width,
-            'luggage_refund_amount' => $request->luggage_refund_amount,
-        ]);
+        $svc->weighIn($booking, $request->only([
+            'excess_luggage_fee',
+            'excess_luggage_description',
+            'actual_weight',
+            'actual_length',
+            'actual_height',
+            'actual_width',
+            'luggage_refund_amount',
+        ]), $user);
 
         return back()->with('success', __('vender/luggage.saved_success'));
     }
@@ -1802,6 +1790,7 @@ $q->where('id', auth()->user()->campany->id);
 
         $busOwnerAccount = optional($booking->bus->campany ?? $booking->campany)->busOwnerAccount;
         $busCompany = $booking->bus->campany ?? $booking->campany;
+        $status = app(\App\Services\ExcessLuggageService::class)->normalizeStatus($booking);
 
         $traQrCode = null;
         if (!empty($booking->tra_qr_url)) {
@@ -1811,7 +1800,7 @@ $q->where('id', auth()->user()->campany->id);
                 : null;
         }
 
-        $pdf = Pdf::loadView('print.excess_luggage_receipt', compact('booking', 'busOwnerAccount', 'busCompany', 'traQrCode'));
+        $pdf = Pdf::loadView('print.excess_luggage_receipt', compact('booking', 'busOwnerAccount', 'busCompany', 'traQrCode', 'status'));
         $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
 
         return $pdf->stream('excess-luggage-receipt-' . $booking->booking_code . '.pdf');

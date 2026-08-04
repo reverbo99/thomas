@@ -241,6 +241,8 @@
                                                     <button type="button"
                                                         class="excess-luggage-btn block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                                         data-booking-id="{{ $booking->id }}">{{ __('vender/luggage.add_edit_excess_luggage') }}</button>
+                                                    <a href="{{ route('bus_owner.excess_luggage.show', $booking->id) }}"
+                                                        class="block w-full text-left px-4 py-2 text-sm text-teal-700 hover:bg-gray-100">{{ __('vender/luggage.process_title') }} ({{ __('vender/luggage.tracking') }})</a>
                                                 </div>
                                             </div>
                                         </td>

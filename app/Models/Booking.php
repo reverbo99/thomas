@@ -14,6 +14,9 @@ class Booking extends Model
 
     protected $casts = [
         'passengers' => 'array',
+        'luggage_weighed_at' => 'datetime',
+        'luggage_assigned_at' => 'datetime',
+        'luggage_retrieved_at' => 'datetime',
     ];
 
     protected $fillable = [
@@ -47,6 +50,15 @@ class Booking extends Model
         'actual_height',
         'actual_width',
         'luggage_refund_amount',
+        'luggage_status',
+        'luggage_payment_ref',
+        'luggage_payment_status',
+        'luggage_weighed_at',
+        'luggage_weighed_by',
+        'luggage_assigned_at',
+        'luggage_assigned_by',
+        'luggage_retrieved_at',
+        'luggage_retrieved_by',
         'mfs_id',
         'verification_code',
         ////////
@@ -140,6 +152,18 @@ class Booking extends Model
                     $booking->vender_id ? (int) $booking->vender_id : null,
                     $booking->payment_method
                 );
+            }
+        });
+
+        static::saving(function (Booking $booking) {
+            if (
+                empty($booking->luggage_status)
+                && (
+                    (int) ($booking->has_excess_luggage ?? 0) === 1
+                    || (float) ($booking->excess_luggage_fee ?? 0) > 0
+                )
+            ) {
+                $booking->luggage_status = \App\Services\ExcessLuggageService::STATUS_DECLARED;
             }
         });
     }

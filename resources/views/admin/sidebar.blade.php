@@ -112,6 +112,26 @@
             </a>
         </li>
         @endif
+        @if(auth()->user()->hasAccessTo(\App\Models\Access::BUS['BOOKING_HISTORY']) || auth()->user()->hasAccessTo(\App\Models\Access::BUS['EXCESS_LUGGAGE']))
+        <li>
+            <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->routeIs('bus_owner.excess_luggage.*') ? 'bg-teal-600' : '' }}" href="{{ route(\App\Models\Access::BUS['EXCESS_LUGGAGE']) }}">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 00-5.5-1.65l-.5.67-.5-.68C10.96 2.54 9.98 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 12 7.4l3.38 4.6L17 10.83 14.92 8H20v6z"/>
+                </svg>
+                {{ trans('vendor_sidebar.excess_luggage') }}
+            </a>
+        </li>
+        @endif
+        @if(auth()->user()->hasAccessTo(\App\Models\Access::BUS['BOOKING_HISTORY']))
+        <li>
+            <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->routeIs('bus_owner.parcels.*') ? 'bg-teal-600' : '' }}" href="{{ route('bus_owner.parcels.index') }}">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+                {{ trans('vendor_sidebar.parcels') }}
+            </a>
+        </li>
+        @endif
         @if(auth()->user()->hasAccessTo(\App\Models\Access::BUS['RESAVED_TICKETS']))
         <li>
             <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-teal-700 transition-all duration-200 {{ request()->routeIs(\App\Models\Access::BUS['RESAVED_TICKETS']) ? 'bg-teal-600' : '' }}" href="{{ route(\App\Models\Access::BUS['RESAVED_TICKETS']) }}">
