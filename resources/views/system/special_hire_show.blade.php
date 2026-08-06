@@ -292,8 +292,13 @@
                                 <div class="flex flex-col gap-1">
                                     <a href="{{ route('system.special_hire.order.passengers.edit', $o->id) }}" class="text-blue-600 hover:text-blue-800 font-medium">{{ __('system.pages.manage_passengers') }}</a>
                                     <a href="{{ route('system.special_hire.order.manifest.pdf', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.manifest') }}</a>
-                                    <a href="{{ route('system.special_hire.order.receipt.customer', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.customer_receipt') }}</a>
-                                    <a href="{{ route('system.special_hire.order.receipt.commission', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.commission_receipt') }}</a>
+                                    @if(($o->payment_status ?? '') === 'paid')
+                                        <a href="{{ route('system.special_hire.order.receipt.customer', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.customer_receipt') }}</a>
+                                        <a href="{{ route('system.special_hire.order.receipt.commission', $o->id) }}" target="_blank" class="text-gray-600 hover:text-gray-900">{{ __('system.pages.commission_receipt') }}</a>
+                                    @else
+                                        <span class="text-gray-400" title="{{ __('system.pages.receipt_requires_paid') }}">{{ __('system.pages.customer_receipt') }}</span>
+                                        <span class="text-gray-400" title="{{ __('system.pages.receipt_requires_paid') }}">{{ __('system.pages.commission_receipt') }}</span>
+                                    @endif
                                     @unless(in_array($o->order_status, ['completed', 'cancelled'], true))
                                         <a href="{{ route('system.special_hire.order.transfer.edit', $o->id) }}" class="text-amber-600 hover:text-amber-800">{{ __('system.pages.transfer_order') }}</a>
                                     @endunless

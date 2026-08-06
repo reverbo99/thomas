@@ -10,7 +10,9 @@
         'Electronic' => __('vender/parcels.type_electronic'),
         'Other' => __('vender/parcels.type_other'),
     ];
-    $storeRoute = 'bus_owner.parcels.store';
+    $routeFrom = $bus->schedule->from ?? $bus->route->from ?? null;
+    $routeTo = $bus->schedule->to ?? $bus->route->to ?? null;
+    $oldInstr = old('parcel_instructions', 'collection');
 @endphp
 
 @section('content')
@@ -19,6 +21,12 @@
         <div>
             <h1 class="text-2xl font-bold">{{ __('vender/parcels.register_new_parcel') }}</h1>
             <p class="text-sm text-gray-500">{{ $bus->bus_number }} · {{ $bus->campany->name }}</p>
+            @if($routeFrom || $routeTo)
+                <p class="mt-1 text-sm font-medium text-teal-800">
+                    {{ __('vender/parcels.origin_destination') }}:
+                    <span class="font-semibold">{{ $routeFrom ?: '—' }} → {{ $routeTo ?: '—' }}</span>
+                </p>
+            @endif
         </div>
         <a href="{{ route('bus_owner.parcels.find_bus') }}" class="text-sm text-teal-700">{{ __('vender/parcels.back') }}</a>
     </div>
@@ -32,7 +40,7 @@
         <div class="mb-4 rounded border-l-4 border-red-500 bg-red-50 p-3 text-sm">{{ session('error') }}</div>
     @endif
 
-    <form action="{{ route('bus_owner.parcels.store') }}" method="POST" class="space-y-4 rounded-xl border bg-white p-6 shadow-sm">
+    <form action="{{ route('bus_owner.parcels.store') }}" method="POST" class="space-y-4 rounded-xl border bg-white p-6 shadow-sm" id="busOwnerParcelForm">
         @csrf
         <input type="hidden" name="bus_id" value="{{ $bus->id }}">
         <div class="grid md:grid-cols-2 gap-4">
@@ -54,21 +62,83 @@
             <div><label class="text-sm font-medium">{{ __('vender/parcels.sender_contact') }}</label><input type="text" name="sender_contact" value="{{ old('sender_contact') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
             <div>
                 <label class="text-sm font-medium">{{ __('vender/parcels.parcel_instructions') }}</label>
-                <select name="parcel_instructions" required class="mt-1 w-full rounded-lg border-gray-300">
-                    <option value="collection">{{ __('vender/parcels.instructions_collection') }}</option>
-                    <option value="delivery">{{ __('vender/parcels.instructions_delivery') }}</option>
+                <select name="parcel_instructions" id="parcel_instructions" required class="mt-1 w-full rounded-lg border-gray-300">
+                    <option value="collection" @selected($oldInstr === 'collection')>{{ __('vender/parcels.instructions_collection') }}</option>
+                    <option value="delivery" @selected($oldInstr === 'delivery')>{{ __('vender/parcels.instructions_delivery') }}</option>
                 </select>
             </div>
-            <div><label class="text-sm font-medium">{{ __('vender/parcels.clickpesa_phone') }}</label><input type="text" name="phone" value="{{ old('phone') }}" class="mt-1 w-full rounded-lg border-gray-300"></div>
+            <div><label class="text-sm font-medium">{{ __('vender/parcels.clickpesa_phone') }}</label><input type="text" name="phone" value="{{ old('phone') }}" class="mt-1 w-full rounded-lg border-gray-300" placeholder="07XXXXXXXX"></div>
             <div><label class="text-sm font-medium">{{ __('vender/parcels.receiver_name') }}</label><input type="text" name="receiver_name" value="{{ old('receiver_name') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
             <div><label class="text-sm font-medium">{{ __('vender/parcels.receiver_contact_1') }}</label><input type="text" name="receiver_contact_1" value="{{ old('receiver_contact_1') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
-            <div class="md:col-span-2"><label class="text-sm font-medium">{{ __('vender/parcels.receiver_delivery_address') }}</label><input type="text" name="receiver_delivery_address" value="{{ old('receiver_delivery_address') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
-            <div><label class="text-sm font-medium">{{ __('vender/parcels.receiving_agent_name') }}</label><input type="text" name="receiving_agent_name" value="{{ old('receiving_agent_name') }}" class="mt-1 w-full rounded-lg border-gray-300"></div>
-            <div><label class="text-sm font-medium">{{ __('vender/parcels.receiving_agent_phone') }}</label><input type="text" name="receiving_agent_phone" value="{{ old('receiving_agent_phone') }}" class="mt-1 w-full rounded-lg border-gray-300"></div>
-            <div><label class="text-sm font-medium">{{ __('vender/parcels.delivery_rider_name') }}</label><input type="text" name="delivery_rider_name" value="{{ old('delivery_rider_name') }}" class="mt-1 w-full rounded-lg border-gray-300"></div>
-            <div><label class="text-sm font-medium">{{ __('vender/parcels.delivery_rider_phone') }}</label><input type="text" name="delivery_rider_phone" value="{{ old('delivery_rider_phone') }}" class="mt-1 w-full rounded-lg border-gray-300"></div>
+            <div class="md:col-span-2">
+                <label class="text-sm font-medium" id="address_label" data-label-collection="{{ __('vender/parcels.receiver_collection_address') }}" data-label-delivery="{{ __('vender/parcels.receiver_delivery_address') }}">
+                    {{ $oldInstr === 'collection' ? __('vender/parcels.receiver_collection_address') : __('vender/parcels.receiver_delivery_address') }}
+                </label>
+                <input type="text" name="receiver_delivery_address" value="{{ old('receiver_delivery_address') }}" required class="mt-1 w-full rounded-lg border-gray-300">
+            </div>
         </div>
+
+        <div id="delivery_agent_fields" class="grid md:grid-cols-2 gap-4 {{ $oldInstr === 'collection' ? 'hidden' : '' }}">
+            <div class="md:col-span-2">
+                <p class="text-sm font-semibold text-gray-700">{{ __('vender/parcels.destination_agent') }}</p>
+            </div>
+            <div>
+                <label class="text-sm font-medium">{{ __('vender/parcels.receiving_agent_name') }}</label>
+                <input type="text" name="receiving_agent_name" id="receiving_agent_name" value="{{ old('receiving_agent_name') }}" class="mt-1 w-full rounded-lg border-gray-300" @disabled($oldInstr === 'collection')>
+            </div>
+            <div>
+                <label class="text-sm font-medium">{{ __('vender/parcels.receiving_agent_phone') }}</label>
+                <input type="text" name="receiving_agent_phone" id="receiving_agent_phone" value="{{ old('receiving_agent_phone') }}" class="mt-1 w-full rounded-lg border-gray-300" @disabled($oldInstr === 'collection')>
+            </div>
+            <div>
+                <label class="text-sm font-medium">{{ __('vender/parcels.delivery_rider_name') }}</label>
+                <input type="text" name="delivery_rider_name" id="delivery_rider_name" value="{{ old('delivery_rider_name') }}" class="mt-1 w-full rounded-lg border-gray-300" @disabled($oldInstr === 'collection')>
+            </div>
+            <div>
+                <label class="text-sm font-medium">{{ __('vender/parcels.delivery_rider_phone') }}</label>
+                <input type="text" name="delivery_rider_phone" id="delivery_rider_phone" value="{{ old('delivery_rider_phone') }}" class="mt-1 w-full rounded-lg border-gray-300" @disabled($oldInstr === 'collection')>
+            </div>
+        </div>
+
         <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-white text-sm">{{ __('vender/parcels.pay_and_register') }}</button>
     </form>
 </div>
+
+<script>
+(function () {
+    const select = document.getElementById('parcel_instructions');
+    const agentWrap = document.getElementById('delivery_agent_fields');
+    const addressLabel = document.getElementById('address_label');
+    const agentInputs = [
+        document.getElementById('receiving_agent_name'),
+        document.getElementById('receiving_agent_phone'),
+        document.getElementById('delivery_rider_name'),
+        document.getElementById('delivery_rider_phone'),
+    ];
+
+    function syncParcelInstructionUi() {
+        const isDelivery = select && select.value === 'delivery';
+        if (agentWrap) {
+            agentWrap.classList.toggle('hidden', !isDelivery);
+        }
+        agentInputs.forEach(function (el) {
+            if (!el) return;
+            el.disabled = !isDelivery;
+            if (!isDelivery) {
+                el.value = '';
+            }
+        });
+        if (addressLabel) {
+            addressLabel.textContent = isDelivery
+                ? (addressLabel.dataset.labelDelivery || '')
+                : (addressLabel.dataset.labelCollection || '');
+        }
+    }
+
+    if (select) {
+        select.addEventListener('change', syncParcelInstructionUi);
+        syncParcelInstructionUi();
+    }
+})();
+</script>
 @endsection

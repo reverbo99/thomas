@@ -88,6 +88,9 @@
                                         data-actual-height="{{ $booking->actual_height !== null ? (float) $booking->actual_height : '' }}"
                                         data-actual-width="{{ $booking->actual_width !== null ? (float) $booking->actual_width : '' }}"
                                         data-luggage-refund-amount="{{ $booking->luggage_refund_amount !== null ? (float) $booking->luggage_refund_amount : '' }}"
+                                        data-luggage-payment-status="{{ e($booking->luggage_payment_status ?? '') }}"
+                                        data-luggage-status="{{ e($booking->luggage_status ?? '') }}"
+                                        data-payment-status="{{ e($booking->payment_status ?? '') }}"
                                         data-booking-code="{{ e($booking->booking_code ?? '') }}"
                                         data-infant-child="{{ (int) ($booking->infant_child ?? 0) }}">
                                         <td class="py-2 px-4 text-center">{{ $index + 1 }}</td>
@@ -524,6 +527,16 @@
                 const actualHeight = row.attr('data-actual-height') || '';
                 const actualWidth = row.attr('data-actual-width') || '';
                 const refundAmount = row.attr('data-luggage-refund-amount') || '';
+                const luggagePayStatus = (row.attr('data-luggage-payment-status') || '').toLowerCase();
+                const luggageStatus = (row.attr('data-luggage-status') || '').toLowerCase();
+                const bookingPayStatus = row.attr('data-payment-status') || '';
+                const refundNum = parseFloat(refundAmount);
+                const amountDue = (!isNaN(refundNum) && refundNum > 0 && luggagePayStatus !== 'paid') ? refundNum : 0;
+                const canPrintReceipt = hasLuggage
+                    && bookingPayStatus === 'Paid'
+                    && amountDue <= 0
+                    && luggagePayStatus !== 'pending'
+                    && luggageStatus !== 'awaiting_payment';
 
                 excessLuggageForm.setAttribute('action', excessLuggageUrlTemplate.replace(':id', bookingId));
                 excessLuggageActionInput.value = 'set';
@@ -536,7 +549,7 @@
                 excessLuggageActualWidthInput.value = actualWidth;
                 excessLuggageRefundInput.value = refundAmount;
                 excessLuggageRemoveBtn.classList.toggle('hidden', !hasLuggage);
-                excessLuggageReceiptBtn.classList.toggle('hidden', !hasLuggage);
+                excessLuggageReceiptBtn.classList.toggle('hidden', !canPrintReceipt);
                 excessLuggageReceiptBtn.setAttribute('href', excessLuggageReceiptUrlTemplate.replace(':id', bookingId));
                 excessLuggageModal.classList.remove('hidden');
             });

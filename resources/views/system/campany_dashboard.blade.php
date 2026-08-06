@@ -28,7 +28,7 @@
         </div>
 
         {{-- KPI cards --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
             <div class="kpi-card bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ __('system.pages.wallet_balance') }}</p>
                 <p class="mt-1 text-2xl font-bold text-slate-800">{{ $currency }} {{ convert_money($campany->balance->amount ?? 0) }}</p>
@@ -36,6 +36,14 @@
             <div class="kpi-card bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ __('system.pages.booking_revenue') }}</p>
                 <p class="mt-1 text-2xl font-bold text-emerald-600">{{ $currency }} {{ convert_money($totalBookingsRevenue ?? 0) }}</p>
+            </div>
+            <div class="kpi-card bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ __('system.pages.parcel_revenue') }}</p>
+                <p class="mt-1 text-2xl font-bold text-purple-600">{{ $currency }} {{ convert_money($totalParcelRevenue ?? 0) }}</p>
+            </div>
+            <div class="kpi-card bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ __('system.pages.luggage_revenue_gross') }}</p>
+                <p class="mt-1 text-2xl font-bold text-cyan-600">{{ $currency }} {{ convert_money($totalLuggageRevenue ?? 0) }}</p>
             </div>
             <div class="kpi-card bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ __('system.pages.commission_system') }}</p>

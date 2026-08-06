@@ -19,6 +19,17 @@
             <p class="vendor-dash__eyebrow">{{ __('all.highlink_isgc') }}</p>
             <h1 class="vendor-dash__title">{{ __('vender/parcels.register_new_parcel') }}</h1>
             <p class="vendor-dash__subtitle">{{ $bus->bus_number }} · {{ $bus->campany->name }}</p>
+            @if(($bus->route->from ?? null) || ($bus->route->to ?? null) || ($bus->schedule->from ?? null))
+                <p class="text-sm font-medium text-gray-600 mt-1">
+                    <i class="fas fa-route mr-1 text-teal-600"></i>
+                    {{ __('vender/parcels.origin_destination') }}:
+                    <span class="font-semibold">
+                        {{ $bus->schedule->from ?? $bus->route->from ?? '—' }}
+                        →
+                        {{ $bus->schedule->to ?? $bus->route->to ?? '—' }}
+                    </span>
+                </p>
+            @endif
         </div>
         <div class="vendor-dash__actions">
             <a href="{{ route('vender.parcels.find_bus') }}" class="page-btn page-btn--outline">
@@ -124,13 +135,13 @@
                         <input type="text" name="receiver_contact_2" id="receiver_contact_2" value="{{ old('receiver_contact_2') }}" class="page-input">
                     </div>
                     <div class="vendor-form-field">
-                        <label for="receiver_delivery_address">{{ __('vender/parcels.receiver_delivery_address') }}</label>
+                        <label for="receiver_delivery_address" id="receiver_address_label">{{ __('vender/parcels.receiver_delivery_address') }}</label>
                         <input type="text" name="receiver_delivery_address" id="receiver_delivery_address" value="{{ old('receiver_delivery_address') }}" required class="page-input">
                     </div>
                 </div>
             </div>
 
-            <div class="vendor-parcel-form-card__section">
+            <div class="vendor-parcel-form-card__section" id="receiving-agent-section">
                 <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.destination_agent') }}</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="vendor-form-field">
@@ -179,4 +190,39 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    var select = document.getElementById('parcel_instructions');
+    var agentSection = document.getElementById('receiving-agent-section');
+    var addressLabel = document.getElementById('receiver_address_label');
+    var deliveryLabel = @json(__('vender/parcels.receiver_delivery_address'));
+    var collectionLabel = @json(__('vender/parcels.receiver_collection_address'));
+    var agentFields = ['receiving_agent_name', 'receiving_agent_phone', 'delivery_rider_name', 'delivery_rider_phone'];
+
+    function syncInstructionsUi() {
+        if (!select) return;
+        var isCollection = select.value === 'collection';
+        if (addressLabel) {
+            addressLabel.textContent = isCollection ? collectionLabel : deliveryLabel;
+        }
+        if (agentSection) {
+            agentSection.style.display = isCollection ? 'none' : '';
+        }
+        agentFields.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = isCollection;
+            if (isCollection) {
+                el.value = '';
+            }
+        });
+    }
+
+    if (select) {
+        select.addEventListener('change', syncInstructionsUi);
+        syncInstructionsUi();
+    }
+})();
+</script>
 @endsection

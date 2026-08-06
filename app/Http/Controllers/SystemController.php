@@ -49,28 +49,29 @@ class SystemController extends Controller
 
     public function index()
     {
-        // All dashboard figures from PAID bookings only
+        // Ticket rows for "today's bookings" table (paid tickets only).
         $bookings = Booking::whereDate('created_at', today())
             ->where('payment_status', 'Paid')
             ->with(['bus', 'route', 'campany'])
             ->get();
 
-        $todayAmount = Booking::whereDate('created_at', today())->where('payment_status', 'Paid')->sum('amount');
-        $todayPaidCount = Booking::whereDate('created_at', today())->where('payment_status', 'Paid')->count();
+        // GMV-style revenue: paid tickets (incl. checkout excess luggage via customer_paid_total)
+        // + paid parcels + paid special hire. All figures in TZS base.
+        $todayAmount = $this->sumCombinedPaidRevenue(Carbon::today(), Carbon::today()->endOfDay());
+        $todayPaidCount = $this->countCombinedPaidTransactions(Carbon::today(), Carbon::today()->endOfDay());
 
-        $totalAmount = Booking::where('payment_status', 'Paid')->sum('amount');
-        $totalPaidCount = Booking::where('payment_status', 'Paid')->count();
+        $totalAmount = $this->sumCombinedPaidRevenue(null, null);
+        $totalPaidCount = $this->countCombinedPaidTransactions(null, null);
 
         $bima = Bima::sum('amount');
 
-        // Weekly amounts: only PAID bookings (last 7 days)
+        // Weekly GMV (tickets + parcels + special hire), last 7 days
         $weeklyAmounts = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = Carbon::today()->subDays($i);
-            $amount = Booking::whereDate('created_at', $date)->where('payment_status', 'Paid')->sum('amount');
             $weeklyAmounts[] = [
                 'date' => $date->format('Y-m-d'),
-                'amount' => $amount,
+                'amount' => $this->sumCombinedPaidRevenue($date->copy()->startOfDay(), $date->copy()->endOfDay()),
             ];
         }
 
@@ -79,12 +80,9 @@ class SystemController extends Controller
         for ($i = 3; $i >= 0; $i--) {
             $start = Carbon::today()->subWeeks($i)->startOfWeek();
             $end = Carbon::today()->subWeeks($i)->endOfWeek();
-            $amount = Booking::where('payment_status', 'Paid')
-                ->whereBetween('created_at', [$start, $end])
-                ->sum('amount');
             $weeklyAmountsMonth[] = [
                 'date' => $start->format('M d'),
-                'amount' => $amount,
+                'amount' => $this->sumCombinedPaidRevenue($start, $end),
             ];
         }
 
@@ -92,25 +90,34 @@ class SystemController extends Controller
         $weeklyAmountsYear = [];
         for ($i = 11; $i >= 0; $i--) {
             $date = Carbon::today()->subMonths($i);
-            $amount = Booking::where('payment_status', 'Paid')
-                ->whereYear('created_at', $date->year)
-                ->whereMonth('created_at', $date->month)
-                ->sum('amount');
             $weeklyAmountsYear[] = [
                 'date' => $date->format('M Y'),
-                'amount' => $amount,
+                'amount' => $this->sumCombinedPaidRevenue(
+                    $date->copy()->startOfMonth(),
+                    $date->copy()->endOfMonth()
+                ),
             ];
         }
 
-        // Recent activity: last 10 paid bookings + recent cancellations (real data)
+        // Recent activity: paid bookings, parcels, special hire + cancellations
         $recentBookings = Booking::where('payment_status', 'Paid')
             ->with(['campany', 'route'])
             ->latest('created_at')
-            ->take(5)
+            ->take(4)
+            ->get();
+        $recentParcels = $this->commissionableParcelsQuery()
+            ->with(['bus.campany', 'bus.route'])
+            ->latest('created_at')
+            ->take(2)
+            ->get();
+        $recentSpecialHire = SpecialHireOrder::where('payment_status', 'paid')
+            ->with('user')
+            ->latest('created_at')
+            ->take(2)
             ->get();
         $recentCancellations = CancelledBookings::with('booking')
             ->latest('created_at')
-            ->take(3)
+            ->take(2)
             ->get();
         $recentActivity = collect();
         foreach ($recentBookings as $b) {
@@ -118,8 +125,30 @@ class SystemController extends Controller
                 'type' => 'booking',
                 'message' => __('system.dashboard.new_booking_confirmed'),
                 'detail' => 'Booking ' . ($b->booking_code ?? '') . ' for ' . ($b->campany->name ?? '') . ' – ' . ($b->route->from ?? '') . ' to ' . ($b->route->to ?? ''),
-                'amount' => $b->amount,
+                'amount' => (float) ($b->customer_paid_total ?? $b->amount),
                 'time' => $b->created_at,
+            ]);
+        }
+        foreach ($recentParcels as $p) {
+            $from = $p->bus->route->from ?? '';
+            $to = $p->bus->route->to ?? '';
+            $recentActivity->push([
+                'type' => 'parcel',
+                'message' => __('system.dashboard.parcel_paid'),
+                'detail' => ($p->parcel_number ?? '') . ' – ' . ($p->bus->campany->name ?? '') .
+                    ($from || $to ? " ({$from} → {$to})" : ''),
+                'amount' => (float) $p->amount_paid,
+                'time' => $p->created_at,
+            ]);
+        }
+        foreach ($recentSpecialHire as $o) {
+            $recentActivity->push([
+                'type' => 'special_hire',
+                'message' => __('system.dashboard.special_hire_paid'),
+                'detail' => ($o->order_code ?? '') . ' – ' . ($o->user->name ?? '') .
+                    ' (' . ($o->pickup_location ?? '') . ' → ' . ($o->dropoff_location ?? '') . ')',
+                'amount' => (float) $o->total_amount,
+                'time' => $o->created_at,
             ]);
         }
         foreach ($recentCancellations as $c) {
@@ -147,10 +176,13 @@ class SystemController extends Controller
             )
             ->value('total');
         // System income from luggage is only its percentage share of the bus owner's fee.
-        $luggageTotal = round((float) Booking::query()
-            ->where('payment_status', 'Paid')
-            ->where('excess_luggage_fee', '>', 0)
+        $luggageTotal = round((float) $this->paidLuggageBookingsQuery()
             ->sum('excess_luggage_fee') * system_luggage_percent() / 100, 2);
+        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+        $parcelCommissionTotal = round(
+            (float) $this->commissionableParcelsQuery()->sum('amount_paid') * $parcelCommissionPercent / 100,
+            2
+        );
         $balance = AdminWallet::sum('balance');
         $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
         $specialHireCommissionTotal = (float) SpecialHireOrder::where('payment_status', 'paid')->sum('platform_commission_amount');
@@ -158,8 +190,47 @@ class SystemController extends Controller
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
-            'service', 'fees', 'luggageTotal', 'bima', 'balance', 'cancelledAmount', 'specialHireCommissionTotal'
+            'service', 'fees', 'luggageTotal', 'parcelCommissionTotal', 'bima', 'balance',
+            'cancelledAmount', 'specialHireCommissionTotal'
         ));
+    }
+
+    /**
+     * Combined GMV for admin dashboard: paid tickets + paid parcels + paid special hire (TZS).
+     * Ticket gross prefers customer_paid_total (includes checkout excess luggage).
+     */
+    private function sumCombinedPaidRevenue(?Carbon $from, ?Carbon $to): float
+    {
+        $bookingQ = Booking::query()->where('payment_status', 'Paid');
+        $parcelQ = $this->commissionableParcelsQuery();
+        $hireQ = SpecialHireOrder::query()->where('payment_status', 'paid');
+
+        if ($from && $to) {
+            $bookingQ->whereBetween('created_at', [$from, $to]);
+            $parcelQ->whereBetween('created_at', [$from, $to]);
+            $hireQ->whereBetween('created_at', [$from, $to]);
+        }
+
+        $tickets = (float) $bookingQ->sum(DB::raw('COALESCE(customer_paid_total, amount)'));
+        $parcels = (float) $parcelQ->sum('amount_paid');
+        $hire = (float) $hireQ->sum('total_amount');
+
+        return round($tickets + $parcels + $hire, 2);
+    }
+
+    private function countCombinedPaidTransactions(?Carbon $from, ?Carbon $to): int
+    {
+        $bookingQ = Booking::query()->where('payment_status', 'Paid');
+        $parcelQ = $this->commissionableParcelsQuery();
+        $hireQ = SpecialHireOrder::query()->where('payment_status', 'paid');
+
+        if ($from && $to) {
+            $bookingQ->whereBetween('created_at', [$from, $to]);
+            $parcelQ->whereBetween('created_at', [$from, $to]);
+            $hireQ->whereBetween('created_at', [$from, $to]);
+        }
+
+        return (int) $bookingQ->count() + (int) $parcelQ->count() + (int) $hireQ->count();
     }
 
     public function buses()
@@ -750,6 +821,9 @@ class SystemController extends Controller
         abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
 
         $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
+        if (($hireOrder->payment_status ?? '') !== 'paid') {
+            return redirect()->back()->with('error', __('system.pages.receipt_requires_paid'));
+        }
 
         $pdf = Pdf::loadView('print.special_hire_customer_receipt', compact('hireOrder'));
 
@@ -761,6 +835,9 @@ class SystemController extends Controller
         abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
 
         $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
+        if (($hireOrder->payment_status ?? '') !== 'paid') {
+            return redirect()->back()->with('error', __('system.pages.receipt_requires_paid'));
+        }
 
         $pdf = Pdf::loadView('print.special_hire_commission_receipt', compact('hireOrder'));
 
@@ -1168,11 +1245,22 @@ class SystemController extends Controller
         $totalCommission = SystemBalance::where('campany_id', $campany->id)->sum('balance');
         $totalServiceFees = PaymentFees::where('campany_id', $campany->id)->sum('amount');
         $totalBookingsRevenue = Booking::where('campany_id', $campany->id)->where('payment_status', 'Paid')->sum(DB::raw('COALESCE(customer_paid_total, busFee, amount)'));
+        $totalLuggageRevenue = (float) Booking::where('campany_id', $campany->id)
+            ->where('payment_status', 'Paid')
+            ->where('excess_luggage_fee', '>', 0)
+            ->sum('excess_luggage_fee');
+        $totalParcelRevenue = (float) $this->commissionableParcelsQuery()
+            ->whereHas('bus', fn ($q) => $q->where('campany_id', $campany->id))
+            ->sum('amount_paid');
+        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+        $totalParcelCommission = round($totalParcelRevenue * $parcelCommissionPercent / 100, 2);
+        $totalOperatorRevenue = round($totalBookingsRevenue + $totalParcelRevenue, 2);
 
         return view('system.campany_dashboard', compact(
             'campany', 'bookings', 'bookingsChart', 'schedules',
             'systemBalances', 'paymentFees', 'transactions',
-            'totalCommission', 'totalServiceFees', 'totalBookingsRevenue'
+            'totalCommission', 'totalServiceFees', 'totalBookingsRevenue',
+            'totalLuggageRevenue', 'totalParcelRevenue', 'totalParcelCommission', 'totalOperatorRevenue'
         ));
     }
 
@@ -1204,17 +1292,13 @@ class SystemController extends Controller
     }
 
     /**
-     * Parcels eligible for commission income — excludes cancelled parcels since
-     * amount_paid is collected upfront regardless of delivery status.
+     * Parcels eligible for commission income — only ClickPesa/settlement-confirmed paid rows.
      */
     private function commissionableParcelsQuery()
     {
         return Parcel::query()
             ->where('status', '!=', 'cancelled')
-            ->where(function ($q) {
-                $q->where('payment_status', 'paid')
-                    ->orWhereNull('payment_status'); // legacy parcels created before payment gate
-            });
+            ->where('payment_status', 'paid');
     }
 
     private function paidSpecialHireCommissionQuery()

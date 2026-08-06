@@ -129,9 +129,13 @@
                                 </form>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <a href="{{ route('bus_owner.parcels.print', $parcel->id) }}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
-                                    <i class="fas fa-print"></i> {{ __('vender/parcels.print_receipt') }}
-                                </a>
+                                @if(app(\App\Services\ParcelFlowService::class)->canPrintReceipt($parcel))
+                                    <a href="{{ route('bus_owner.parcels.print', $parcel->id) }}" target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                                        <i class="fas fa-print"></i> {{ __('vender/parcels.print_receipt') }}
+                                    </a>
+                                @else
+                                    <span class="text-gray-400 text-xs" title="{{ __('vender/parcels.print_payment_required') }}">{{ __('vender/parcels.print_receipt') }}</span>
+                                @endif
                             </td>
                         </tr>
                     @empty

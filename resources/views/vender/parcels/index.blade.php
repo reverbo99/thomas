@@ -141,9 +141,13 @@
                                     <span class="vendor-status {{ $statusClass }}">{{ ucfirst($parcel->status ?? 'pending') }}</span>
                                 </td>
                                 <td>
-                                    <a href="{{ route('vender.parcels.print', $parcel->id) }}" target="_blank" class="page-btn page-btn--outline">
-                                        <i class="fas fa-print"></i> {{ __('vender/parcels.print_receipt') }}
-                                    </a>
+                                    @if(app(\App\Services\ParcelFlowService::class)->canPrintReceipt($parcel))
+                                        <a href="{{ route('vender.parcels.print', $parcel->id) }}" target="_blank" class="page-btn page-btn--outline">
+                                            <i class="fas fa-print"></i> {{ __('vender/parcels.print_receipt') }}
+                                        </a>
+                                    @else
+                                        <span class="text-xs text-gray-400" title="{{ __('vender/parcels.print_payment_required') }}">{{ __('vender/parcels.print_receipt') }}</span>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

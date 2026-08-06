@@ -194,10 +194,22 @@
                     <td>Status:</td>
                     <td>{{ !empty($status) ? strtoupper(str_replace('_', ' ', $status)) : 'DECLARED' }}</td>
                 </tr>
-                @if(!empty($booking->bus->bus_number))
+                @if(!empty(optional($booking->bus)->bus_number))
                 <tr>
                     <td>Assigned bus:</td>
                     <td>{{ $booking->bus->bus_number }}</td>
+                </tr>
+                @endif
+                @php
+                    $receiptFrom = optional($booking->route)->from ?? optional(optional($booking->bus)->route)->from
+                        ?? optional($booking->schedule)->from;
+                    $receiptTo = optional($booking->route)->to ?? optional(optional($booking->bus)->route)->to
+                        ?? optional($booking->schedule)->to;
+                @endphp
+                @if($receiptFrom || $receiptTo)
+                <tr>
+                    <td>From → To:</td>
+                    <td>{{ $receiptFrom ?: '—' }} → {{ $receiptTo ?: '—' }}</td>
                 </tr>
                 @endif
             </table>

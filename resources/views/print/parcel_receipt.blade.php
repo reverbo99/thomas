@@ -94,7 +94,13 @@
 <body>
     @php
         $feePerKg = (float) (\App\Models\Setting::first()->parcel_fee_per_kg ?? 0);
-        $instructionsLabel = $parcel->parcel_instructions === 'delivery' ? 'Delivery' : ($parcel->parcel_instructions === 'collection' ? 'Collection' : 'N/A');
+        $isCollection = ($parcel->parcel_instructions ?? '') === 'collection';
+        $instructionsLabel = $parcel->parcel_instructions === 'delivery' ? 'Delivery' : ($isCollection ? 'Collection' : 'N/A');
+        $addressLabel = $isCollection ? 'Receiver collection address:' : 'Receiver delivery address:';
+        $receiptFrom = optional(optional($parcel->bus)->route)->from
+            ?? optional(optional($parcel->bus)->schedule)->from;
+        $receiptTo = optional(optional($parcel->bus)->route)->to
+            ?? optional(optional($parcel->bus)->schedule)->to;
     @endphp
 
     <div class="receipt-container">
@@ -114,6 +120,12 @@
                     <td>Receipt No.</td>
                     <td>{{ $parcel->parcel_number ?? 'N/A' }}</td>
                 </tr>
+                @if($receiptFrom || $receiptTo)
+                <tr>
+                    <td>From → To:</td>
+                    <td>{{ $receiptFrom ?: '—' }} → {{ $receiptTo ?: '—' }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>TIN:</td>
                     <td>{{ $busOwnerAccount->tin ?? 'N/A' }}</td>
@@ -163,7 +175,7 @@
                     <td>{{ $parcel->receiver_contact_2 ?? 'N/A' }}</td>
                 </tr>
                 <tr>
-                    <td>Receiver delivery address:</td>
+                    <td>{{ $addressLabel }}</td>
                     <td>{{ $parcel->receiver_delivery_address ?? 'N/A' }}</td>
                 </tr>
                 <tr>

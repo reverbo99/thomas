@@ -46,15 +46,50 @@ class ClickPesaController extends Controller
     private function paymentRouteForContext(): string
     {
         if (auth()->check()) {
-            if (auth()->user()->role === 'customer') {
+            $role = auth()->user()->role ?? '';
+            if ($role === 'customer') {
                 return 'customer.pay';
             }
-            if (auth()->user()->role === 'vender') {
+            if ($role === 'vender') {
                 return 'vender.pay';
+            }
+            // Bus owner / local assistant: no guest booking pay screen — land on parcels list.
+            if (in_array($role, ['bus_campany', 'local_bus_owner'], true)
+                && \Illuminate\Support\Facades\Route::has('bus_owner.parcels.index')) {
+                return 'bus_owner.parcels.index';
             }
         }
 
         return 'pay';
+    }
+
+    /**
+     * Redirect after ClickPesa initiate failure, preferring parcel / excess-luggage return routes
+     * so vendors are not sent to booking payment (which requires booking_form session).
+     */
+    private function redirectPaymentFailure(string $errorMsg)
+    {
+        $message = 'ClickPesa Payment Failed: ' . $errorMsg;
+
+        if (Session::has('parcel_payment')) {
+            $meta = Session::get('parcel_payment');
+            $route = is_array($meta) ? ($meta['return_route'] ?? null) : null;
+            $id = is_array($meta) ? ($meta['parcel_id'] ?? null) : null;
+            if ($id && $route && \Illuminate\Support\Facades\Route::has($route)) {
+                return redirect()->route($route, $id)->with('error', $message);
+            }
+        }
+
+        if (Session::has('excess_luggage_payment')) {
+            $meta = Session::get('excess_luggage_payment');
+            $route = is_array($meta) ? ($meta['return_route'] ?? null) : null;
+            $id = is_array($meta) ? ($meta['booking_id'] ?? null) : null;
+            if ($id && $route && \Illuminate\Support\Facades\Route::has($route)) {
+                return redirect()->route($route, $id)->with('error', $message);
+            }
+        }
+
+        return redirect()->route($this->paymentRouteForContext())->with('error', $message);
     }
 
     /**
@@ -140,11 +175,10 @@ class ClickPesaController extends Controller
                 'error' => $checkoutResponse,
             ]);
 
-            return redirect()->route($this->paymentRouteForContext())
-                ->with('error', 'ClickPesa Payment Failed: ' . $errorMsg);
+            return $this->redirectPaymentFailure($errorMsg);
         }
 
-        // Check if we have a valid response with checkout URL
+        // Check if we have a valid checkout URL
         // ClickPesa USSD-PUSH doesn't return a URL, it sends payment request to phone
         // Response includes: id, status, channel, orderReference, etc.
         $checkoutUrl = null;
@@ -167,8 +201,7 @@ class ClickPesaController extends Controller
                     'error_message' => $errorMessage,
                     'response' => $checkoutResponse
                 ]);
-                return redirect()->route($this->paymentRouteForContext())
-                    ->with('error', 'ClickPesa Payment Failed: ' . $errorMessage);
+                return $this->redirectPaymentFailure($errorMessage);
             }
             
             // Use same alphanumeric format we send to ClickPesa so polling and callback work
@@ -267,8 +300,7 @@ class ClickPesaController extends Controller
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
-                return redirect()->route($this->paymentRouteForContext())
-                    ->with('error', 'Could not load payment page: ' . $e->getMessage());
+                return $this->redirectPaymentFailure('Could not load payment page: ' . $e->getMessage());
             }
         } else {
             // Response doesn't have expected success structure
@@ -311,8 +343,7 @@ class ClickPesaController extends Controller
                 'has_checkout_url' => isset($checkoutResponse->checkout_url)
             ]);
 
-            return redirect()->route($this->paymentRouteForContext())
-                ->with('error', 'ClickPesa Payment Failed: ' . $errorMessage);
+            return $this->redirectPaymentFailure($errorMessage);
         }
     }
 

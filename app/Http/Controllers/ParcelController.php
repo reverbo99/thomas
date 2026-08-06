@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\ClickPesaController;
 use App\Models\bus;
+use App\Models\City;
 use App\Models\Parcel;
 use App\Models\User;
 use App\Services\ParcelFlowService;
@@ -50,9 +51,29 @@ class ParcelController extends Controller
     public function searchBus(Request $request)
     {
         $query = $request->get('query');
+        $fromCityId = $request->get('from');
+        $toCityId = $request->get('to');
+        $departureDate = $request->get('departure_date');
         $isOwner = $this->isBusOwnerContext();
 
-        $busQuery = bus::with(['campany', 'schedule', 'route'])
+        $fromName = $fromCityId ? (City::find($fromCityId)->name ?? null) : null;
+        $toName = $toCityId ? (City::find($toCityId)->name ?? null) : null;
+
+        $busQuery = bus::with([
+            'campany',
+            'route',
+            'schedule' => function ($q) use ($fromName, $toName, $departureDate) {
+                if ($fromName) {
+                    $q->where('from', $fromName);
+                }
+                if ($toName) {
+                    $q->where('to', $toName);
+                }
+                if ($departureDate) {
+                    $q->whereDate('schedule_date', $departureDate);
+                }
+            },
+        ])
             ->where('accept_parcels', true)
             ->whereHas('campany', function ($q) {
                 $q->where('status', 1);
@@ -73,6 +94,34 @@ class ParcelController extends Controller
             });
         }
 
+        if ($fromName || $toName || $departureDate) {
+            $busQuery->where(function ($outer) use ($fromName, $toName, $departureDate) {
+                $outer->whereHas('schedules', function ($q) use ($fromName, $toName, $departureDate) {
+                    if ($fromName) {
+                        $q->where('from', $fromName);
+                    }
+                    if ($toName) {
+                        $q->where('to', $toName);
+                    }
+                    if ($departureDate) {
+                        $q->whereDate('schedule_date', $departureDate);
+                    }
+                });
+
+                // Also match buses whose declared route from/to aligns when no date filter.
+                if (($fromName || $toName) && !$departureDate) {
+                    $outer->orWhereHas('route', function ($q) use ($fromName, $toName) {
+                        if ($fromName) {
+                            $q->where('from', $fromName);
+                        }
+                        if ($toName) {
+                            $q->where('to', $toName);
+                        }
+                    });
+                }
+            });
+        }
+
         $buses = $busQuery->get()->map(function ($bus) {
             $bus->parcel_weight_used = (float) Parcel::where('bus_id', $bus->id)
                 ->whereNotIn('status', [
@@ -85,14 +134,15 @@ class ParcelController extends Controller
             return $bus;
         });
 
+        $cities = City::orderBy('name')->get(['id', 'name']);
         $view = $isOwner ? 'bus_owner.parcels.find_bus' : 'vender.parcels.find_bus';
 
-        return view($view, compact('buses'));
+        return view($view, compact('buses', 'cities'));
     }
 
     public function create($bus_id)
     {
-        $bus = bus::with('campany')->findOrFail($bus_id);
+        $bus = bus::with(['campany', 'route', 'schedule'])->findOrFail($bus_id);
         $this->assertCanUseBus($bus);
 
         try {
@@ -145,32 +195,47 @@ class ParcelController extends Controller
 
         $isVendor = Auth::user()->isVender();
 
-        $parcel = Parcel::create([
-            'bus_id' => $data['bus_id'],
-            'parcel_number' => $data['parcel_number'],
-            'parcel_type' => $data['parcel_type'],
-            'description' => $data['description'] ?? null,
-            'amount_paid' => $data['amount_paid'],
-            'weight' => $data['weight'] ?? null,
-            'height' => $data['height'] ?? null,
-            'width' => $data['width'] ?? null,
-            'length' => $data['length'] ?? null,
-            'status' => ParcelFlowService::STATUS_AWAITING_PAYMENT,
-            'payment_status' => ParcelFlowService::PAY_UNPAID,
-            'vender_id' => $isVendor ? Auth::id() : null,
-            'created_by' => Auth::id(),
-            'sender_name' => $data['sender_name'],
-            'sender_contact' => $data['sender_contact'],
-            'parcel_instructions' => $data['parcel_instructions'],
-            'receiver_name' => $data['receiver_name'],
-            'receiver_contact_1' => $data['receiver_contact_1'],
-            'receiver_contact_2' => $data['receiver_contact_2'] ?? null,
-            'receiver_delivery_address' => $data['receiver_delivery_address'],
-            'receiving_agent_name' => $data['receiving_agent_name'] ?? null,
-            'receiving_agent_phone' => $data['receiving_agent_phone'] ?? null,
-            'delivery_rider_name' => $data['delivery_rider_name'] ?? null,
-            'delivery_rider_phone' => $data['delivery_rider_phone'] ?? null,
-        ]);
+        $isDelivery = ($data['parcel_instructions'] ?? '') === 'delivery';
+
+        try {
+            $parcel = Parcel::create([
+                'bus_id' => $data['bus_id'],
+                'parcel_number' => $data['parcel_number'],
+                'parcel_type' => $data['parcel_type'],
+                'description' => $data['description'] ?? null,
+                'amount_paid' => $data['amount_paid'],
+                'weight' => $data['weight'] ?? null,
+                'height' => $data['height'] ?? null,
+                'width' => $data['width'] ?? null,
+                'length' => $data['length'] ?? null,
+                'status' => ParcelFlowService::STATUS_AWAITING_PAYMENT,
+                'payment_status' => ParcelFlowService::PAY_UNPAID,
+                'vender_id' => $isVendor ? Auth::id() : null,
+                'created_by' => Auth::id(),
+                'sender_name' => $data['sender_name'],
+                'sender_contact' => $data['sender_contact'],
+                'parcel_instructions' => $data['parcel_instructions'],
+                'receiver_name' => $data['receiver_name'],
+                'receiver_contact_1' => $data['receiver_contact_1'],
+                'receiver_contact_2' => $data['receiver_contact_2'] ?? null,
+                'receiver_delivery_address' => $data['receiver_delivery_address'],
+                'receiving_agent_name' => $isDelivery ? ($data['receiving_agent_name'] ?? null) : null,
+                'receiving_agent_phone' => $isDelivery ? ($data['receiving_agent_phone'] ?? null) : null,
+                'delivery_rider_name' => $isDelivery ? ($data['delivery_rider_name'] ?? null) : null,
+                'delivery_rider_phone' => $isDelivery ? ($data['delivery_rider_phone'] ?? null) : null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Parcel register failed before ClickPesa', [
+                'user_id' => Auth::id(),
+                'bus_id' => $data['bus_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->with(
+                'error',
+                __('vender/parcels.register_failed')
+            );
+        }
 
         return $this->startClickPesaPayment($parcel, $data['phone'] ?? $parcel->sender_contact);
     }
@@ -202,13 +267,25 @@ class ParcelController extends Controller
     public function assign(Request $request, $id)
     {
         $parcel = $this->findAuthorizedParcel($id);
-        $data = $request->validate([
-            'bus_id' => 'nullable|exists:buses,id',
-            'receiving_agent_name' => 'nullable|string|max:150',
-            'receiving_agent_phone' => 'nullable|string|max:40',
-            'delivery_rider_name' => 'nullable|string|max:150',
-            'delivery_rider_phone' => 'nullable|string|max:40',
-        ]);
+
+        if (($parcel->parcel_instructions ?? '') === 'collection') {
+            // Collection: agent/rider assignment is not used.
+            $data = $request->validate([
+                'bus_id' => 'nullable|exists:buses,id',
+            ]);
+            $data['receiving_agent_name'] = null;
+            $data['receiving_agent_phone'] = null;
+            $data['delivery_rider_name'] = null;
+            $data['delivery_rider_phone'] = null;
+        } else {
+            $data = $request->validate([
+                'bus_id' => 'nullable|exists:buses,id',
+                'receiving_agent_name' => 'nullable|string|max:150',
+                'receiving_agent_phone' => 'nullable|string|max:40',
+                'delivery_rider_name' => 'nullable|string|max:150',
+                'delivery_rider_phone' => 'nullable|string|max:40',
+            ]);
+        }
 
         if (!empty($data['bus_id'])) {
             $bus = bus::findOrFail($data['bus_id']);
@@ -269,6 +346,11 @@ class ParcelController extends Controller
     public function print($id)
     {
         $parcel = $this->findAuthorizedParcel($id, true);
+
+        if (!$this->flow->canPrintReceipt($parcel)) {
+            return redirect($this->showUrl($parcel))
+                ->with('error', __('vender/parcels.print_payment_required'));
+        }
 
         $busCompany = $parcel->bus->campany ?? null;
         $busOwnerAccount = $busCompany->busOwnerAccount ?? null;
@@ -354,7 +436,7 @@ class ParcelController extends Controller
         }
         if ($date = $request->query('travel_date')) {
             $query->whereHas('bus.schedule', function ($q) use ($date) {
-                $q->whereDate('date', $date);
+                $q->whereDate('schedule_date', $date);
             });
         }
         if ($q = trim((string) $request->query('q', ''))) {
@@ -389,7 +471,7 @@ class ParcelController extends Controller
             || $user->hasAccess(\App\Models\Access::LINKS['BOOKING_HISTORY'])
         ), 403);
 
-        $query = Parcel::with(['bus.campany', 'vender'])->latest();
+        $query = Parcel::with(['bus.campany', 'bus.route', 'vender'])->latest();
         if ($status = $request->query('status')) {
             $query->where('status', $status);
         }
@@ -426,7 +508,7 @@ class ParcelController extends Controller
             $query->where('bus_id', $busId);
         }
         if ($date = $request->query('travel_date')) {
-            $query->whereHas('bus.schedule', fn ($q) => $q->whereDate('date', $date));
+            $query->whereHas('bus.schedule', fn ($q) => $q->whereDate('schedule_date', $date));
         }
 
         $parcels = $query->latest()->limit(500)->get();
@@ -457,15 +539,14 @@ class ParcelController extends Controller
 
     private function startClickPesaPayment(Parcel $parcel, ?string $phone)
     {
-        $phone = preg_replace('/\D+/', '', (string) $phone);
-        if (strlen($phone) < 9) {
-            return redirect($this->showUrl($parcel))->with('error', __('vender/parcels.phone_required'));
+        $normalized = ClickPesaController::normalizeTanzaniaMsisdnForClickPesa((string) $phone);
+        if (!$normalized['ok']) {
+            return redirect($this->showUrl($parcel))->with(
+                'error',
+                $normalized['error'] ?? __('vender/parcels.phone_required')
+            );
         }
-        if (str_starts_with($phone, '0')) {
-            $phone = '255' . substr($phone, 1);
-        } elseif (strlen($phone) === 9) {
-            $phone = '255' . $phone;
-        }
+        $phone = $normalized['phone'];
 
         $orderRef = $this->flow->buildPaymentReference($parcel);
         $parcel->update([

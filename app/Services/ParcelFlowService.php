@@ -318,6 +318,42 @@ class ParcelFlowService
         return $t === $key ? ucfirst(str_replace('_', ' ', $status)) : $t;
     }
 
+    /**
+     * True only when ClickPesa (or settlement) confirmed payment.
+     * unpaid / pending / null / anything else = not confirmed.
+     */
+    public function isPaymentConfirmed(?Parcel $parcel): bool
+    {
+        if (!$parcel) {
+            return false;
+        }
+
+        return ($parcel->payment_status ?? null) === self::PAY_PAID;
+    }
+
+    /**
+     * Receipt print is allowed only after payment is confirmed.
+     * Blocks: unpaid, pending, awaiting_payment, cancelled, and any non-paid row.
+     */
+    public function canPrintReceipt(?Parcel $parcel): bool
+    {
+        if (!$parcel) {
+            return false;
+        }
+
+        if (!$this->isPaymentConfirmed($parcel)) {
+            return false;
+        }
+
+        $status = $this->normalizeStatus($parcel);
+
+        return !in_array($status, [
+            self::STATUS_AWAITING_PAYMENT,
+            self::STATUS_PENDING,
+            self::STATUS_CANCELLED,
+        ], true);
+    }
+
     private function smsSafe(?string $phone, string $message, int $parcelId): void
     {
         if (empty($phone)) {

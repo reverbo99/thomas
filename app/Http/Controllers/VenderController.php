@@ -651,6 +651,9 @@ class VenderController extends Controller
 
     public function get_payment(Request $request)
     {
+        $isResave = $request->boolean('resave_ticket')
+            || $request->input('payment_method') === 'resave';
+
         $request->validate([
             'contactNumber' => ['required', 'string'],
             'contactEmail' => ['nullable', 'email'],
@@ -674,8 +677,6 @@ class VenderController extends Controller
         session()->put('booking_form', $bus_info);
         $payment_method = $request->payment_method;
 
-        $isResave = $request->has('resave_ticket') && $request->input('resave_ticket') == '1';
-
         $canonicalAmount = session()->get('booking_form')['payable_amount'] ?? $request->amount;
         return $this->pay($canonicalAmount, $user, $payment_method, $isResave);
     }
@@ -695,6 +696,10 @@ class VenderController extends Controller
 
     public function pay($amount, $user, $method, $isResave = false)
     {
+        if ($method === 'resave') {
+            $isResave = true;
+        }
+
         // Check if test mode is enabled
         $settings = \App\Models\Setting::first();
         if ($settings && ($settings->test_mode ?? false)) {
@@ -722,7 +727,10 @@ class VenderController extends Controller
         ];
         // Generate unique booking code
         $bookingCode = $this->generateRandomCode();
-        $bus = Bus::with(['busname', 'campany.balance'])->find(session()->get('booking_form')['bus_id']);
+        $bus = bus::with(['busname', 'campany.balance'])->find(session()->get('booking_form')['bus_id']);
+        if (!$bus || !$bus->campany) {
+            return redirect()->route('vender.pay')->with('error', __('all.failed_create_booking'));
+        }
 
         // Prepare booking data with payment_status as Unpaid
         $pop = '';
@@ -782,7 +790,7 @@ class VenderController extends Controller
                 'error' => $e->getMessage(),
                 'data' => $bookingData,
             ]);
-            return response()->json(['status' => 'error', 'message' => __('all.failed_create_booking')], 500);
+            return redirect()->route('vender.pay')->with('error', __('all.failed_create_booking'));
         }
 
         if ($isResave) {
@@ -878,6 +886,10 @@ class VenderController extends Controller
                 return redirect()->route('vender.pay')->with('error', __('all.clickpesa_error_prefix', ['error' => $msg]))->withErrors(['payment_error' => $msg]);
             }
         }
+
+        // Unknown / unmatched payment method (e.g. mistyped resave without flag).
+        return redirect()->route('vender.pay')
+            ->with('error', __('all.payment_initiation_failed'));
     }
 
     /**
@@ -890,13 +902,20 @@ class VenderController extends Controller
      */
     private function processTestPayment($amount, $user, $method, $isResave = false)
     {
+        if ($method === 'resave') {
+            $isResave = true;
+        }
+
         $bookingForm = session()->get('booking_form');
         $bima = $bookingForm['bima'] ?? 0;
         $xcode = 'TEST-' . strtoupper(uniqid() . rand(1000, 9999));
 
         // Generate unique booking code
         $bookingCode = $this->generateRandomCode();
-        $bus = Bus::with(['busname', 'campany.balance'])->find($bookingForm['bus_id']);
+        $bus = bus::with(['busname', 'campany.balance'])->find($bookingForm['bus_id']);
+        if (!$bus || !$bus->campany) {
+            return redirect()->route('vender.pay')->with('error', __('all.failed_create_booking_test_mode'));
+        }
 
         // Get vender ID
         $pop = '';

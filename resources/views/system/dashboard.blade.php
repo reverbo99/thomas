@@ -15,7 +15,7 @@
     @if (auth()->user()->hasAccess(\App\Models\Access::LINKS['CARDS']))
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <!-- Today's Revenue (paid bookings only) -->
+            <!-- Today's Revenue (paid tickets + parcels + special hire) -->
             <div class="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-teal-200">
                 <div class="flex items-center justify-between">
                     <div>
@@ -28,10 +28,10 @@
                         </svg>
                     </div>
                 </div>
-                <p class="text-xs text-teal-500 mt-2">{{ __('system.dashboard.paid_bookings_today', ['count' => $todayPaidCount, 'label' => $todayPaidCount === 1 ? __('system.common.booking') : __('system.common.bookings')]) }}</p>
+                <p class="text-xs text-teal-500 mt-2">{{ __('system.dashboard.paid_transactions_today', ['count' => $todayPaidCount]) }}</p>
             </div>
 
-            <!-- Total Revenue (paid bookings only) -->
+            <!-- Total Revenue (paid tickets + parcels + special hire) -->
             <div class="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-orange-200">
                 <div class="flex items-center justify-between">
                     <div>
@@ -44,7 +44,7 @@
                         </svg>
                     </div>
                 </div>
-                <p class="text-xs text-orange-500 mt-2">{{ __('system.dashboard.paid_bookings_all_time', ['count' => number_format($totalPaidCount), 'label' => $totalPaidCount === 1 ? __('system.common.booking') : __('system.common.bookings')]) }}</p>
+                <p class="text-xs text-orange-500 mt-2">{{ __('system.dashboard.paid_transactions_all_time', ['count' => number_format($totalPaidCount)]) }}</p>
             </div>
 
             <!-- Total Insurance Amount Card -->
@@ -145,6 +145,23 @@
                 </div>
                 <p class="text-xs text-cyan-500 mt-2">{{ __('system.dashboard.total_luggage_amount') }}</p>
             </div>
+
+            <a href="{{ route('system.payments') }}#income-parcel" class="no-underline">
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-purple-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-purple-600">{{ __('system.dashboard.parcel_commission') }}</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">{{ $currency }} {{ convert_money($parcelCommissionTotal ?? 0) }}</h3>
+                        </div>
+                        <div class="p-3 rounded-lg bg-purple-100 text-purple-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-purple-500 mt-2">{{ __('system.dashboard.view_parcel_details') }}</p>
+                </div>
+            </a>
 
             <a href="{{ route('system.special_hire') }}" class="no-underline">
                 <div class="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-teal-200">

@@ -1778,7 +1778,13 @@ $q->where('id', auth()->user()->campany->id);
             return back()->with('error', __('vender/earning.no_company_account'));
         }
 
-        $booking = Booking::with(['bus.campany.busOwnerAccount', 'campany.busOwnerAccount'])
+        $booking = Booking::with([
+                'bus.campany.busOwnerAccount',
+                'bus.route',
+                'campany.busOwnerAccount',
+                'route',
+                'schedule',
+            ])
             ->whereHas('bus', function ($q) use ($companyId) {
                 $q->where('campany_id', $companyId);
             })
@@ -1788,9 +1794,14 @@ $q->where('id', auth()->user()->campany->id);
             return back()->with('error', __('vender/transfer.booking_not_found_or_unauthorized'));
         }
 
+        $luggageService = app(\App\Services\ExcessLuggageService::class);
+        if (!$luggageService->canPrintReceipt($booking)) {
+            return back()->with('error', __('vender/luggage.print_payment_required'));
+        }
+
         $busOwnerAccount = optional($booking->bus->campany ?? $booking->campany)->busOwnerAccount;
         $busCompany = $booking->bus->campany ?? $booking->campany;
-        $status = app(\App\Services\ExcessLuggageService::class)->normalizeStatus($booking);
+        $status = $luggageService->normalizeStatus($booking);
 
         $traQrCode = null;
         if (!empty($booking->tra_qr_url)) {

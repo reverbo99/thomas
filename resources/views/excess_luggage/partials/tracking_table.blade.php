@@ -22,6 +22,7 @@
             <tr>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.ticket') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.passenger') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.route') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.bus') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.fee') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.status') }}</th>
@@ -30,10 +31,15 @@
         </thead>
         <tbody class="divide-y divide-gray-100">
             @forelse($bookings as $b)
-                @php $st = $luggageService->normalizeStatus($b); @endphp
+                @php
+                    $st = $luggageService->normalizeStatus($b);
+                    $from = $b->route->from ?? $b->bus->route->from ?? null;
+                    $to = $b->route->to ?? $b->bus->route->to ?? null;
+                @endphp
                 <tr>
                     <td class="px-4 py-3 font-medium text-gray-900">{{ $b->booking_code }}</td>
                     <td class="px-4 py-3 text-gray-600">{{ $b->customer_name }}</td>
+                    <td class="px-4 py-3 text-gray-600">{{ $from ?: '—' }} → {{ $to ?: '—' }}</td>
                     <td class="px-4 py-3 text-gray-600">{{ $b->bus->bus_number ?? '—' }}</td>
                     <td class="px-4 py-3 text-gray-900">{{ $currency }} {{ convert_money($b->excess_luggage_fee ?? 0) }}</td>
                     <td class="px-4 py-3">
@@ -49,7 +55,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">{{ __('vender/luggage.none_found') }}</td>
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ __('vender/luggage.none_found') }}</td>
                 </tr>
             @endforelse
         </tbody>

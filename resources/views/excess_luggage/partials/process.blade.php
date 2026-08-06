@@ -26,7 +26,16 @@
         <a href="{{ route($ctx['lookup_route']) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ __('vender/luggage.lookup_ticket') }}</a>
         <a href="{{ route($ctx['index_route']) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ __('vender/luggage.tracking') }}</a>
         @if((int)($booking->has_excess_luggage ?? 0) === 1 || (float)($booking->excess_luggage_fee ?? 0) > 0)
-            <a href="{{ route($ctx['print_route'], $booking->id) }}" target="_blank" class="inline-flex items-center rounded-lg bg-teal-600 px-3 py-2 text-sm text-white hover:bg-teal-700">{{ __('vender/luggage.print_receipt') }}</a>
+            @if($luggageService->canPrintReceipt($booking))
+                <a href="{{ route($ctx['print_route'], $booking->id) }}" target="_blank" class="inline-flex items-center rounded-lg bg-teal-600 px-3 py-2 text-sm text-white hover:bg-teal-700">{{ __('vender/luggage.print_receipt') }}</a>
+            @else
+                <span class="inline-flex flex-col items-end">
+                    <button type="button" disabled class="inline-flex items-center rounded-lg bg-gray-300 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" title="{{ __('vender/luggage.print_payment_required') }}">
+                        {{ __('vender/luggage.print_receipt') }}
+                    </button>
+                    <span class="mt-1 text-xs text-red-600">{{ __('vender/luggage.print_payment_required') }}</span>
+                </span>
+            @endif
         @endif
     </div>
 </div>
@@ -42,6 +51,22 @@
         <p class="text-xs uppercase tracking-wide text-gray-500">{{ __('vender/luggage.bus') }}</p>
         <p class="mt-1 font-semibold text-gray-900">{{ $booking->bus->bus_number ?? '—' }}</p>
         <p class="text-sm text-gray-600">{{ $booking->bus->campany->name ?? '' }}</p>
+        @php
+            $from = optional($booking->route)->from
+                ?? optional(optional($booking->bus)->route)->from
+                ?? optional($booking->schedule)->from
+                ?? $booking->pickup_point
+                ?? null;
+            $to = optional($booking->route)->to
+                ?? optional(optional($booking->bus)->route)->to
+                ?? optional($booking->schedule)->to
+                ?? $booking->dropping_point
+                ?? null;
+        @endphp
+        <p class="text-sm font-medium text-gray-700">
+            {{ __('vender/luggage.origin_destination') }}:
+            <span class="font-semibold">{{ $from ?: '—' }} → {{ $to ?: '—' }}</span>
+        </p>
         <p class="text-sm text-gray-500">{{ $booking->travel_date }} · {{ $booking->seat }}</p>
     </div>
     <div class="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">

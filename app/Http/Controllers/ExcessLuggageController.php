@@ -9,7 +9,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use Milon\Barcode\Facades\DNS2D;
+use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 
 class ExcessLuggageController extends Controller
 {
@@ -21,7 +21,7 @@ class ExcessLuggageController extends Controller
     {
         $ctx = $this->resolveContext();
         $query = $this->baseQuery($ctx)
-            ->with(['bus.campany', 'schedule'])
+            ->with(['bus.campany', 'bus.route', 'schedule', 'route'])
             ->where(function ($q) {
                 $q->where('has_excess_luggage', 1)
                     ->orWhere('excess_luggage_fee', '>', 0)
@@ -162,17 +162,11 @@ class ExcessLuggageController extends Controller
         ]);
 
         $phone = $data['phone'] ?: $booking->customer_phone;
-        $phone = preg_replace('/\D+/', '', (string) $phone);
-        if (strlen($phone) < 9) {
-            return back()->with('error', __('vender/luggage.phone_required'));
+        $normalized = ClickPesaController::normalizeTanzaniaMsisdnForClickPesa((string) $phone);
+        if (!$normalized['ok']) {
+            return back()->with('error', $normalized['error'] ?? __('vender/luggage.phone_required'));
         }
-
-        // Normalize to 255… for ClickPesa
-        if (str_starts_with($phone, '0')) {
-            $phone = '255' . substr($phone, 1);
-        } elseif (strlen($phone) === 9) {
-            $phone = '255' . $phone;
-        }
+        $phone = $normalized['phone'];
 
         $orderRef = $this->luggage->buildPaymentReference($booking);
         $booking->update([
@@ -186,7 +180,7 @@ class ExcessLuggageController extends Controller
             'order_ref' => $orderRef,
             'return_route' => $ctx['show_route'],
         ]);
-        Session::forget(['booking', 'vender', 'booking1', 'booking2']);
+        Session::forget(['booking', 'vender', 'booking1', 'booking2', 'parcel_payment']);
 
         $name = $booking->customer_name ?: 'Passenger';
         $parts = preg_split('/\s+/', trim($name), 2);
@@ -243,8 +237,14 @@ class ExcessLuggageController extends Controller
         $ctx = $this->resolveContext();
         $booking = $this->findAuthorizedBooking($bookingId, $ctx, true);
 
-        $busOwnerAccount = optional($booking->bus->campany ?? $booking->campany)->busOwnerAccount;
-        $busCompany = $booking->bus->campany ?? $booking->campany;
+        if (!$this->luggage->canPrintReceipt($booking)) {
+            return redirect()
+                ->route($ctx['show_route'], $booking->id)
+                ->with('error', __('vender/luggage.print_payment_required'));
+        }
+
+        $busCompany = optional(optional($booking->bus)->campany ?? $booking->campany);
+        $busOwnerAccount = optional($busCompany)->busOwnerAccount;
 
         $traQrCode = null;
         if (!empty($booking->tra_qr_url)) {
@@ -278,7 +278,7 @@ class ExcessLuggageController extends Controller
         ), 403);
 
         $query = Booking::query()
-            ->with(['bus.campany', 'campany'])
+            ->with(['bus.campany', 'bus.route', 'campany', 'route'])
             ->where(function ($q) {
                 $q->where('has_excess_luggage', 1)
                     ->orWhere('excess_luggage_fee', '>', 0)
@@ -368,7 +368,7 @@ class ExcessLuggageController extends Controller
     {
         $query = $this->baseQuery($ctx);
         if ($withRelations) {
-            $query->with(['bus.campany.busOwnerAccount', 'campany.busOwnerAccount', 'schedule']);
+            $query->with(['bus.campany.busOwnerAccount', 'campany.busOwnerAccount', 'schedule', 'route', 'bus.route']);
         }
 
         $booking = $query->find($bookingId);

@@ -308,4 +308,41 @@ class ExcessLuggageService
 
         return $translated === $key ? ucfirst(str_replace('_', ' ', $status)) : $translated;
     }
+
+    /**
+     * Receipt print allowed only when ticket is paid and no top-up is still owed.
+     * Blocks: unpaid ticket, awaiting_payment status, pending luggage_payment_status, or amountDue > 0.
+     */
+    public function canPrintReceipt(?Booking $booking): bool
+    {
+        if (!$booking) {
+            return false;
+        }
+
+        $hasLuggage = (int) ($booking->has_excess_luggage ?? 0) === 1
+            || (float) ($booking->excess_luggage_fee ?? 0) > 0
+            || !empty($booking->luggage_status);
+
+        if (!$hasLuggage) {
+            return false;
+        }
+
+        if (($booking->payment_status ?? '') !== 'Paid') {
+            return false;
+        }
+
+        if ($this->amountDue($booking) > 0) {
+            return false;
+        }
+
+        if (($booking->luggage_payment_status ?? null) === self::PAYMENT_PENDING) {
+            return false;
+        }
+
+        if ($this->normalizeStatus($booking) === self::STATUS_AWAITING_PAYMENT) {
+            return false;
+        }
+
+        return true;
+    }
 }

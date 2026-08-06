@@ -23,6 +23,8 @@ return [
     'refund_payment_hint' => 'Optional. Positive = extra amount collected from the passenger, negative = amount refunded. The excess luggage fee above is not recalculated automatically.',
     'refund_payment_hint_v2' => 'Positive = extra to collect via ClickPesa. Negative = refund given in cash (recorded as a note only). Zero = no balance due.',
     'print_receipt' => 'Print Excess Luggage Receipt',
+    'print_payment_required' => 'Print is available only after the excess luggage payment is confirmed.',
+    'origin_destination' => 'Origin → Destination',
     'process_title' => 'Excess Luggage',
     'process_subtitle' => 'Report → measure → pay/refund → assign to bus → reclaim at destination',
     'lookup_ticket' => 'Look up ticket',
@@ -76,4 +78,5 @@ return [
     'status_ready' => 'Ready',
     'status_assigned' => 'Assigned to bus',
     'status_retrieved' => 'Retrieved',
+    'route' => 'Route',
 ];

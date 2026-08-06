@@ -24,6 +24,7 @@
             <thead class="bg-gray-50"><tr>
                 <th class="px-3 py-2 text-left">Tracking</th>
                 <th class="px-3 py-2 text-left">Company</th>
+                <th class="px-3 py-2 text-left">{{ __('vender/parcels.route') }}</th>
                 <th class="px-3 py-2 text-left">Bus</th>
                 <th class="px-3 py-2 text-left">Amount</th>
                 <th class="px-3 py-2 text-left">Pay</th>
@@ -31,16 +32,21 @@
             </tr></thead>
             <tbody>
                 @forelse($parcels as $p)
+                    @php
+                        $from = $p->bus->route->from ?? null;
+                        $to = $p->bus->route->to ?? ($p->receiver_delivery_address ?? null);
+                    @endphp
                     <tr class="border-t">
                         <td class="px-3 py-2 font-medium">{{ $p->parcel_number }}</td>
                         <td class="px-3 py-2">{{ $p->bus->campany->name ?? '—' }}</td>
+                        <td class="px-3 py-2 text-gray-600">{{ $from ?: '—' }} → {{ $to ?: '—' }}</td>
                         <td class="px-3 py-2">{{ $p->bus->bus_number ?? '—' }}</td>
                         <td class="px-3 py-2">{{ number_format($p->amount_paid, 0) }}</td>
                         <td class="px-3 py-2">{{ $p->payment_status ?? '—' }}</td>
                         <td class="px-3 py-2">{{ $flow->statusLabel($flow->normalizeStatus($p)) }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-3 py-8 text-center text-gray-500">{{ __('vender/parcels.no_parcels_found') }}</td></tr>
+                    <tr><td colspan="7" class="px-3 py-8 text-center text-gray-500">{{ __('vender/parcels.no_parcels_found') }}</td></tr>
                 @endforelse
             </tbody>
         </table>

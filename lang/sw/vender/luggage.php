@@ -23,6 +23,8 @@ return [
     'refund_payment_hint' => 'Si lazima. Chanya = kiasi cha ziada kilichokusanywa kutoka kwa abiria, hasi = kiasi kilichorejeshwa. Ada ya mzigo wa ziada hapo juu haitabadilika kiotomatiki.',
     'refund_payment_hint_v2' => 'Chanya = ziada itakusanywa kupitia ClickPesa. Hasi = marejesho ya fedha taslimu (yanarekodiwa tu). Sifuri = hakuna deni.',
     'print_receipt' => 'Chapisha Risiti ya Mzigo wa Ziada',
+    'print_payment_required' => 'Chapisho linapatikana tu baada ya malipo ya mzigo wa ziada kuthibitishwa.',
+    'origin_destination' => 'Kutoka → Kwenda',
     'process_title' => 'Mzigo wa Ziada',
     'process_subtitle' => 'Ripoti → pima → lipa/rejeshwa → weka kwenye basi → pokea unapofika',
     'lookup_ticket' => 'Tafuta tiketi',
@@ -76,4 +78,5 @@ return [
     'status_ready' => 'Tayari',
     'status_assigned' => 'Umewekwa kwenye basi',
     'status_retrieved' => 'Umepokelewa',
+    'route' => 'Njia',
 ];
