@@ -50,6 +50,7 @@ class Booking extends Model
         'actual_height',
         'actual_width',
         'luggage_refund_amount',
+        'luggage_weight_verdict',
         'luggage_status',
         'luggage_payment_ref',
         'luggage_payment_status',

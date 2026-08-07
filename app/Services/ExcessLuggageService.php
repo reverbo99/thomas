@@ -66,9 +66,19 @@ class ExcessLuggageService
     public function weighIn(Booking $booking, array $data, User $actor): Booking
     {
         $fee = (float) ($data['excess_luggage_fee'] ?? $booking->excess_luggage_fee ?? 0);
+        $verdict = $data['luggage_weight_verdict'] ?? null;
         $delta = isset($data['luggage_refund_amount']) && $data['luggage_refund_amount'] !== ''
             ? (float) $data['luggage_refund_amount']
             : null;
+
+        // Normalize refund/payment amount sign to match weighmaster verdict.
+        if ($verdict === 'correct') {
+            $delta = 0.0;
+        } elseif ($verdict === 'underestimated' && $delta !== null) {
+            $delta = abs($delta);
+        } elseif ($verdict === 'overestimated' && $delta !== null) {
+            $delta = -abs($delta);
+        }
 
         $status = self::STATUS_READY;
         $paymentStatus = self::PAYMENT_NONE;
@@ -89,6 +99,7 @@ class ExcessLuggageService
             'actual_height' => $data['actual_height'] ?? null,
             'actual_width' => $data['actual_width'] ?? null,
             'luggage_refund_amount' => $delta,
+            'luggage_weight_verdict' => $verdict,
             'luggage_status' => $status === self::STATUS_AWAITING_PAYMENT
                 ? self::STATUS_AWAITING_PAYMENT
                 : self::STATUS_READY,
@@ -123,6 +134,7 @@ class ExcessLuggageService
             'actual_height' => null,
             'actual_width' => null,
             'luggage_refund_amount' => null,
+            'luggage_weight_verdict' => null,
             'luggage_status' => null,
             'luggage_payment_ref' => null,
             'luggage_payment_status' => null,

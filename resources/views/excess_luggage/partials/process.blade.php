@@ -148,6 +148,23 @@
                 </div>
             </div>
             <div>
+                <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
+                <select name="luggage_weight_verdict" required
+                        class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                    <option value="">{{ __('vender/luggage.weight_verdict') }}…</option>
+                    <option value="underestimated" @selected(old('luggage_weight_verdict', $booking->luggage_weight_verdict) === 'underestimated')>
+                        {{ __('vender/luggage.weight_verdict_underestimated') }}
+                    </option>
+                    <option value="overestimated" @selected(old('luggage_weight_verdict', $booking->luggage_weight_verdict) === 'overestimated')>
+                        {{ __('vender/luggage.weight_verdict_overestimated') }}
+                    </option>
+                    <option value="correct" @selected(old('luggage_weight_verdict', $booking->luggage_weight_verdict) === 'correct')>
+                        {{ __('vender/luggage.weight_verdict_correct') }}
+                    </option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">{{ __('vender/luggage.weight_verdict_hint') }}</p>
+            </div>
+            <div>
                 <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
                 <input type="number" step="0.01" name="luggage_refund_amount" value="{{ old('luggage_refund_amount', $booking->luggage_refund_amount) }}"
                        class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">

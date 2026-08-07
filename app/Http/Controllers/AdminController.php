@@ -1740,6 +1740,7 @@ $q->where('id', auth()->user()->campany->id);
             'actual_length' => 'nullable|numeric|min:0',
             'actual_height' => 'nullable|numeric|min:0',
             'actual_width' => 'nullable|numeric|min:0',
+            'luggage_weight_verdict' => 'required_if:luggage_action,set|nullable|in:underestimated,overestimated,correct',
             'luggage_refund_amount' => 'nullable|numeric',
         ]);
 
@@ -1758,6 +1759,7 @@ $q->where('id', auth()->user()->campany->id);
             'actual_length',
             'actual_height',
             'actual_width',
+            'luggage_weight_verdict',
             'luggage_refund_amount',
         ]), $user);
 

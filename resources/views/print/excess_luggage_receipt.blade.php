@@ -95,16 +95,40 @@
     @php
         $estimatedWeight = $booking->estimated_weight;
         $actualWeight = $booking->actual_weight;
-        $weightDiff = ($estimatedWeight !== null && $actualWeight !== null)
-            ? round((float) $actualWeight - (float) $estimatedWeight, 2)
+        $verdict = $booking->luggage_weight_verdict ?? null;
+        $refundRaw = $booking->luggage_refund_amount;
+        $refundAbsFormatted = $refundRaw !== null
+            ? number_format(abs((float) $refundRaw), 2)
             : null;
-        $weightDiffLabel = $weightDiff === null
-            ? 'N/A'
-            : ($weightDiff > 0
-                ? 'Over estimate by ' . $weightDiff . ' kg'
-                : ($weightDiff < 0
-                    ? 'Under estimate by ' . abs($weightDiff) . ' kg'
-                    : 'Exactly as estimated'));
+
+        if ($verdict === 'underestimated') {
+            $varianceLabel = __('vender/luggage.receipt_underestimated_amount') . ':';
+        } elseif ($verdict === 'overestimated') {
+            $varianceLabel = __('vender/luggage.receipt_overestimated_amount') . ':';
+        } else {
+            $varianceLabel = __('vender/luggage.receipt_under_over_amount_fallback') . ':';
+        }
+
+        if ($verdict === 'overestimated') {
+            $refundPaymentLabel = __('vender/luggage.receipt_refund') . ':';
+        } elseif ($verdict === 'underestimated') {
+            $refundPaymentLabel = __('vender/luggage.receipt_additional_payment') . ':';
+        } elseif ($verdict === 'correct') {
+            $refundPaymentLabel = __('vender/luggage.receipt_none') . ':';
+        } else {
+            $refundPaymentLabel = __('vender/luggage.receipt_refund_payment_fallback') . ':';
+        }
+
+        if ($refundAbsFormatted !== null) {
+            $varianceValue = $refundAbsFormatted;
+            $refundPaymentValue = $refundAbsFormatted;
+        } elseif ($verdict === 'correct') {
+            $varianceValue = '0.00';
+            $refundPaymentValue = '0.00';
+        } else {
+            $varianceValue = 'N/A';
+            $refundPaymentValue = 'N/A';
+        }
     @endphp
 
     <div class="receipt-container">
@@ -177,13 +201,11 @@
                     <td>{{ $estimatedWeight !== null ? number_format((float) $estimatedWeight, 2) . ' kg' : 'N/A' }}</td>
                 </tr>
             </table>
-            <p style="margin: 1.5mm 0 0;">Over estimated/Under estimated amount:</p>
-            <p style="margin: 0 0 1.5mm; font-weight: bold;">{{ $weightDiffLabel }}</p>
+            <p style="margin: 1.5mm 0 0;">{{ $varianceLabel }}</p>
+            <p style="margin: 0 0 1.5mm; font-weight: bold;">{{ $varianceValue }}</p>
 
-            <p style="margin: 1.5mm 0 0;">Refund/Payment:</p>
-            <p style="margin: 0 0 1.5mm; font-weight: bold;">
-                {{ $booking->luggage_refund_amount !== null ? number_format((float) $booking->luggage_refund_amount, 2) : 'N/A' }}
-            </p>
+            <p style="margin: 1.5mm 0 0;">{{ $refundPaymentLabel }}</p>
+            <p style="margin: 0 0 1.5mm; font-weight: bold;">{{ $refundPaymentValue }}</p>
 
             <table>
                 <tr>

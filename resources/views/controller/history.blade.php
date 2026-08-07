@@ -88,6 +88,7 @@
                                         data-actual-height="{{ $booking->actual_height !== null ? (float) $booking->actual_height : '' }}"
                                         data-actual-width="{{ $booking->actual_width !== null ? (float) $booking->actual_width : '' }}"
                                         data-luggage-refund-amount="{{ $booking->luggage_refund_amount !== null ? (float) $booking->luggage_refund_amount : '' }}"
+                                        data-luggage-weight-verdict="{{ e($booking->luggage_weight_verdict ?? '') }}"
                                         data-luggage-payment-status="{{ e($booking->luggage_payment_status ?? '') }}"
                                         data-luggage-status="{{ e($booking->luggage_status ?? '') }}"
                                         data-payment-status="{{ e($booking->payment_status ?? '') }}"
@@ -355,6 +356,17 @@
                                 </div>
                             </div>
                             <div class="mt-3">
+                                <label for="excessLuggageVerdictInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
+                                <select name="luggage_weight_verdict" id="excessLuggageVerdictInput"
+                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                    <option value="">{{ __('vender/luggage.weight_verdict') }}…</option>
+                                    <option value="underestimated">{{ __('vender/luggage.weight_verdict_underestimated') }}</option>
+                                    <option value="overestimated">{{ __('vender/luggage.weight_verdict_overestimated') }}</option>
+                                    <option value="correct">{{ __('vender/luggage.weight_verdict_correct') }}</option>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">{{ __('vender/luggage.weight_verdict_hint') }}</p>
+                            </div>
+                            <div class="mt-3">
                                 <label for="excessLuggageRefundInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
                                 <input type="number" step="0.01" name="luggage_refund_amount" id="excessLuggageRefundInput"
                                     class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
@@ -506,6 +518,7 @@
             const excessLuggageActualLengthInput = document.getElementById('excessLuggageActualLengthInput');
             const excessLuggageActualHeightInput = document.getElementById('excessLuggageActualHeightInput');
             const excessLuggageActualWidthInput = document.getElementById('excessLuggageActualWidthInput');
+            const excessLuggageVerdictInput = document.getElementById('excessLuggageVerdictInput');
             const excessLuggageRefundInput = document.getElementById('excessLuggageRefundInput');
             const excessLuggageReceiptBtn = document.getElementById('excessLuggageReceiptBtn');
             const excessLuggageUrlTemplate = '{{ route('booking.excess_luggage.update', ':id') }}';
@@ -526,6 +539,7 @@
                 const actualLength = row.attr('data-actual-length') || '';
                 const actualHeight = row.attr('data-actual-height') || '';
                 const actualWidth = row.attr('data-actual-width') || '';
+                const weightVerdict = row.attr('data-luggage-weight-verdict') || '';
                 const refundAmount = row.attr('data-luggage-refund-amount') || '';
                 const luggagePayStatus = (row.attr('data-luggage-payment-status') || '').toLowerCase();
                 const luggageStatus = (row.attr('data-luggage-status') || '').toLowerCase();
@@ -547,6 +561,7 @@
                 excessLuggageActualLengthInput.value = actualLength;
                 excessLuggageActualHeightInput.value = actualHeight;
                 excessLuggageActualWidthInput.value = actualWidth;
+                excessLuggageVerdictInput.value = weightVerdict;
                 excessLuggageRefundInput.value = refundAmount;
                 excessLuggageRemoveBtn.classList.toggle('hidden', !hasLuggage);
                 excessLuggageReceiptBtn.classList.toggle('hidden', !canPrintReceipt);
