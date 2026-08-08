@@ -77,16 +77,41 @@
         @endif
 
         @if(!$isCollection)
+        @php
+            $assignmentLocked = filled($parcel->receiving_agent_name)
+                || filled($parcel->receiving_agent_phone)
+                || filled($parcel->assigned_at ?? null);
+        @endphp
         <div class="rounded-xl border bg-white p-5 shadow-sm">
             <h2 class="font-semibold mb-2">{{ __('vender/parcels.assign_receiving') }}</h2>
-            <form method="POST" action="{{ route($showPrefix.'.assign', $parcel->id) }}" class="space-y-2">
+            <form id="parcel-assign-form" method="POST" action="{{ route($showPrefix.'.assign', $parcel->id) }}" class="space-y-2">
                 @csrf
-                <input type="text" name="receiving_agent_name" value="{{ old('receiving_agent_name', $parcel->receiving_agent_name) }}" placeholder="{{ __('vender/parcels.receiving_agent_name') }}" class="w-full rounded-lg border-gray-300 text-sm">
-                <input type="text" name="receiving_agent_phone" value="{{ old('receiving_agent_phone', $parcel->receiving_agent_phone) }}" placeholder="{{ __('vender/parcels.receiving_agent_phone') }}" class="w-full rounded-lg border-gray-300 text-sm">
-                <input type="text" name="delivery_rider_name" value="{{ old('delivery_rider_name', $parcel->delivery_rider_name) }}" placeholder="{{ __('vender/parcels.delivery_rider_name') }}" class="w-full rounded-lg border-gray-300 text-sm">
-                <input type="text" name="delivery_rider_phone" value="{{ old('delivery_rider_phone', $parcel->delivery_rider_phone) }}" placeholder="{{ __('vender/parcels.delivery_rider_phone') }}" class="w-full rounded-lg border-gray-300 text-sm">
-                <button class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white">{{ __('vender/parcels.save_assignment') }}</button>
+                <input type="text" name="receiving_agent_name" value="{{ old('receiving_agent_name', $parcel->receiving_agent_name) }}" placeholder="{{ __('vender/parcels.receiving_agent_name') }}" class="w-full rounded-lg border-gray-300 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" @disabled($assignmentLocked)>
+                <input type="text" name="receiving_agent_phone" value="{{ old('receiving_agent_phone', $parcel->receiving_agent_phone) }}" placeholder="{{ __('vender/parcels.receiving_agent_phone') }}" class="w-full rounded-lg border-gray-300 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" @disabled($assignmentLocked)>
+                <input type="text" name="delivery_rider_name" value="{{ old('delivery_rider_name', $parcel->delivery_rider_name) }}" placeholder="{{ __('vender/parcels.delivery_rider_name') }}" class="w-full rounded-lg border-gray-300 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" @disabled($assignmentLocked)>
+                <input type="text" name="delivery_rider_phone" value="{{ old('delivery_rider_phone', $parcel->delivery_rider_phone) }}" placeholder="{{ __('vender/parcels.delivery_rider_phone') }}" class="w-full rounded-lg border-gray-300 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed" @disabled($assignmentLocked)>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="submit" id="parcel-assign-save" class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed" @disabled($assignmentLocked)>{{ __('vender/parcels.save_assignment') }}</button>
+                    @if($assignmentLocked)
+                        <button type="button" id="parcel-assign-edit" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ __('vender/parcels.edit_assignment') }}</button>
+                    @endif
+                </div>
             </form>
+            @if($assignmentLocked)
+            <script>
+                (function () {
+                    var form = document.getElementById('parcel-assign-form');
+                    var editBtn = document.getElementById('parcel-assign-edit');
+                    var saveBtn = document.getElementById('parcel-assign-save');
+                    if (!form || !editBtn || !saveBtn) return;
+                    editBtn.addEventListener('click', function () {
+                        form.querySelectorAll('input[name]').forEach(function (el) { el.disabled = false; });
+                        saveBtn.disabled = false;
+                        editBtn.classList.add('hidden');
+                    });
+                })();
+            </script>
+            @endif
         </div>
         @endif
 

@@ -58,6 +58,7 @@
             </div>
             <div><label class="text-sm font-medium">{{ __('vender/parcels.weight_kg') }}</label><input type="number" step="0.01" name="weight" value="{{ old('weight') }}" class="mt-1 w-full rounded-lg border-gray-300"></div>
             <div><label class="text-sm font-medium">{{ __('vender/parcels.amount_paid', ['currency' => $currency ?? 'TZS']) }}</label><input type="number" step="0.01" name="amount_paid" value="{{ old('amount_paid') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
+            <div><label class="text-sm font-medium">{{ __('vender/parcels.discount_coupon') }}</label><input type="text" name="discount_code" value="{{ old('discount_code') }}" class="mt-1 w-full rounded-lg border-gray-300" placeholder="CODE"></div>
             <div><label class="text-sm font-medium">{{ __('vender/parcels.sender_name') }}</label><input type="text" name="sender_name" value="{{ old('sender_name') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
             <div><label class="text-sm font-medium">{{ __('vender/parcels.sender_contact') }}</label><input type="text" name="sender_contact" value="{{ old('sender_contact') }}" required class="mt-1 w-full rounded-lg border-gray-300"></div>
             <div>

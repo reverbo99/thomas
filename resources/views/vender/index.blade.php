@@ -125,7 +125,7 @@
                 <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($parcelCollected) }}</p>
             </article>
 
-            {{-- Excess luggage: system + bus owner only --}}
+            {{-- Excess luggage: system cut + vendor ticket-% of remainder + owner --}}
             <article class="vendor-kpi" style="--kpi-accent:#dc2626">
                 <div class="vendor-kpi__top">
                     <div class="vendor-kpi__icon"><i class="fas fa-suitcase-rolling"></i></div>
@@ -133,7 +133,7 @@
                 </div>
                 <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_excess_luggage_fee') }}</p>
                 <p class="vendor-kpi__value">{{ convert_money($totalExcessLuggageFee) }}</p>
-                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($luggageCollected) }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.collected') }}: {{ convert_money($luggageCollected) }}</p>
             </article>
 
             {{-- Cancellation retention: AdminWallet only --}}

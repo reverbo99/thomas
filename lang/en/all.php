@@ -622,6 +622,7 @@ return [
     'trip_not_available_try_another' => 'This trip is not available. Please try another bus.',
     'invalid_coupon_code' => 'Invalid coupon code. Please check and try again.',
     'coupon_expired_or_limit' => 'This coupon has expired or has reached its usage limit.',
+    'coupon_not_applicable' => 'This coupon does not apply to the selected product.',
     'failed_create_booking' => 'Failed to create booking',
     'payment_initiation_failed' => 'Payment initiation failed',
     'invalid_mobile_money_number' => 'Invalid mobile money number.',

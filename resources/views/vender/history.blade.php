@@ -126,7 +126,7 @@
                 </div>
                 <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_excess_luggage_fee') }}</p>
                 <p class="vendor-kpi__value">{{ convert_money($totalExcessLuggageFee ?? 0) }}</p>
-                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($luggageCollected ?? 0) }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.collected') }}: {{ convert_money($luggageCollected ?? 0) }}</p>
             </article>
             <article class="vendor-kpi" style="--kpi-accent:#6b7280">
                 <div class="vendor-kpi__top">

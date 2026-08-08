@@ -7,6 +7,7 @@ use App\Models\Coaster;
 use App\Models\SpecialHireOrder;
 use App\Models\SpecialHirePricing;
 use App\Models\User;
+use App\Services\DiscountService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -472,6 +473,7 @@ class SpecialHireApiController extends Controller
             'passengers_count' => 'required|integer|min:1',
             'purpose' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+            'discount_code' => 'nullable|string|max:64',
         ]);
 
         if ($validator->fails()) {
@@ -529,6 +531,17 @@ class SpecialHireApiController extends Controller
         );
 
         $totalAmt = (float) $priceData['total_amount'];
+        $applied = app(DiscountService::class)->applyToSpecialHireTotal(
+            $totalAmt,
+            $request->input('discount_code')
+        );
+        if (!$applied['ok']) {
+            return response()->json([
+                'success' => false,
+                'message' => $applied['message'],
+            ], 422);
+        }
+        $totalAmt = $applied['total'];
         $dep = round($totalAmt * 0.10, 2);
         $bal = round($totalAmt - $dep, 2);
         $ownerUser = Auth::user();
@@ -560,7 +573,10 @@ class SpecialHireApiController extends Controller
             'km_amount' => $priceData['km_amount'],
             'surcharge_percent' => $priceData['surcharge_percent'],
             'surcharge_amount' => $priceData['surcharge_amount'],
-            'total_amount' => $priceData['total_amount'],
+            'total_amount' => $totalAmt,
+            'total_before_discount' => $applied['total_before'],
+            'discount_code' => $applied['code'],
+            'discount_amount' => $applied['discount_amount'],
             'deposit_amount' => $dep,
             'balance_amount' => $bal,
             'platform_commission_percent' => (float) ($ownerUser->special_hire_platform_percent ?? 0),
@@ -1041,6 +1057,7 @@ class SpecialHireApiController extends Controller
             'passengers_count' => 'required|integer|min:1',
             'purpose' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+            'discount_code' => 'nullable|string|max:64',
         ]);
 
         if ($validator->fails()) {
@@ -1100,6 +1117,17 @@ class SpecialHireApiController extends Controller
         );
 
         $totalAmt = (float) $priceData['total_amount'];
+        $applied = app(DiscountService::class)->applyToSpecialHireTotal(
+            $totalAmt,
+            $request->input('discount_code')
+        );
+        if (!$applied['ok']) {
+            return response()->json([
+                'success' => false,
+                'message' => $applied['message'],
+            ], 422);
+        }
+        $totalAmt = $applied['total'];
         $dep = round($totalAmt * 0.10, 2);
         $bal = round($totalAmt - $dep, 2);
         $owner = User::query()->find($coaster->user_id);
@@ -1132,7 +1160,10 @@ class SpecialHireApiController extends Controller
             'km_amount' => $priceData['km_amount'],
             'surcharge_percent' => $priceData['surcharge_percent'],
             'surcharge_amount' => $priceData['surcharge_amount'],
-            'total_amount' => $priceData['total_amount'],
+            'total_amount' => $totalAmt,
+            'total_before_discount' => $applied['total_before'],
+            'discount_code' => $applied['code'],
+            'discount_amount' => $applied['discount_amount'],
             'deposit_amount' => $dep,
             'balance_amount' => $bal,
             'platform_commission_percent' => $platformPct,

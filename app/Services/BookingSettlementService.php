@@ -156,10 +156,11 @@ class BookingSettlementService
 
         $systemBalanceAmount = (float) $result['system_commission_total'];
         $luggageFee = booking_luggage_fee($booking);
-        // System retains SYSTEM_LUGGAGE_PERCENT of the bus owner's luggage fee;
-        // the bus owner keeps the remainder.
-        $systemLuggageShare = system_luggage_fee($booking);
-        $busOwnerLuggageShare = bus_owner_luggage_fee($booking);
+        // Luggage: system first cut of gross, then vendor ticket-% of remainder, owner rest.
+        $luggageSplit = split_luggage_fee_amount($luggageFee, $vendorPct);
+        $systemLuggageShare = $luggageSplit['system'];
+        $vendorLuggageShare = $luggageSplit['vendor'];
+        $busOwnerLuggageShare = $luggageSplit['owner'];
         $paymentFeesAmount = (float) $result['service_pool_after_vendor'];
         $vendorFee = 0.0;
         $vendorService = 0.0;
@@ -168,13 +169,14 @@ class BookingSettlementService
             $vendorFee    = (float) $result['commission_to_vendor'];
             $vendorService = (float) $result['service_fees_to_vendor'];
 
-            if (($vendorFee + $vendorService) <= 0) {
+            if (($vendorFee + $vendorService + $vendorLuggageShare) <= 0) {
                 Log::warning('Settlement: vendor commission resolved to zero — check formula rates', [
                     'booking_id'           => $booking->id,
                     'vender_id'            => $vendor->id,
                     'vendor_percent_used'  => $result['rates']['vendor_percent'],
                     'system_commission'    => $result['system_commission_total'],
-                    'reason'               => 'commission_to_vendor + service_fees_to_vendor = 0; verify FareFormulaService rates',
+                    'vendor_luggage_share' => $vendorLuggageShare,
+                    'reason'               => 'commission_to_vendor + service_fees_to_vendor + vendor_luggage = 0; verify FareFormulaService rates',
                 ]);
             }
 
@@ -198,15 +200,16 @@ class BookingSettlementService
                 $vendorBalance->forceFill(['amount' => 0])->save();
             }
 
-            $vendorBalance->increment('amount', $vendorFee + $vendorService);
+            $vendorBalance->increment('amount', $vendorFee + $vendorService + $vendorLuggageShare);
 
             Log::info('Settlement: vendor commission credited', [
-                'booking_id'     => $booking->id,
-                'vender_id'      => $vendor->id,
-                'vendor_fee'     => $vendorFee,
-                'vendor_service' => $vendorService,
-                'total_credited' => $vendorFee + $vendorService,
-                'new_balance'    => $vendorBalance->fresh()->amount,
+                'booking_id'           => $booking->id,
+                'vender_id'            => $vendor->id,
+                'vendor_fee'           => $vendorFee,
+                'vendor_service'       => $vendorService,
+                'vendor_luggage_share' => $vendorLuggageShare,
+                'total_credited'       => $vendorFee + $vendorService + $vendorLuggageShare,
+                'new_balance'          => $vendorBalance->fresh()->amount,
             ]);
 
             $systemBalanceAmount = max(0, $systemBalanceAmount - $vendorFee);
@@ -274,6 +277,7 @@ class BookingSettlementService
             'payment_fees_amount' => $paymentFeesAmount,
             'luggage_fee' => $luggageFee,
             'system_luggage_share' => $systemLuggageShare,
+            'vendor_luggage_share' => $vendorLuggageShare,
             'bus_owner_luggage_share' => $busOwnerLuggageShare,
             'vendor_fee_share' => $vendorFee,
             'vendor_service_share' => $vendorService,

@@ -55,8 +55,9 @@ class SystemController extends Controller
             ->with(['bus', 'route', 'campany'])
             ->get();
 
-        // GMV-style revenue: paid tickets (incl. checkout excess luggage via customer_paid_total)
+        // GMV-style revenue: paid tickets (checkout + synced luggage top-ups via customer_paid_total)
         // + paid parcels + paid special hire. All figures in TZS base.
+        // Special hire stays offline Campany balance (platform commission only on SH wallets).
         $todayAmount = $this->sumCombinedPaidRevenue(Carbon::today(), Carbon::today()->endOfDay());
         $todayPaidCount = $this->countCombinedPaidTransactions(Carbon::today(), Carbon::today()->endOfDay());
 
@@ -197,25 +198,35 @@ class SystemController extends Controller
 
     /**
      * Combined GMV for admin dashboard: paid tickets + paid parcels + paid special hire (TZS).
-     * Ticket gross prefers customer_paid_total (includes checkout excess luggage).
+     * Ticket gross prefers customer_paid_total (checkout total + synced luggage top-ups).
+     * Top-ups are folded into customer_paid_total in ExcessLuggageService::confirmTopUpPayment
+     * so they are not added again here (no double-count). Legacy paid top-ups on bookings
+     * still missing customer_paid_total are added once via luggage_refund_amount.
      */
     private function sumCombinedPaidRevenue(?Carbon $from, ?Carbon $to): float
     {
         $bookingQ = Booking::query()->where('payment_status', 'Paid');
         $parcelQ = $this->commissionableParcelsQuery();
         $hireQ = SpecialHireOrder::query()->where('payment_status', 'paid');
+        $legacyTopUpQ = Booking::query()
+            ->where('payment_status', 'Paid')
+            ->where('luggage_payment_status', 'paid')
+            ->whereNull('customer_paid_total')
+            ->where('luggage_refund_amount', '>', 0);
 
         if ($from && $to) {
             $bookingQ->whereBetween('created_at', [$from, $to]);
             $parcelQ->whereBetween('created_at', [$from, $to]);
             $hireQ->whereBetween('created_at', [$from, $to]);
+            $legacyTopUpQ->whereBetween('created_at', [$from, $to]);
         }
 
         $tickets = (float) $bookingQ->sum(DB::raw('COALESCE(customer_paid_total, amount)'));
+        $legacyTopUps = (float) $legacyTopUpQ->sum('luggage_refund_amount');
         $parcels = (float) $parcelQ->sum('amount_paid');
         $hire = (float) $hireQ->sum('total_amount');
 
-        return round($tickets + $parcels + $hire, 2);
+        return round($tickets + $legacyTopUps + $parcels + $hire, 2);
     }
 
     private function countCombinedPaidTransactions(?Carbon $from, ?Carbon $to): int
@@ -2316,10 +2327,7 @@ class SystemController extends Controller
 
     public function discount()
     {
-        // Retrieve all discounts with a count of associated bookings where payment_status is 'Paid'
-        $discounts = Discount::withCount(['booking' => function ($query) {
-            $query->where('payment_status', 'Paid');
-        }])->get();
+        $discounts = Discount::orderByDesc('id')->get();
 
         return view('system.discount', compact('discounts'));
     }
@@ -2334,10 +2342,24 @@ class SystemController extends Controller
             return back()->with('error', __('system.messages.fill_all_inputs'));
         }
 
+        $appliesTicket = $request->boolean('applies_to_ticket');
+        $appliesLuggage = $request->boolean('applies_to_luggage');
+        $appliesParcel = $request->boolean('applies_to_parcel');
+        $appliesSpecialHire = $request->boolean('applies_to_special_hire');
+
+        // Default legacy behaviour: ticket-only when nothing selected.
+        if (!$appliesTicket && !$appliesLuggage && !$appliesParcel && !$appliesSpecialHire) {
+            $appliesTicket = true;
+        }
+
         $data = Discount::create([
             'code' => $code,
             'used' => $used,
-            'percentage' => $request->percentage
+            'percentage' => $request->percentage,
+            'applies_to_ticket' => $appliesTicket,
+            'applies_to_luggage' => $appliesLuggage,
+            'applies_to_parcel' => $appliesParcel,
+            'applies_to_special_hire' => $appliesSpecialHire,
         ]);
 
         // Get eligible phone numbers for the coupon

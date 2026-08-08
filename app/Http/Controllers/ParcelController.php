@@ -7,6 +7,7 @@ use App\Models\bus;
 use App\Models\City;
 use App\Models\Parcel;
 use App\Models\User;
+use App\Services\DiscountService;
 use App\Services\ParcelFlowService;
 use App\Services\TraVfdService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -165,6 +166,7 @@ class ParcelController extends Controller
             'parcel_type' => 'required|string',
             'description' => 'nullable|string',
             'amount_paid' => 'required|numeric|min:1',
+            'discount_code' => 'nullable|string|max:64',
             'weight' => 'nullable|numeric|min:0',
             'height' => 'nullable|numeric|min:0',
             'width' => 'nullable|numeric|min:0',
@@ -197,13 +199,25 @@ class ParcelController extends Controller
 
         $isDelivery = ($data['parcel_instructions'] ?? '') === 'delivery';
 
+        $grossAmount = (float) $data['amount_paid'];
+        $applied = app(DiscountService::class)->applyToParcelAmount(
+            $grossAmount,
+            $data['discount_code'] ?? null
+        );
+        if (!$applied['ok']) {
+            return back()->withInput()->with('error', $applied['message']);
+        }
+
         try {
             $parcel = Parcel::create([
                 'bus_id' => $data['bus_id'],
                 'parcel_number' => $data['parcel_number'],
                 'parcel_type' => $data['parcel_type'],
                 'description' => $data['description'] ?? null,
-                'amount_paid' => $data['amount_paid'],
+                'amount_paid' => $applied['amount'],
+                'amount_before_discount' => $applied['amount_before'],
+                'discount_code' => $applied['code'],
+                'discount_amount' => $applied['discount_amount'],
                 'weight' => $data['weight'] ?? null,
                 'height' => $data['height'] ?? null,
                 'width' => $data['width'] ?? null,

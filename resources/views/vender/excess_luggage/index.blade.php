@@ -10,7 +10,8 @@
             <h1 class="vendor-dash__title">{{ __('vender/luggage.tracking') }}</h1>
             <p class="vendor-dash__subtitle">{{ __('vender/luggage.tracking_subtitle') }}</p>
         </div>
-        <div class="vendor-dash__actions">
+        <div class="vendor-dash__actions flex flex-wrap gap-2">
+            <a href="{{ route($ctx['scan_route']) }}" class="page-btn page-btn--outline">{{ __('vender/luggage.scan_exit_title') }}</a>
             <a href="{{ route($ctx['lookup_route']) }}" class="page-btn">{{ __('vender/luggage.lookup_ticket') }}</a>
         </div>
     </header>

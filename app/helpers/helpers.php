@@ -571,8 +571,7 @@ if (!function_exists('group_ticket_list_rows')) {
 
 if (!function_exists('booking_luggage_fee')) {
     /**
-     * The bus owner's excess luggage fee as charged on the booking (gross).
-     * This is the bus owner's figure — see system_luggage_fee() for the system's cut.
+     * Gross excess luggage fee charged on the booking (before any wallet splits).
      */
     function booking_luggage_fee($booking): float
     {
@@ -586,7 +585,7 @@ if (!function_exists('booking_luggage_fee')) {
 
 if (!function_exists('system_luggage_percent')) {
     /**
-     * Percentage of the bus owner's excess luggage fee that the system retains.
+     * Percentage of the gross excess luggage fee that the system retains.
      * Single source of truth for the split — settlement, dashboard, system income
      * and the exports must all agree, so never hardcode the rate at the call site.
      */
@@ -596,23 +595,98 @@ if (!function_exists('system_luggage_percent')) {
     }
 }
 
+if (!function_exists('split_luggage_fee_amount')) {
+    /**
+     * Split a gross excess-luggage amount across system / vendor / bus owner.
+     *
+     * Documented choice: same topology as ParcelFlowService (not ticket fare commission).
+     * - System takes SYSTEM_LUGGAGE_PERCENT of gross first — fixed, so System Income is unchanged.
+     * - Vendor then takes their ticket commission % (VenderAccount.percentage / default) of the
+     *   NON-system remainder; owner keeps the rest. Sums to 100% of gross.
+     * Ticket fare commission instead takes % of the *system commission pool*; luggage
+     * intentionally follows the parcel remainder pattern so the platform cut stays a flat
+     * % of luggage GMV while still using the vendor's existing ticket % setting (no new %).
+     *
+     * @return array{system: float, vendor: float, owner: float}
+     */
+    function split_luggage_fee_amount(float $gross, ?float $vendorPercent = null): array
+    {
+        $gross = max(0.0, (float) $gross);
+        $system = round($gross * system_luggage_percent() / 100, 2);
+        $remainder = round($gross - $system, 2);
+        $vendor = 0.0;
+        if ($vendorPercent !== null && $vendorPercent > 0) {
+            $vendor = round($remainder * min(100.0, (float) $vendorPercent) / 100, 2);
+        }
+        $owner = round($remainder - $vendor, 2);
+
+        return [
+            'system' => $system,
+            'vendor' => $vendor,
+            'owner' => $owner,
+        ];
+    }
+}
+
+if (!function_exists('booking_vendor_commission_percent')) {
+    /**
+     * Vendor ticket-commission % for a booking, or null when no vendor is attached.
+     * Mirrors BookingSettlementService resolution (explicit account %, else default 10%).
+     */
+    function booking_vendor_commission_percent($booking): ?float
+    {
+        if ((int) ($booking->vender_id ?? 0) <= 0) {
+            return null;
+        }
+
+        $booking->loadMissing('vender.VenderAccount');
+        $vendor = $booking->vender;
+        if (!$vendor) {
+            return null;
+        }
+
+        if ($vendor->VenderAccount && $vendor->VenderAccount->percentage !== null) {
+            return (float) $vendor->VenderAccount->percentage;
+        }
+
+        return \App\Services\FareFormulaService::DEFAULT_VENDOR_PERCENT;
+    }
+}
+
 if (!function_exists('system_luggage_fee')) {
     /**
      * The system's share of a booking's excess luggage fee (system income).
+     * Independent of any vendor — always SYSTEM_LUGGAGE_PERCENT of gross.
      */
     function system_luggage_fee($booking): float
     {
-        return round(booking_luggage_fee($booking) * system_luggage_percent() / 100, 2);
+        return split_luggage_fee_amount(booking_luggage_fee($booking), null)['system'];
+    }
+}
+
+if (!function_exists('vendor_luggage_fee')) {
+    /**
+     * Vendor wallet credit from a booking's excess luggage fee (0 when no vendor).
+     */
+    function vendor_luggage_fee($booking): float
+    {
+        return split_luggage_fee_amount(
+            booking_luggage_fee($booking),
+            booking_vendor_commission_percent($booking)
+        )['vendor'];
     }
 }
 
 if (!function_exists('bus_owner_luggage_fee')) {
     /**
-     * The bus owner's share of a booking's excess luggage fee, after the system's cut.
+     * Bus owner's share of excess luggage after system cut and vendor remainder share.
      */
     function bus_owner_luggage_fee($booking): float
     {
-        return round(booking_luggage_fee($booking) - system_luggage_fee($booking), 2);
+        return split_luggage_fee_amount(
+            booking_luggage_fee($booking),
+            booking_vendor_commission_percent($booking)
+        )['owner'];
     }
 }
 

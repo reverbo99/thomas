@@ -29,7 +29,10 @@ class FareFormulaService
     /** Government levy % on fare and on the full (pre-vendor) service fee. */
     public const DEFAULT_GOVERNMENT_LEVY_PERCENT = 5.0;
 
-    /** System's share of the bus owner's excess luggage fee; the owner keeps the rest. */
+    /**
+     * System's first-cut % of gross excess luggage fee (System Income).
+     * Vendor then takes their ticket commission % of the non-system remainder; owner keeps the rest.
+     */
     public const SYSTEM_LUGGAGE_PERCENT = 5.0;
 
     private const SAFIRI_DOMESTIC_PER_DAY = 100.0;

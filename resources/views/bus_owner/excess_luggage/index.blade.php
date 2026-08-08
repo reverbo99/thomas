@@ -10,9 +10,14 @@
             <h1 class="text-2xl font-bold text-gray-800">{{ __('vender/luggage.tracking') }}</h1>
             <p class="text-sm text-gray-500">{{ __('vender/luggage.tracking_subtitle') }}</p>
         </div>
-        <a href="{{ route($ctx['lookup_route']) }}" class="inline-flex items-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
-            {{ __('vender/luggage.lookup_ticket') }}
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route($ctx['scan_route']) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                {{ __('vender/luggage.scan_exit_title') }}
+            </a>
+            <a href="{{ route($ctx['lookup_route']) }}" class="inline-flex items-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
+                {{ __('vender/luggage.lookup_ticket') }}
+            </a>
+        </div>
     </div>
     @include('excess_luggage.partials.tracking_table')
 </div>

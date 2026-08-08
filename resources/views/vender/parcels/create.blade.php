@@ -169,6 +169,11 @@
             </div>
 
             <div class="vendor-form-field">
+                <label for="discount_code">{{ __('vender/parcels.discount_coupon') }}</label>
+                <input type="text" name="discount_code" id="discount_code" value="{{ old('discount_code') }}" class="page-input" placeholder="CODE">
+            </div>
+
+            <div class="vendor-form-field">
                 <label for="phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
                 <input type="text" name="phone" id="phone" value="{{ old('phone') }}" class="page-input" placeholder="07XXXXXXXX">
                 <p class="text-xs text-gray-500 mt-1">{{ __('vender/parcels.clickpesa_hint') }}</p>

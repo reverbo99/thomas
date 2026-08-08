@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\AdminWallet;
 use App\Models\Booking;
+use App\Models\Setting;
 use App\Models\User;
+use App\Models\VenderBalance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -28,6 +30,9 @@ class ExcessLuggageService
     public const PAYMENT_PENDING = 'pending';
     public const PAYMENT_PAID = 'paid';
     public const PAYMENT_REFUND_NOTED = 'refund_noted';
+
+    /** Company receipt / exit QR suffix — payload is `{booking_code}|XLUG`. */
+    public const COMPANY_QR_SUFFIX = 'XLUG';
 
     public function normalizeStatus(?Booking $booking): ?string
     {
@@ -60,33 +65,109 @@ class ExcessLuggageService
     }
 
     /**
+     * Platform rate used for weight-based excess luggage reconciliation (TZS / kg).
+     */
+    public function feePerKg(?Setting $settings = null): float
+    {
+        $settings = $settings ?: Setting::query()->first();
+
+        return round((float) ($settings->excess_luggage_fee_per_kg ?? 0), 2);
+    }
+
+    /**
+     * Compute weigh-in verdict + refund/top-up delta from actual vs estimated weight.
+     *
+     * Formula (weight-based, preferred when settings.excess_luggage_fee_per_kg > 0):
+     *   delta = round((actual_weight - estimated_weight) × fee_per_kg, 2)
+     * When estimated_weight is missing:
+     *   delta = round(actual_weight × fee_per_kg - paid_fee, 2)
+     * Fallback when fee_per_kg is 0 but estimated_weight > 0 (matches flat booking fee):
+     *   delta = round(paid_fee × (actual_weight - estimated_weight) / estimated_weight, 2)
+     *
+     * Dimensions are stored for the receipt but are not part of the fee formula
+     * (booking uses a flat excess fee; no volumetric charge exists in this system).
+     *
+     * @return array{delta: float, verdict: string, fee_per_kg: float, actual_weight: ?float, estimated_weight: ?float, paid_fee: float}
+     */
+    public function computeWeighInReconciliation(
+        Booking $booking,
+        $actualWeight,
+        $paidFee = null,
+        $estimatedWeight = null,
+        ?Setting $settings = null
+    ): array {
+        $feePerKg = $this->feePerKg($settings);
+        $paid = $paidFee !== null && $paidFee !== ''
+            ? (float) $paidFee
+            : (float) ($booking->excess_luggage_fee ?? 0);
+        $estimated = $estimatedWeight !== null && $estimatedWeight !== ''
+            ? (float) $estimatedWeight
+            : ($booking->estimated_weight !== null ? (float) $booking->estimated_weight : null);
+        $actual = ($actualWeight !== null && $actualWeight !== '')
+            ? (float) $actualWeight
+            : null;
+
+        $delta = 0.0;
+
+        if ($actual !== null) {
+            if ($feePerKg > 0) {
+                if ($estimated !== null) {
+                    $delta = round(($actual - $estimated) * $feePerKg, 2);
+                } else {
+                    $delta = round(($actual * $feePerKg) - $paid, 2);
+                }
+            } elseif ($estimated !== null && $estimated > 0 && $paid > 0) {
+                $delta = round($paid * (($actual - $estimated) / $estimated), 2);
+            }
+        }
+
+        if (abs($delta) < 0.005) {
+            $delta = 0.0;
+        }
+
+        if ($delta > 0) {
+            $verdict = 'underestimated';
+        } elseif ($delta < 0) {
+            $verdict = 'overestimated';
+        } else {
+            $verdict = 'correct';
+        }
+
+        return [
+            'delta' => $delta,
+            'verdict' => $verdict,
+            'fee_per_kg' => $feePerKg,
+            'actual_weight' => $actual,
+            'estimated_weight' => $estimated,
+            'paid_fee' => $paid,
+        ];
+    }
+
+    /**
      * Record weigh-in measurements and fee reconciliation.
-     * Positive delta → awaiting ClickPesa; otherwise ready for bus assignment.
+     * Verdict + luggage_refund_amount are computed automatically from actual vs estimated weight.
+     * Positive delta → awaiting ClickPesa; negative → refund_noted; zero → ready.
      */
     public function weighIn(Booking $booking, array $data, User $actor): Booking
     {
         $fee = (float) ($data['excess_luggage_fee'] ?? $booking->excess_luggage_fee ?? 0);
-        $verdict = $data['luggage_weight_verdict'] ?? null;
-        $delta = isset($data['luggage_refund_amount']) && $data['luggage_refund_amount'] !== ''
-            ? (float) $data['luggage_refund_amount']
-            : null;
 
-        // Normalize refund/payment amount sign to match weighmaster verdict.
-        if ($verdict === 'correct') {
-            $delta = 0.0;
-        } elseif ($verdict === 'underestimated' && $delta !== null) {
-            $delta = abs($delta);
-        } elseif ($verdict === 'overestimated' && $delta !== null) {
-            $delta = -abs($delta);
-        }
+        $calc = $this->computeWeighInReconciliation(
+            $booking,
+            $data['actual_weight'] ?? null,
+            $fee
+        );
+
+        $delta = $calc['delta'];
+        $verdict = $calc['verdict'];
 
         $status = self::STATUS_READY;
         $paymentStatus = self::PAYMENT_NONE;
 
-        if ($delta !== null && $delta > 0) {
+        if ($delta > 0) {
             $status = self::STATUS_AWAITING_PAYMENT;
             $paymentStatus = self::PAYMENT_PENDING;
-        } elseif ($delta !== null && $delta < 0) {
+        } elseif ($delta < 0) {
             $paymentStatus = self::PAYMENT_REFUND_NOTED;
         }
 
@@ -112,13 +193,6 @@ class ExcessLuggageService
             'luggage_retrieved_at' => null,
             'luggage_retrieved_by' => null,
         ]);
-
-        // Intermediate "weighed" is implied; persist explicit weighed when awaiting payment
-        if ($status === self::STATUS_AWAITING_PAYMENT) {
-            // Keep awaiting_payment as the visible status
-        } else {
-            // Was weighed then immediately ready — still ok
-        }
 
         return $booking->fresh();
     }
@@ -198,7 +272,11 @@ class ExcessLuggageService
     }
 
     /**
-     * Credit system + bus-owner shares for the extra (positive) luggage amount, then mark ready.
+     * Credit system / vendor / bus-owner shares for the extra (positive) luggage amount,
+     * sync customer_paid_total for GMV, then mark ready.
+     *
+     * Split matches checkout settlement (split_luggage_fee_amount): system first cut of
+     * gross, then vendor ticket-commission % of the non-system remainder, owner rest.
      */
     public function confirmTopUpPayment(Booking $booking, string $reference): Booking
     {
@@ -221,8 +299,11 @@ class ExcessLuggageService
                 return $booking->fresh();
             }
 
-            $systemShare = round($extra * system_luggage_percent() / 100, 2);
-            $ownerShare = round($extra - $systemShare, 2);
+            $booking->loadMissing(['vender.VenderAccount', 'vender.VenderBalances', 'bus.campany.balance']);
+            $split = split_luggage_fee_amount($extra, booking_vendor_commission_percent($booking));
+            $systemShare = $split['system'];
+            $vendorShare = $split['vendor'];
+            $ownerShare = $split['owner'];
 
             $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
             if (!$adminWallet) {
@@ -237,7 +318,7 @@ class ExcessLuggageService
                 $adminWallet->increment('balance', $systemShare);
             }
 
-            $bus = $booking->bus()->with('campany.balance')->first();
+            $bus = $booking->bus;
             if ($bus && $bus->campany && $bus->campany->balance && $ownerShare > 0) {
                 $bus->campany->balance->increment('amount', $ownerShare);
             } elseif ($ownerShare > 0) {
@@ -247,18 +328,39 @@ class ExcessLuggageService
                 ]);
             }
 
-            $booking->update([
+            if ($vendorShare > 0 && (int) ($booking->vender_id ?? 0) > 0) {
+                $vb = $booking->vender?->VenderBalances ?: VenderBalance::firstOrCreate(
+                    ['user_id' => $booking->vender_id],
+                    ['amount' => 0]
+                );
+                if ($vb->amount === null) {
+                    $vb->forceFill(['amount' => 0])->save();
+                }
+                $vb->increment('amount', $vendorShare);
+            }
+
+            // Fold top-up into GMV base without a second luggage addend in dashboard sums.
+            // Only when customer_paid_total is already set (post-settlement bookings) so we
+            // never replace COALESCE(customer_paid_total, amount) with a bare top-up figure.
+            $payload = [
                 'excess_luggage_fee' => (float) ($booking->excess_luggage_fee ?? 0) + $extra,
                 'luggage_payment_status' => self::PAYMENT_PAID,
                 'luggage_status' => self::STATUS_READY,
                 'luggage_payment_ref' => $reference,
-            ]);
+            ];
+            if ($booking->customer_paid_total !== null) {
+                $payload['customer_paid_total'] = (float) $booking->customer_paid_total + $extra;
+            }
+
+            $booking->update($payload);
 
             Log::info('Excess luggage top-up settled', [
                 'booking_id' => $booking->id,
                 'extra' => $extra,
                 'system_share' => $systemShare,
+                'vendor_share' => $vendorShare,
                 'owner_share' => $ownerShare,
+                'customer_paid_total' => $payload['customer_paid_total'] ?? null,
                 'reference' => $reference,
             ]);
 
@@ -309,6 +411,56 @@ class ExcessLuggageService
         ]);
 
         return $booking->fresh();
+    }
+
+    /**
+     * Company QR on the excess luggage receipt (exit / reclaim at arrival).
+     * Format mirrors ticket seat QR: `{booking_code}|XLUG`.
+     */
+    public function buildCompanyQrPayload(Booking $booking): string
+    {
+        $code = trim((string) ($booking->booking_code ?? ''));
+
+        return $code . '|' . self::COMPANY_QR_SUFFIX;
+    }
+
+    /**
+     * Parse a scanned company luggage QR. Returns booking_code or null if invalid.
+     */
+    public function parseCompanyQrPayload(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/^(.+?)\|' . preg_quote(self::COMPANY_QR_SUFFIX, '/') . '$/i', $raw, $m)) {
+            $code = trim($m[1]);
+
+            return $code !== '' ? $code : null;
+        }
+
+        return null;
+    }
+
+    public function matchesCompanyQr(Booking $booking, string $raw): bool
+    {
+        $code = $this->parseCompanyQrPayload($raw);
+        if ($code === null) {
+            return false;
+        }
+
+        return strcasecmp($code, (string) $booking->booking_code) === 0;
+    }
+
+    public function findByCompanyQr(string $raw): ?Booking
+    {
+        $code = $this->parseCompanyQrPayload($raw);
+        if ($code === null) {
+            return null;
+        }
+
+        return Booking::query()->where('booking_code', $code)->first();
     }
 
     public function statusLabel(?string $status): string

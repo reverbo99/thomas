@@ -3,6 +3,8 @@
     $status = $status ?? ($luggageService->normalizeStatus($booking) ?? 'none');
     $amountDue = $amountDue ?? $luggageService->amountDue($booking);
     $currency = $currency ?? session('currency', 'TZS');
+    $feePerKg = $luggageService->feePerKg();
+    $estimatedWeightJs = $booking->estimated_weight !== null ? (float) $booking->estimated_weight : null;
 @endphp
 
 @if (session('success'))
@@ -24,6 +26,7 @@
     </div>
     <div class="flex flex-wrap gap-2">
         <a href="{{ route($ctx['lookup_route']) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ __('vender/luggage.lookup_ticket') }}</a>
+        <a href="{{ route($ctx['scan_route']) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ __('vender/luggage.scan_exit_title') }}</a>
         <a href="{{ route($ctx['index_route']) }}" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">{{ __('vender/luggage.tracking') }}</a>
         @if((int)($booking->has_excess_luggage ?? 0) === 1 || (float)($booking->excess_luggage_fee ?? 0) > 0)
             @if($luggageService->canPrintReceipt($booking))
@@ -125,11 +128,15 @@
             <p class="text-xs text-gray-500">{{ __('vender/luggage.estimated_weight') }}:
                 {{ $booking->estimated_weight !== null ? $booking->estimated_weight . ' kg' : __('vender/luggage.not_declared') }}
             </p>
+            <p class="text-xs text-gray-500">{{ __('vender/luggage.fee_per_kg_label') }}:
+                {{ $currency }} {{ convert_money($feePerKg) }}
+            </p>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.actual_weight') }}</label>
-                    <input type="number" step="0.1" min="0" name="actual_weight" value="{{ old('actual_weight', $booking->actual_weight) }}"
-                           class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
+                    <input type="number" step="0.1" min="0" name="actual_weight" id="xlugActualWeight"
+                           value="{{ old('actual_weight', $booking->actual_weight) }}"
+                           class="mt-1 w-full rounded-lg border-gray-300 shadow-sm" data-xlug-recalc>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.actual_length') }}</label>
@@ -147,33 +154,89 @@
                            class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
                 </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
-                <select name="luggage_weight_verdict" required
-                        class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
-                    <option value="">{{ __('vender/luggage.weight_verdict') }}…</option>
-                    <option value="underestimated" @selected(old('luggage_weight_verdict', $booking->luggage_weight_verdict) === 'underestimated')>
-                        {{ __('vender/luggage.weight_verdict_underestimated') }}
-                    </option>
-                    <option value="overestimated" @selected(old('luggage_weight_verdict', $booking->luggage_weight_verdict) === 'overestimated')>
-                        {{ __('vender/luggage.weight_verdict_overestimated') }}
-                    </option>
-                    <option value="correct" @selected(old('luggage_weight_verdict', $booking->luggage_weight_verdict) === 'correct')>
-                        {{ __('vender/luggage.weight_verdict_correct') }}
-                    </option>
-                </select>
-                <p class="mt-1 text-xs text-gray-500">{{ __('vender/luggage.weight_verdict_hint') }}</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
-                <input type="number" step="0.01" name="luggage_refund_amount" value="{{ old('luggage_refund_amount', $booking->luggage_refund_amount) }}"
-                       class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
-                <p class="mt-1 text-xs text-gray-500">{{ __('vender/luggage.refund_payment_hint_v2') }}</p>
+            <div class="rounded-lg border border-teal-100 bg-teal-50/60 p-3 space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-teal-800">{{ __('vender/luggage.auto_reconciliation') }}</p>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
+                    <input type="text" id="xlugVerdictDisplay" readonly
+                           value=""
+                           class="mt-1 w-full rounded-lg border-gray-200 bg-white shadow-sm text-gray-800">
+                    <input type="hidden" name="luggage_weight_verdict" id="xlugVerdictValue" value="{{ old('luggage_weight_verdict', $booking->luggage_weight_verdict) }}">
+                    <p class="mt-1 text-xs text-gray-500">{{ __('vender/luggage.weight_verdict_hint') }}</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
+                    <input type="number" step="0.01" name="luggage_refund_amount" id="xlugRefundAmount" readonly
+                           value="{{ old('luggage_refund_amount', $booking->luggage_refund_amount) }}"
+                           class="mt-1 w-full rounded-lg border-gray-200 bg-white shadow-sm text-gray-800">
+                    <p class="mt-1 text-xs text-gray-500" id="xlugDeltaHint">{{ __('vender/luggage.refund_payment_hint_v2') }}</p>
+                </div>
             </div>
             <div class="flex flex-wrap gap-2 pt-2">
                 <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">{{ __('vender/luggage.save_weigh_in') }}</button>
             </div>
         </form>
+        <script>
+            (function () {
+                const feePerKg = {{ json_encode((float) $feePerKg) }};
+                const estimatedWeight = {{ json_encode($estimatedWeightJs) }};
+                const labels = {
+                    underestimated: @json(__('vender/luggage.weight_verdict_underestimated')),
+                    overestimated: @json(__('vender/luggage.weight_verdict_overestimated')),
+                    correct: @json(__('vender/luggage.weight_verdict_correct')),
+                    hintPositive: @json(__('vender/luggage.auto_delta_additional')),
+                    hintNegative: @json(__('vender/luggage.auto_delta_refund')),
+                    hintZero: @json(__('vender/luggage.auto_delta_none')),
+                };
+                const feeInput = document.querySelector('input[name="excess_luggage_fee"]');
+                const actualInput = document.getElementById('xlugActualWeight');
+                const verdictDisplay = document.getElementById('xlugVerdictDisplay');
+                const verdictValue = document.getElementById('xlugVerdictValue');
+                const refundInput = document.getElementById('xlugRefundAmount');
+                const hintEl = document.getElementById('xlugDeltaHint');
+
+                function round2(n) { return Math.round(n * 100) / 100; }
+
+                function compute() {
+                    const actualRaw = actualInput && actualInput.value !== '' ? parseFloat(actualInput.value) : NaN;
+                    const paid = feeInput && feeInput.value !== '' ? parseFloat(feeInput.value) : 0;
+                    let delta = 0;
+
+                    if (!isNaN(actualRaw)) {
+                        if (feePerKg > 0) {
+                            if (estimatedWeight !== null && estimatedWeight !== undefined) {
+                                delta = round2((actualRaw - estimatedWeight) * feePerKg);
+                            } else {
+                                delta = round2((actualRaw * feePerKg) - (isNaN(paid) ? 0 : paid));
+                            }
+                        } else if (estimatedWeight && estimatedWeight > 0 && !isNaN(paid) && paid > 0) {
+                            delta = round2(paid * ((actualRaw - estimatedWeight) / estimatedWeight));
+                        }
+                    }
+
+                    if (Math.abs(delta) < 0.005) delta = 0;
+
+                    let verdict = 'correct';
+                    if (delta > 0) verdict = 'underestimated';
+                    else if (delta < 0) verdict = 'overestimated';
+
+                    if (verdictDisplay) verdictDisplay.value = labels[verdict] || verdict;
+                    if (verdictValue) verdictValue.value = verdict;
+                    if (refundInput) refundInput.value = delta.toFixed(2);
+                    if (hintEl) {
+                        if (delta > 0) hintEl.textContent = labels.hintPositive;
+                        else if (delta < 0) hintEl.textContent = labels.hintNegative;
+                        else hintEl.textContent = labels.hintZero;
+                    }
+                }
+
+                ['input', 'change'].forEach(function (evt) {
+                    if (actualInput) actualInput.addEventListener(evt, compute);
+                    if (feeInput) feeInput.addEventListener(evt, compute);
+                });
+                compute();
+            })();
+        </script>
         <form method="POST" action="{{ route($ctx['weigh_route'], $booking->id) }}" class="mt-3" onsubmit="return confirm(@json(__('vender/luggage.confirm_remove')));">
             @csrf
             <input type="hidden" name="luggage_action" value="remove">
@@ -216,17 +279,29 @@
             </form>
         </div>
 
-        {{-- Reclaim --}}
+        {{-- Reclaim (QR exit) --}}
         <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
             <h2 class="mb-2 text-lg font-semibold text-gray-800">{{ __('vender/luggage.step_reclaim') }}</h2>
             <p class="mb-3 text-sm text-gray-600">{{ __('vender/luggage.reclaim_hint') }}</p>
-            <form method="POST" action="{{ route($ctx['reclaim_route'], $booking->id) }}" onsubmit="return confirm(@json(__('vender/luggage.confirm_reclaim')));">
+            <form method="POST" action="{{ route($ctx['reclaim_route'], $booking->id) }}" class="space-y-3" onsubmit="return confirm(@json(__('vender/luggage.confirm_reclaim')));">
                 @csrf
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.qr_payload_label') }}</label>
+                    <input type="text" name="qr_payload" value="{{ old('qr_payload') }}" required
+                           class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                           placeholder="{{ __('vender/luggage.qr_payload_placeholder') }}"
+                           autocomplete="off"
+                           @if(!in_array($status, ['assigned', 'ready'], true)) disabled @endif>
+                    <p class="mt-1 text-xs text-gray-500">{{ __('vender/luggage.qr_payload_help') }}</p>
+                </div>
                 <button type="submit" class="rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-50"
                     @if(!in_array($status, ['assigned', 'ready'], true)) disabled @endif>
                     {{ __('vender/luggage.mark_retrieved') }}
                 </button>
             </form>
+            <p class="mt-3 text-xs text-gray-500">
+                <a href="{{ route($ctx['scan_route']) }}" class="text-teal-700 hover:underline">{{ __('vender/luggage.scan_exit_title') }}</a>
+            </p>
             @if($booking->luggage_retrieved_at)
                 <p class="mt-2 text-xs text-green-700">{{ __('vender/luggage.retrieved_at') }}: {{ $booking->luggage_retrieved_at }}</p>
             @endif

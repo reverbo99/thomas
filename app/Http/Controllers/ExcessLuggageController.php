@@ -127,7 +127,8 @@ class ExcessLuggageController extends Controller
             'actual_length' => 'nullable|numeric|min:0',
             'actual_height' => 'nullable|numeric|min:0',
             'actual_width' => 'nullable|numeric|min:0',
-            'luggage_weight_verdict' => 'required_if:luggage_action,set|nullable|in:underestimated,overestimated,correct',
+            // Verdict + delta are computed server-side from actual vs estimated weight.
+            'luggage_weight_verdict' => 'nullable|in:underestimated,overestimated,correct',
             'luggage_refund_amount' => 'nullable|numeric',
         ]);
 
@@ -222,10 +223,72 @@ class ExcessLuggageController extends Controller
         $ctx = $this->resolveContext();
         $booking = $this->findAuthorizedBooking($bookingId, $ctx);
 
+        $data = $request->validate([
+            'qr_payload' => 'required|string|max:200',
+        ]);
+
+        if (!$this->luggage->matchesCompanyQr($booking, $data['qr_payload'])) {
+            return back()->with('error', __('vender/luggage.qr_mismatch'));
+        }
+
         try {
             $this->luggage->reclaim($booking, Auth::user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route($ctx['show_route'], $booking->id)
+            ->with('success', __('vender/luggage.reclaimed_success'));
+    }
+
+    /**
+     * Destination exit: scan company luggage QR (booking_code|XLUG) and mark retrieved.
+     */
+    public function scanForm()
+    {
+        $ctx = $this->resolveContext();
+
+        return view($ctx['scan_view'], compact('ctx'));
+    }
+
+    public function scanExit(Request $request)
+    {
+        $ctx = $this->resolveContext();
+        $data = $request->validate([
+            'qr_payload' => 'required|string|max:200',
+        ]);
+
+        $booking = $this->luggage->findByCompanyQr($data['qr_payload']);
+        if (!$booking) {
+            return back()
+                ->withInput()
+                ->with('error', __('vender/luggage.qr_invalid'));
+        }
+
+        $authorized = $this->baseQuery($ctx)->whereKey($booking->id)->exists();
+        if (!$authorized) {
+            return back()
+                ->withInput()
+                ->with('error', __('vender/luggage.qr_unauthorized'));
+        }
+
+        $hasLuggage = (int) ($booking->has_excess_luggage ?? 0) === 1
+            || (float) ($booking->excess_luggage_fee ?? 0) > 0
+            || !empty($booking->luggage_status);
+
+        if (!$hasLuggage) {
+            return back()
+                ->withInput()
+                ->with('error', __('vender/luggage.qr_no_luggage'));
+        }
+
+        try {
+            $this->luggage->reclaim($booking, Auth::user());
+        } catch (\RuntimeException $e) {
+            return back()
+                ->withInput()
+                ->with('error', $e->getMessage());
         }
 
         return redirect()
@@ -255,6 +318,12 @@ class ExcessLuggageController extends Controller
                 : null;
         }
 
+        $luggageQrPayload = $this->luggage->buildCompanyQrPayload($booking);
+        $luggageQrPng = DNS2D::getBarcodePNG($luggageQrPayload, 'QRCODE', 4, 4, [0, 0, 0]);
+        $luggageQrCode = $luggageQrPng
+            ? '<img src="data:image/png;base64,' . $luggageQrPng . '" alt="Luggage QR" width="68" height="68">'
+            : null;
+
         $status = $this->luggage->normalizeStatus($booking);
 
         $pdf = Pdf::loadView('print.excess_luggage_receipt', compact(
@@ -262,6 +331,7 @@ class ExcessLuggageController extends Controller
             'busOwnerAccount',
             'busCompany',
             'traQrCode',
+            'luggageQrCode',
             'status'
         ));
         $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
@@ -315,10 +385,13 @@ class ExcessLuggageController extends Controller
                 'role' => 'vender',
                 'index_view' => 'vender.excess_luggage.index',
                 'lookup_view' => 'vender.excess_luggage.lookup',
+                'scan_view' => 'vender.excess_luggage.scan',
                 'show_view' => 'vender.excess_luggage.show',
                 'index_route' => 'vender.excess_luggage.index',
                 'lookup_route' => 'vender.excess_luggage.lookup',
                 'lookup_post' => 'vender.excess_luggage.lookup.post',
+                'scan_route' => 'vender.excess_luggage.scan',
+                'scan_post' => 'vender.excess_luggage.scan.post',
                 'show_route' => 'vender.excess_luggage.show',
                 'weigh_route' => 'vender.excess_luggage.weigh',
                 'pay_route' => 'vender.excess_luggage.pay',
@@ -333,10 +406,13 @@ class ExcessLuggageController extends Controller
             'role' => 'bus_owner',
             'index_view' => 'bus_owner.excess_luggage.index',
             'lookup_view' => 'bus_owner.excess_luggage.lookup',
+            'scan_view' => 'bus_owner.excess_luggage.scan',
             'show_view' => 'bus_owner.excess_luggage.show',
             'index_route' => 'bus_owner.excess_luggage.index',
             'lookup_route' => 'bus_owner.excess_luggage.lookup',
             'lookup_post' => 'bus_owner.excess_luggage.lookup.post',
+            'scan_route' => 'bus_owner.excess_luggage.scan',
+            'scan_post' => 'bus_owner.excess_luggage.scan.post',
             'show_route' => 'bus_owner.excess_luggage.show',
             'weigh_route' => 'bus_owner.excess_luggage.weigh',
             'pay_route' => 'bus_owner.excess_luggage.pay',

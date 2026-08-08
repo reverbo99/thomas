@@ -62,7 +62,15 @@
         .qr-row {
             width: 100%;
             border-collapse: collapse;
+            page-break-inside: avoid;
             margin: 1mm 0;
+        }
+
+        .qr-cell {
+            width: 50%;
+            text-align: center;
+            vertical-align: top;
+            padding: 0.5mm;
         }
 
         .qr-cell-single {
@@ -72,6 +80,13 @@
             padding: 0.5mm;
         }
 
+        .qr-label {
+            font-size: 8px;
+            font-weight: bold;
+            margin-bottom: 0.5mm;
+        }
+
+        .qr-cell img,
         .qr-cell-single img {
             width: 24mm;
             height: 24mm;
@@ -262,15 +277,40 @@
             </div>
         @endif
 
-        @if($traQrCode)
+        @php
+            $hasTraQr = !empty($traQrCode);
+            $hasLuggageQr = !empty($luggageQrCode ?? null);
+        @endphp
+
+        @if($hasTraQr || $hasLuggageQr)
             <div class="divider"></div>
             <table class="qr-row">
                 <tr>
-                    <td class="qr-cell-single">
-                        {!! $traQrCode !!}
-                    </td>
+                    @if($hasTraQr && $hasLuggageQr)
+                        <td class="qr-cell">
+                            <div class="qr-label">TRA Verification</div>
+                            {!! $traQrCode !!}
+                        </td>
+                        <td class="qr-cell">
+                            <div class="qr-label">Luggage QR</div>
+                            {!! $luggageQrCode !!}
+                        </td>
+                    @elseif($hasTraQr)
+                        <td class="qr-cell-single">
+                            <div class="qr-label">TRA Verification</div>
+                            {!! $traQrCode !!}
+                        </td>
+                    @else
+                        <td class="qr-cell-single">
+                            <div class="qr-label">Luggage QR</div>
+                            {!! $luggageQrCode !!}
+                        </td>
+                    @endif
                 </tr>
             </table>
+            <p style="text-align: center; font-size: 7px; margin: 0.5mm 0 0;">
+                Scan Luggage QR at destination to reclaim excess luggage.
+            </p>
         @endif
 
         <div class="divider"></div>

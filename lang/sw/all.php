@@ -622,6 +622,7 @@ return [
     'trip_not_available_try_another' => 'Safari hii haipatikani. Tafadhali jaribu basi lingine.',
     'invalid_coupon_code' => 'Msimbo wa kuponi si sahihi. Tafadhali angalia na ujaribu tena.',
     'coupon_expired_or_limit' => 'Kuponi hii imekwisha muda au imefikia kikomo cha matumizi.',
+    'coupon_not_applicable' => 'Kuponi hii haitumiki kwa bidhaa iliyochaguliwa.',
     'failed_create_booking' => 'Imeshindwa kuunda uhifadhi',
     'payment_initiation_failed' => 'Kuanzisha malipo kumeshindwa',
     'invalid_mobile_money_number' => 'Nambari ya pesa kwa simu si sahihi.',

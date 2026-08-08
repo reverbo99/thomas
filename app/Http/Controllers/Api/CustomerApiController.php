@@ -11,6 +11,7 @@ use App\Models\SpecialHireOrder;
 use App\Models\SpecialHirePaymentIntent;
 use App\Models\SpecialHirePricing;
 use App\Models\User;
+use App\Services\DiscountService;
 use App\Services\SpecialHireOrderPaymentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -691,6 +692,7 @@ class CustomerApiController extends Controller
             'contact' => 'nullable|string|max:20',
             'total_amount' => 'required|numeric|min:0',
             'distance_km' => 'required|numeric|min:0',
+            'discount_code' => 'nullable|string|max:64',
         ]);
 
         if ($validator->fails()) {
@@ -741,7 +743,19 @@ class CustomerApiController extends Controller
         // Use the amount and distance provided by the customer app
         // The customer app calculates: distance × price_per_km + surcharges
         $distanceKm = $request->distance_km;
-        $totalAmount = $request->total_amount;
+        $totalAmount = (float) $request->total_amount;
+
+        $applied = app(DiscountService::class)->applyToSpecialHireTotal(
+            $totalAmount,
+            $request->input('discount_code')
+        );
+        if (!$applied['ok']) {
+            return response()->json([
+                'success' => false,
+                'message' => $applied['message'],
+            ], 422);
+        }
+        $totalAmount = $applied['total'];
         
         // Calculate price breakdown for record-keeping
         $priceData = $coaster->pricing->calculatePrice(
@@ -786,7 +800,10 @@ class CustomerApiController extends Controller
             'km_amount' => $breakdown['km_amount'],
             'surcharge_percent' => $breakdown['surcharge_percent'],
             'surcharge_amount' => $breakdown['surcharge_amount'],
-            'total_amount' => $totalAmount, // Use amount from customer app
+            'total_amount' => $totalAmount,
+            'total_before_discount' => $applied['total_before'],
+            'discount_code' => $applied['code'],
+            'discount_amount' => $applied['discount_amount'],
             'deposit_amount' => $depositAmount,
             'balance_amount' => $balanceAmount,
             'platform_commission_percent' => $platformPct,

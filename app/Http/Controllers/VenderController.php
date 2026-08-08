@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
+use App\Services\DiscountService;
 use App\Services\FareFormulaService;
 use Illuminate\Validation\Rule;
 
@@ -177,9 +178,8 @@ class VenderController extends Controller
     }
 
     /**
-     * Vendor fee cards: only vender_fee / vender_service credit the commission wallet.
-     * Parcel, excess luggage, and cancellation have no vendor share in settlement —
-     * those cards show 0 with collected/retained amounts available for UI hints.
+     * Vendor fee cards: vender_fee / vender_service / luggage remainder-share credit the commission wallet.
+     * Parcel uses ParcelFlowService settlement (fixed remainder %); cancellation has no vendor share.
      */
     private function buildVendorFeeSummary(int $venderId, string $period = 'month', ?string $startDate = null, ?string $endDate = null): array
     {
@@ -189,12 +189,15 @@ class VenderController extends Controller
 
         $totalVenderFee = (float) (clone $paidQuery)->sum('vender_fee');
         $totalVenderService = (float) (clone $paidQuery)->sum('vender_service');
-        $luggageCollected = (float) (clone $paidQuery)
+        $luggageBookings = (clone $paidQuery)
+            ->with('vender.VenderAccount')
             ->where(function ($q) {
                 $q->where('has_excess_luggage', 1)
                     ->orWhere('excess_luggage_fee', '>', 0);
             })
-            ->sum('excess_luggage_fee');
+            ->get(['id', 'has_excess_luggage', 'excess_luggage_fee', 'vender_id']);
+        $luggageCollected = (float) $luggageBookings->sum(fn ($b) => booking_luggage_fee($b));
+        $totalExcessLuggageFee = (float) $luggageBookings->sum(fn ($b) => vendor_luggage_fee($b));
 
         $parcelQuery = Parcel::where('vender_id', $venderId)
             ->where('status', '!=', 'cancelled');
@@ -211,9 +214,9 @@ class VenderController extends Controller
         return [
             'totalVenderFee' => $totalVenderFee,
             'totalVenderService' => $totalVenderService,
-            // No vendor wallet credit for these three in BookingSettlementService / parcel flow.
+            // Parcel wallet credit exists in ParcelFlowService; card still uses collected hint for now.
             'totalParcelFee' => 0.0,
-            'totalExcessLuggageFee' => 0.0,
+            'totalExcessLuggageFee' => $totalExcessLuggageFee,
             'totalCancellationFee' => 0.0,
             'parcelCollected' => $parcelCollected,
             'luggageCollected' => $luggageCollected,
@@ -596,27 +599,46 @@ class VenderController extends Controller
             $excessLuggageFee = self::EXCESS_LUGGAGE_FEE;
             $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
+            $bus_info['excess_luggage_fee_before_discount'] = $excessLuggageFee;
         } else {
             $bus_info['has_excess_luggage'] = 0;
             $bus_info['excess_luggage_fee'] = 0;
+            $bus_info['excess_luggage_fee_before_discount'] = 0;
             $bus_info['excess_luggage'] = 0;
             $bus_info['excess_luggage_description'] = null;
             $bus_info['estimated_weight'] = null;
         }
         session()->put('booking_form', $bus_info);
 
-        if (!is_null(session()->get('booking_form')['discount'])) {
-            $base = session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount;
-            $discountedFare = $this->applyDiscount($base);
-            $price = $discountedFare + $ins + $excessLuggageFee - $bus_info['cancel_amount'];
-            $dis = $base - $discountedFare;
-
-            $bus_info = session()->get('booking_form', []);
-            $bus_info['dispo'] = $discountedFare;
-            session()->put('booking_form', $bus_info);
-        } else {
-            $price = $total_amount + $ins + $excessLuggageFee - $bus_info['cancel_amount'];
+        $fareBase = (float) (session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount);
+        if ($fareBase <= 0) {
+            $fareBase = (float) $total_amount;
         }
+        $cancelAmount = (float) ($bus_info['cancel_amount'] ?? 0);
+        $couponCode = session()->get('booking_form')['discount'] ?? '';
+        $applied = app(DiscountService::class)->applyToBookingCheckout(
+            $couponCode,
+            $fareBase,
+            $ins,
+            $excessLuggageFee,
+            $cancelAmount
+        );
+
+        if (!$applied['ok']) {
+            return redirect()->route('vender.pay')->with('error', $applied['message']);
+        }
+
+        $price = $applied['price'];
+        $dis = $applied['discount_amount'];
+        $excessLuggageFee = $applied['luggage_fee'];
+
+        $bus_info = session()->get('booking_form', []);
+        $bus_info['total_amount_before_coupon'] = $applied['fare_before'];
+        $bus_info['total_amount'] = $applied['fare'];
+        $bus_info['dispo'] = $applied['fare'];
+        $bus_info['excess_luggage_fee'] = $excessLuggageFee;
+        $bus_info['excess_luggage_fee_before_discount'] = $applied['luggage_fee_before'];
+        session()->put('booking_form', $bus_info);
 
         Session::put('cancel', $bus_info['cancel_amount']);
 
@@ -1767,24 +1789,19 @@ class VenderController extends Controller
 
     private function applyDiscount($amount)
     {
-        $coupon = session()->get('booking_form')['discount'] ?? '';
-        if (empty($coupon)) {
-            return session()->get('booking_form')['total_amount'];
-        }
-        $discount = Discount::where('code', $coupon)->first();
-        if (is_null($discount) || !$discount->isValid()) {
-            return session()->get('booking_form')['total_amount'];
-        }
         $bus_info = session()->get('booking_form', []);
-        $base = isset($bus_info['total_amount_before_coupon']) && (float) $bus_info['total_amount_before_coupon'] > 0
+        $coupon = $bus_info['discount'] ?? '';
+        $fareBase = isset($bus_info['total_amount_before_coupon']) && (float) $bus_info['total_amount_before_coupon'] > 0
             ? (float) $bus_info['total_amount_before_coupon']
             : (float) $amount;
-        if (!isset($bus_info['total_amount_before_coupon']) || (float) $bus_info['total_amount_before_coupon'] <= 0) {
-            $bus_info['total_amount_before_coupon'] = $base;
+        $applied = app(DiscountService::class)->applyToBookingCheckout($coupon, $fareBase, 0, 0, 0);
+        if (!$applied['ok']) {
+            return session()->get('booking_form')['total_amount'];
         }
-        $new = $base * (1 - $discount->percentage / 100);
-        $bus_info['total_amount'] = $new;
+        $bus_info['total_amount_before_coupon'] = $applied['fare_before'];
+        $bus_info['total_amount'] = $applied['fare'];
         session()->put('booking_form', $bus_info);
-        return $new;
+
+        return $applied['fare'];
     }
 }

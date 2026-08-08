@@ -153,25 +153,42 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * Paid booking earnings for the bus owner: fare share (bookings.amount after
+     * settlement) + owner share of excess luggage (bus_owner_luggage_fee).
+     * Matches wallet credit in BookingSettlementService / ExcessLuggageService top-ups.
+     */
+    private function sumBusOwnerBookingEarnings($query): float
+    {
+        return (float) $query
+            ->with('vender.VenderAccount')
+            ->get(['id', 'amount', 'has_excess_luggage', 'excess_luggage_fee', 'vender_id'])
+            ->sum(fn ($booking) => (float) ($booking->amount ?? 0) + bus_owner_luggage_fee($booking));
+    }
+
     private function getFormattedEarnings(array $bus_ids, Carbon $date): string
     {
-        $earnings = Booking::whereDate('travel_date', $date)
-            ->whereIn('bus_id', $bus_ids)
-            ->where('payment_status', 'Paid')
-            ->sum('amount');
+        $earnings = $this->sumBusOwnerBookingEarnings(
+            Booking::whereDate('travel_date', $date)
+                ->whereIn('bus_id', $bus_ids)
+                ->where('payment_status', 'Paid')
+        );
+
         return 'Tsh ' . number_format($earnings, 0, '.', ',');
     }
 
     private function calculateEarningsChange(array $bus_ids, Carbon $today): string
     {
-        $todayEarnings = Booking::whereDate('travel_date', $today)
-            ->whereIn('bus_id', $bus_ids)
-            ->where('payment_status', 'Paid')
-            ->sum('amount');
-        $yesterdayEarnings = Booking::whereDate('travel_date', $today->copy()->subDay())
-            ->whereIn('bus_id', $bus_ids)
-            ->where('payment_status', 'Paid')
-            ->sum('amount');
+        $todayEarnings = $this->sumBusOwnerBookingEarnings(
+            Booking::whereDate('travel_date', $today)
+                ->whereIn('bus_id', $bus_ids)
+                ->where('payment_status', 'Paid')
+        );
+        $yesterdayEarnings = $this->sumBusOwnerBookingEarnings(
+            Booking::whereDate('travel_date', $today->copy()->subDay())
+                ->whereIn('bus_id', $bus_ids)
+                ->where('payment_status', 'Paid')
+        );
 
         if ($yesterdayEarnings == 0) {
             return $todayEarnings > 0 ? '+100% from yesterday' : 'No change';
@@ -788,11 +805,11 @@ $q->where('id', auth()->user()->campany->id);
 
     private function getFormattedEarning($bus_ids, $start, $end)
     {
-        // Adjust the earnings calculation to use the date range
-        $earnings = Booking::whereIn('bus_id', $bus_ids)
-            ->whereBetween('created_at', [$start, $end])
-            ->where('payment_status', 'Paid')
-            ->sum('amount'); // Adjust based on your Booking model
+        $earnings = $this->sumBusOwnerBookingEarnings(
+            Booking::whereIn('bus_id', $bus_ids)
+                ->whereBetween('created_at', [$start, $end])
+                ->where('payment_status', 'Paid')
+        );
 
         return 'Tsh ' . number_format($earnings, 2, '.', ',');
     }
@@ -1740,7 +1757,8 @@ $q->where('id', auth()->user()->campany->id);
             'actual_length' => 'nullable|numeric|min:0',
             'actual_height' => 'nullable|numeric|min:0',
             'actual_width' => 'nullable|numeric|min:0',
-            'luggage_weight_verdict' => 'required_if:luggage_action,set|nullable|in:underestimated,overestimated,correct',
+            // Verdict + delta are computed server-side from actual vs estimated weight.
+            'luggage_weight_verdict' => 'nullable|in:underestimated,overestimated,correct',
             'luggage_refund_amount' => 'nullable|numeric',
         ]);
 
@@ -1759,8 +1777,6 @@ $q->where('id', auth()->user()->campany->id);
             'actual_length',
             'actual_height',
             'actual_width',
-            'luggage_weight_verdict',
-            'luggage_refund_amount',
         ]), $user);
 
         return back()->with('success', __('vender/luggage.saved_success'));
@@ -1813,7 +1829,20 @@ $q->where('id', auth()->user()->campany->id);
                 : null;
         }
 
-        $pdf = Pdf::loadView('print.excess_luggage_receipt', compact('booking', 'busOwnerAccount', 'busCompany', 'traQrCode', 'status'));
+        $luggageQrPayload = $luggageService->buildCompanyQrPayload($booking);
+        $luggageQrPng = DNS2D::getBarcodePNG($luggageQrPayload, 'QRCODE', 4, 4, [0, 0, 0]);
+        $luggageQrCode = $luggageQrPng
+            ? '<img src="data:image/png;base64,' . $luggageQrPng . '" alt="Luggage QR" width="68" height="68">'
+            : null;
+
+        $pdf = Pdf::loadView('print.excess_luggage_receipt', compact(
+            'booking',
+            'busOwnerAccount',
+            'busCompany',
+            'traQrCode',
+            'luggageQrCode',
+            'status'
+        ));
         $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
 
         return $pdf->stream('excess-luggage-receipt-' . $booking->booking_code . '.pdf');

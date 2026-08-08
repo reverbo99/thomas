@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
+use App\Services\DiscountService;
 use App\Services\FareFormulaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Validation\Rule;
@@ -492,27 +493,45 @@ class CustomerController extends Controller
             $excessLuggageFee = self::EXCESS_LUGGAGE_FEE;
             $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
+            $bus_info['excess_luggage_fee_before_discount'] = $excessLuggageFee;
         } else {
             $bus_info['has_excess_luggage'] = 0;
             $bus_info['excess_luggage_fee'] = 0;
+            $bus_info['excess_luggage_fee_before_discount'] = 0;
             $bus_info['excess_luggage'] = 0;
             $bus_info['excess_luggage_description'] = null;
             $bus_info['estimated_weight'] = null;
         }
         session()->put('booking_form', $bus_info);
 
-        if (!is_null(session()->get('booking_form')['discount'])) {
-            $base = session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount;
-            $discountedFare = $this->applyDiscount($base);
-            $price = $discountedFare + $ins + $excessLuggageFee;
-            $dis = $base - $discountedFare;
-
-            $bus_info = session()->get('booking_form', []);
-            $bus_info['dispo'] = $discountedFare;
-            session()->put('booking_form', $bus_info);
-        } else {
-            $price = $total_amount + $ins + $excessLuggageFee;
+        $fareBase = (float) (session()->get('booking_form')['total_amount_before_coupon'] ?? $total_amount);
+        if ($fareBase <= 0) {
+            $fareBase = (float) $total_amount;
         }
+        $couponCode = session()->get('booking_form')['discount'] ?? '';
+        $applied = app(DiscountService::class)->applyToBookingCheckout(
+            $couponCode,
+            $fareBase,
+            $ins,
+            $excessLuggageFee,
+            0
+        );
+
+        if (!$applied['ok']) {
+            return redirect()->route('customer.pay')->with('error', $applied['message']);
+        }
+
+        $price = $applied['price'];
+        $dis = $applied['discount_amount'];
+        $excessLuggageFee = $applied['luggage_fee'];
+
+        $bus_info = session()->get('booking_form', []);
+        $bus_info['total_amount_before_coupon'] = $applied['fare_before'];
+        $bus_info['total_amount'] = $applied['fare'];
+        $bus_info['dispo'] = $applied['fare'];
+        $bus_info['excess_luggage_fee'] = $excessLuggageFee;
+        $bus_info['excess_luggage_fee_before_discount'] = $applied['luggage_fee_before'];
+        session()->put('booking_form', $bus_info);
 
         $formulaService = app(FareFormulaService::class);
         $bus_info = session()->get('booking_form', []);
@@ -1056,24 +1075,25 @@ class CustomerController extends Controller
 
     private function applyDiscount($amount)
     {
-        $coupon = session()->get('booking_form')['discount'] ?? '';
-        if (empty($coupon)) {
-            return session()->get('booking_form')['total_amount'];
-        }
-        $discount = Discount::where('code', $coupon)->first();
-        if (is_null($discount) || !$discount->isValid()) {
-            return session()->get('booking_form')['total_amount'];
-        }
         $bus_info = session()->get('booking_form', []);
-        $base = isset($bus_info['total_amount_before_coupon']) && (float) $bus_info['total_amount_before_coupon'] > 0
+        $coupon = $bus_info['discount'] ?? '';
+        $fareBase = isset($bus_info['total_amount_before_coupon']) && (float) $bus_info['total_amount_before_coupon'] > 0
             ? (float) $bus_info['total_amount_before_coupon']
             : (float) $amount;
-        if (!isset($bus_info['total_amount_before_coupon']) || (float) $bus_info['total_amount_before_coupon'] <= 0) {
-            $bus_info['total_amount_before_coupon'] = $base;
+        $applied = app(DiscountService::class)->applyToBookingCheckout(
+            $coupon,
+            $fareBase,
+            0,
+            0,
+            0
+        );
+        if (!$applied['ok']) {
+            return session()->get('booking_form')['total_amount'];
         }
-        $new = $base * (1 - $discount->percentage / 100);
-        $bus_info['total_amount'] = $new;
+        $bus_info['total_amount_before_coupon'] = $applied['fare_before'];
+        $bus_info['total_amount'] = $applied['fare'];
         session()->put('booking_form', $bus_info);
-        return $new;
+
+        return $applied['fare'];
     }
 }

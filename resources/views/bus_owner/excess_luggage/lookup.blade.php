@@ -19,7 +19,8 @@
             {{ __('vender/luggage.find_booking') }}
         </button>
     </form>
-    <p class="mt-4 text-center text-sm">
+    <p class="mt-4 text-center text-sm space-x-3">
+        <a href="{{ route($ctx['scan_route']) }}" class="text-teal-700 hover:underline">{{ __('vender/luggage.scan_exit_title') }}</a>
         <a href="{{ route($ctx['index_route']) }}" class="text-teal-700 hover:underline">{{ __('vender/luggage.tracking') }}</a>
     </p>
 </div>

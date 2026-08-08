@@ -355,22 +355,24 @@
                                         class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                                 </div>
                             </div>
-                            <div class="mt-3">
-                                <label for="excessLuggageVerdictInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
-                                <select name="luggage_weight_verdict" id="excessLuggageVerdictInput"
-                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                    <option value="">{{ __('vender/luggage.weight_verdict') }}…</option>
-                                    <option value="underestimated">{{ __('vender/luggage.weight_verdict_underestimated') }}</option>
-                                    <option value="overestimated">{{ __('vender/luggage.weight_verdict_overestimated') }}</option>
-                                    <option value="correct">{{ __('vender/luggage.weight_verdict_correct') }}</option>
-                                </select>
-                                <p class="text-xs text-gray-500 mt-1">{{ __('vender/luggage.weight_verdict_hint') }}</p>
-                            </div>
-                            <div class="mt-3">
-                                <label for="excessLuggageRefundInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
-                                <input type="number" step="0.01" name="luggage_refund_amount" id="excessLuggageRefundInput"
-                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                                <p class="text-xs text-gray-500 mt-1">{{ __('vender/luggage.refund_payment_hint') }}</p>
+                            <div class="mt-3 rounded-md border border-teal-100 bg-teal-50/60 p-3 space-y-3">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-teal-800">{{ __('vender/luggage.auto_reconciliation') }}</p>
+                                <p class="text-xs text-gray-500">{{ __('vender/luggage.fee_per_kg_label') }}:
+                                    {{ session('currency', 'TZS') }} {{ convert_money((float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0)) }}
+                                </p>
+                                <div>
+                                    <label for="excessLuggageVerdictDisplay" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
+                                    <input type="text" id="excessLuggageVerdictDisplay" readonly
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-200 bg-white rounded-md shadow-sm sm:text-sm text-gray-800">
+                                    <input type="hidden" name="luggage_weight_verdict" id="excessLuggageVerdictInput" value="">
+                                    <p class="text-xs text-gray-500 mt-1">{{ __('vender/luggage.weight_verdict_hint') }}</p>
+                                </div>
+                                <div>
+                                    <label for="excessLuggageRefundInput" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_payment_amount') }}</label>
+                                    <input type="number" step="0.01" name="luggage_refund_amount" id="excessLuggageRefundInput" readonly
+                                        class="mt-1 block w-full px-3 py-2 border border-gray-200 bg-white rounded-md shadow-sm sm:text-sm text-gray-800">
+                                    <p class="text-xs text-gray-500 mt-1" id="excessLuggageRefundHint">{{ __('vender/luggage.refund_payment_hint') }}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -519,10 +521,63 @@
             const excessLuggageActualHeightInput = document.getElementById('excessLuggageActualHeightInput');
             const excessLuggageActualWidthInput = document.getElementById('excessLuggageActualWidthInput');
             const excessLuggageVerdictInput = document.getElementById('excessLuggageVerdictInput');
+            const excessLuggageVerdictDisplay = document.getElementById('excessLuggageVerdictDisplay');
             const excessLuggageRefundInput = document.getElementById('excessLuggageRefundInput');
+            const excessLuggageRefundHint = document.getElementById('excessLuggageRefundHint');
             const excessLuggageReceiptBtn = document.getElementById('excessLuggageReceiptBtn');
             const excessLuggageUrlTemplate = '{{ route('booking.excess_luggage.update', ':id') }}';
             const excessLuggageReceiptUrlTemplate = '{{ route('excess_luggage.receipt.print', ':id') }}';
+            const luggageFeePerKg = {{ json_encode((float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0)) }};
+            const luggageVerdictLabels = {
+                underestimated: @json(__('vender/luggage.weight_verdict_underestimated')),
+                overestimated: @json(__('vender/luggage.weight_verdict_overestimated')),
+                correct: @json(__('vender/luggage.weight_verdict_correct')),
+            };
+            const luggageDeltaHints = {
+                positive: @json(__('vender/luggage.auto_delta_additional')),
+                negative: @json(__('vender/luggage.auto_delta_refund')),
+                zero: @json(__('vender/luggage.auto_delta_none')),
+            };
+            let currentEstimatedWeight = null;
+
+            function roundLuggageDelta(n) { return Math.round(n * 100) / 100; }
+
+            function recomputeLuggageDelta() {
+                const actualRaw = excessLuggageActualWeightInput.value !== ''
+                    ? parseFloat(excessLuggageActualWeightInput.value) : NaN;
+                const paid = excessLuggageFeeInput.value !== ''
+                    ? parseFloat(excessLuggageFeeInput.value) : 0;
+                let delta = 0;
+
+                if (!isNaN(actualRaw)) {
+                    if (luggageFeePerKg > 0) {
+                        if (currentEstimatedWeight !== null && currentEstimatedWeight !== undefined) {
+                            delta = roundLuggageDelta((actualRaw - currentEstimatedWeight) * luggageFeePerKg);
+                        } else {
+                            delta = roundLuggageDelta((actualRaw * luggageFeePerKg) - (isNaN(paid) ? 0 : paid));
+                        }
+                    } else if (currentEstimatedWeight && currentEstimatedWeight > 0 && !isNaN(paid) && paid > 0) {
+                        delta = roundLuggageDelta(paid * ((actualRaw - currentEstimatedWeight) / currentEstimatedWeight));
+                    }
+                }
+
+                if (Math.abs(delta) < 0.005) delta = 0;
+
+                let verdict = 'correct';
+                if (delta > 0) verdict = 'underestimated';
+                else if (delta < 0) verdict = 'overestimated';
+
+                if (excessLuggageVerdictInput) excessLuggageVerdictInput.value = verdict;
+                if (excessLuggageVerdictDisplay) {
+                    excessLuggageVerdictDisplay.value = luggageVerdictLabels[verdict] || verdict;
+                }
+                if (excessLuggageRefundInput) excessLuggageRefundInput.value = delta.toFixed(2);
+                if (excessLuggageRefundHint) {
+                    if (delta > 0) excessLuggageRefundHint.textContent = luggageDeltaHints.positive;
+                    else if (delta < 0) excessLuggageRefundHint.textContent = luggageDeltaHints.negative;
+                    else excessLuggageRefundHint.textContent = luggageDeltaHints.zero;
+                }
+            }
 
             function closeExcessLuggageModal() {
                 excessLuggageModal.classList.add('hidden');
@@ -539,11 +594,10 @@
                 const actualLength = row.attr('data-actual-length') || '';
                 const actualHeight = row.attr('data-actual-height') || '';
                 const actualWidth = row.attr('data-actual-width') || '';
-                const weightVerdict = row.attr('data-luggage-weight-verdict') || '';
-                const refundAmount = row.attr('data-luggage-refund-amount') || '';
                 const luggagePayStatus = (row.attr('data-luggage-payment-status') || '').toLowerCase();
                 const luggageStatus = (row.attr('data-luggage-status') || '').toLowerCase();
                 const bookingPayStatus = row.attr('data-payment-status') || '';
+                const refundAmount = row.attr('data-luggage-refund-amount') || '';
                 const refundNum = parseFloat(refundAmount);
                 const amountDue = (!isNaN(refundNum) && refundNum > 0 && luggagePayStatus !== 'paid') ? refundNum : 0;
                 const canPrintReceipt = hasLuggage
@@ -551,6 +605,11 @@
                     && amountDue <= 0
                     && luggagePayStatus !== 'pending'
                     && luggageStatus !== 'awaiting_payment';
+
+                currentEstimatedWeight = estimatedWeight !== '' ? parseFloat(estimatedWeight) : null;
+                if (currentEstimatedWeight !== null && isNaN(currentEstimatedWeight)) {
+                    currentEstimatedWeight = null;
+                }
 
                 excessLuggageForm.setAttribute('action', excessLuggageUrlTemplate.replace(':id', bookingId));
                 excessLuggageActionInput.value = 'set';
@@ -561,12 +620,20 @@
                 excessLuggageActualLengthInput.value = actualLength;
                 excessLuggageActualHeightInput.value = actualHeight;
                 excessLuggageActualWidthInput.value = actualWidth;
-                excessLuggageVerdictInput.value = weightVerdict;
-                excessLuggageRefundInput.value = refundAmount;
                 excessLuggageRemoveBtn.classList.toggle('hidden', !hasLuggage);
                 excessLuggageReceiptBtn.classList.toggle('hidden', !canPrintReceipt);
                 excessLuggageReceiptBtn.setAttribute('href', excessLuggageReceiptUrlTemplate.replace(':id', bookingId));
+                recomputeLuggageDelta();
                 excessLuggageModal.classList.remove('hidden');
+            });
+
+            ['input', 'change'].forEach(function (evt) {
+                if (excessLuggageActualWeightInput) {
+                    excessLuggageActualWeightInput.addEventListener(evt, recomputeLuggageDelta);
+                }
+                if (excessLuggageFeeInput) {
+                    excessLuggageFeeInput.addEventListener(evt, recomputeLuggageDelta);
+                }
             });
 
             excessLuggageRemoveBtn.addEventListener('click', function() {

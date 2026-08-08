@@ -33,6 +33,7 @@
                                 <th class="py-2 px-4 text-left font-medium">#</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.pages.code') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">%</th>
+                                <th class="py-2 px-4 text-left font-medium">{{ __('system.pages.applies_to') }}</th>
                                 <th class="py-2 px-4 text-left font-medium">{{ __('system.pages.used') }}</th>
                             </tr>
                         </thead>
@@ -42,11 +43,12 @@
                                     <td class="py-2 px-4">{{ $loop->iteration }}</td>
                                     <td class="py-2 px-4">{{ $discount->code }}</td>
                                     <td class="py-2 px-4">{{ $discount->percentage }}%</td>
-                                    <td class="py-2 px-4">{{ $discount->booking->count() }} / {{ $discount->used }}</td>
+                                    <td class="py-2 px-4">{{ implode(', ', $discount->appliesToLabels()) }}</td>
+                                    <td class="py-2 px-4">{{ $discount->usedCount() }} / {{ $discount->used }}</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="py-4 px-4 text-center text-gray-500">{{ __('system.pages.no_discounts') }}</td>
+                                    <td colspan="5" class="py-4 px-4 text-center text-gray-500">{{ __('system.pages.no_discounts') }}</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -81,6 +83,28 @@
                             <label for="percentage" class="block text-xs font-medium text-gray-700 mb-1">{{ __('system.common.percentage') }}</label>
                             <input type="number" class="w-full px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm" min="0" max="100" id="percentage" name="percentage" required>
                         </div>
+                        <div>
+                            <span class="block text-xs font-medium text-gray-700 mb-2">{{ __('system.pages.applies_to') }}</span>
+                            <div class="grid grid-cols-2 gap-2 text-sm text-gray-700">
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="applies_to_ticket" value="1" class="rounded border-gray-300 text-blue-500 focus:ring-blue-500" checked>
+                                    <span>{{ __('system.pages.applies_to_ticket') }}</span>
+                                </label>
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="applies_to_luggage" value="1" class="rounded border-gray-300 text-blue-500 focus:ring-blue-500">
+                                    <span>{{ __('system.pages.applies_to_luggage') }}</span>
+                                </label>
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="applies_to_parcel" value="1" class="rounded border-gray-300 text-blue-500 focus:ring-blue-500">
+                                    <span>{{ __('system.pages.applies_to_parcel') }}</span>
+                                </label>
+                                <label class="inline-flex items-center gap-2">
+                                    <input type="checkbox" name="applies_to_special_hire" value="1" class="rounded border-gray-300 text-blue-500 focus:ring-blue-500">
+                                    <span>{{ __('system.pages.applies_to_special_hire') }}</span>
+                                </label>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">{{ __('system.pages.applies_to_hint') }}</p>
+                        </div>
                     </div>
                     <div class="p-4 flex justify-end gap-2 border-t border-gray-200">
                         <button type="button" class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm" onclick="document.getElementById('addDiscountModal').classList.add('hidden')">{{ __('system.common.close') }}</button>
@@ -104,7 +128,7 @@
                 // Initialize DataTable
                 $('#discountsTable').DataTable({
                     responsive: true,
-                    order: [[3, 'desc']],
+                    order: [[4, 'desc']],
                     columnDefs: [{ orderable: false, targets: 0 }],
                     paging: true,
                     pageLength: 10,

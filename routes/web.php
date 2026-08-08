@@ -442,6 +442,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [ExcessLuggageController::class, 'index'])->name('index');
             Route::get('/lookup', [ExcessLuggageController::class, 'lookupForm'])->name('lookup');
             Route::post('/lookup', [ExcessLuggageController::class, 'lookup'])->name('lookup.post');
+            Route::get('/scan', [ExcessLuggageController::class, 'scanForm'])->name('scan');
+            Route::post('/scan', [ExcessLuggageController::class, 'scanExit'])->name('scan.post');
             Route::get('/{booking}', [ExcessLuggageController::class, 'show'])->name('show');
             Route::post('/{booking}/weigh', [ExcessLuggageController::class, 'weighIn'])->name('weigh');
             Route::post('/{booking}/pay', [ExcessLuggageController::class, 'pay'])->name('pay');
@@ -678,6 +680,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [ExcessLuggageController::class, 'index'])->name('index');
             Route::get('/lookup', [ExcessLuggageController::class, 'lookupForm'])->name('lookup');
             Route::post('/lookup', [ExcessLuggageController::class, 'lookup'])->name('lookup.post');
+            Route::get('/scan', [ExcessLuggageController::class, 'scanForm'])->name('scan');
+            Route::post('/scan', [ExcessLuggageController::class, 'scanExit'])->name('scan.post');
             Route::get('/{booking}', [ExcessLuggageController::class, 'show'])->name('show');
             Route::post('/{booking}/weigh', [ExcessLuggageController::class, 'weighIn'])->name('weigh');
             Route::post('/{booking}/pay', [ExcessLuggageController::class, 'pay'])->name('pay');
