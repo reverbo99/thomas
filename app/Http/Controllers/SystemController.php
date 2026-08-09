@@ -37,7 +37,9 @@ use App\Models\Parcel;
 use App\Models\SpecialHireOrder;
 use App\Models\SpecialHireWithdrawalRequest;
 use App\Services\Sms\SmsManager;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class SystemController extends Controller
 {
@@ -2645,9 +2647,18 @@ class SystemController extends Controller
             ]);
         }
 
-        return view('system.setting', compact('settings'));
+        $mailConfig = [
+            'host' => (string) config('mail.mailers.smtp.host', ''),
+            'port' => (string) config('mail.mailers.smtp.port', ''),
+            'encryption' => (string) config('mail.mailers.smtp.encryption', ''),
+            'username' => (string) config('mail.mailers.smtp.username', ''),
+            'from_address' => (string) config('mail.from.address', ''),
+            'from_name' => (string) config('mail.from.name', ''),
+        ];
+
+        return view('system.setting', compact('settings', 'mailConfig'));
     }
-    
+
     public function setting_update(Request $request)
     {
         $request->validate([
@@ -2754,6 +2765,42 @@ class SystemController extends Controller
                 'error' => $result->error ?: 'unknown error',
             ]),
         ])->withInput();
+    }
+
+    /**
+     * Send a one-off email via the configured SMTP mailer so admins can verify
+     * delivery (verification codes, booking notices, etc.).
+     */
+    public function email_test(Request $request)
+    {
+        $data = $request->validate([
+            'test_email' => ['required', 'email', 'max:255'],
+            'test_email_subject' => ['nullable', 'string', 'max:200'],
+            'test_email_message' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $subject = trim((string) ($data['test_email_subject'] ?? ''))
+            ?: __('system.settings.email_test_default_subject');
+        $body = trim((string) ($data['test_email_message'] ?? ''))
+            ?: __('system.settings.email_test_default_message');
+
+        try {
+            Mail::raw($body, function ($message) use ($data, $subject) {
+                $message->to($data['test_email'])->subject($subject);
+            });
+        } catch (Throwable $e) {
+            report($e);
+
+            return back()->withErrors([
+                'test_email' => __('system.messages.email_test_failed', [
+                    'error' => $e->getMessage(),
+                ]),
+            ])->withInput();
+        }
+
+        return back()->with('success', __('system.messages.email_test_sent', [
+            'email' => $data['test_email'],
+        ]));
     }
 
     public function refunds()

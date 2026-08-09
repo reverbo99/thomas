@@ -43,4 +43,6 @@ return [
     'access_updated' => 'Access updated successfully!',
     'sms_test_sent' => 'Test SMS accepted by :driver (message id: :id).',
     'sms_test_failed' => 'Test SMS failed on :driver: :error',
+    'email_test_sent' => 'Test email sent to :email.',
+    'email_test_failed' => 'Test email failed: :error',
 ];

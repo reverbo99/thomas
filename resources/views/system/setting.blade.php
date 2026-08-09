@@ -41,6 +41,17 @@
             </h1>
         </div>
 
+        @if (session('success'))
+            <div class="mb-6 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                {{ session('success') }}
+            </div>
+        @endif
+        @if ($errors->any() && ($errors->has('test_phone') || $errors->has('test_email') || $errors->has('test_message') || $errors->has('test_email_subject') || $errors->has('test_email_message')))
+            <div class="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+                {{ $errors->first('test_email') ?: ($errors->first('test_phone') ?: $errors->first()) }}
+            </div>
+        @endif
+
         <!-- Settings Form -->
         <form action="{{ route('setting.update') }}" method="POST" class="space-y-6">
             @csrf
@@ -520,6 +531,102 @@
                 <div class="px-6 pb-6 flex justify-end">
                     <button type="submit" class="px-6 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg shadow-sm transition-colors">
                         {{ __('system.settings.sms_test_send') }}
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Test Email — separate form so it never submits the settings above -->
+        @php
+            $mailConfig = $mailConfig ?? [
+                'host' => '',
+                'port' => '',
+                'encryption' => '',
+                'username' => '',
+                'from_address' => '',
+                'from_name' => '',
+            ];
+        @endphp
+        <form action="{{ route('setting.email.test') }}" method="POST" class="mt-6">
+            @csrf
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {{ __('system.settings.email_test') }}
+                    </h2>
+                    <p class="text-sm text-gray-500 mt-1">{{ __('system.settings.email_test_desc') }}</p>
+                </div>
+
+                <div class="px-6 pt-6">
+                    <div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                        <p class="text-sm font-medium text-gray-800 mb-3">{{ __('system.settings.email_config_summary') }}</p>
+                        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-gray-500">{{ __('system.settings.email_config_host') }}</dt>
+                                <dd class="text-gray-800 font-medium text-right break-all">{{ $mailConfig['host'] ?: '—' }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-gray-500">{{ __('system.settings.email_config_port') }}</dt>
+                                <dd class="text-gray-800 font-medium text-right">{{ $mailConfig['port'] ?: '—' }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-gray-500">{{ __('system.settings.email_config_encryption') }}</dt>
+                                <dd class="text-gray-800 font-medium text-right">{{ $mailConfig['encryption'] ?: '—' }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3">
+                                <dt class="text-gray-500">{{ __('system.settings.email_config_username') }}</dt>
+                                <dd class="text-gray-800 font-medium text-right break-all">{{ $mailConfig['username'] ?: '—' }}</dd>
+                            </div>
+                            <div class="flex justify-between gap-3 sm:col-span-2">
+                                <dt class="text-gray-500">{{ __('system.settings.email_config_from') }}</dt>
+                                <dd class="text-gray-800 font-medium text-right break-all">
+                                    @if ($mailConfig['from_name'])
+                                        {{ $mailConfig['from_name'] }} &lt;{{ $mailConfig['from_address'] ?: '—' }}&gt;
+                                    @else
+                                        {{ $mailConfig['from_address'] ?: '—' }}
+                                    @endif
+                                </dd>
+                            </div>
+                        </dl>
+                        <p class="mt-3 text-xs text-gray-500">{{ __('system.settings.email_config_password_note') }}</p>
+                    </div>
+                </div>
+
+                <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div>
+                        <label for="test_email" class="block text-sm font-medium text-gray-700 mb-1">{{ __('system.settings.email_test_recipient') }}</label>
+                        <input type="email" id="test_email" name="test_email" value="{{ old('test_email') }}" required
+                               class="focus:ring-blue-500 focus:border-blue-500 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                               placeholder="you@example.com">
+                        @error('test_email')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div>
+                        <label for="test_email_subject" class="block text-sm font-medium text-gray-700 mb-1">{{ __('system.settings.email_test_subject') }}</label>
+                        <input type="text" id="test_email_subject" name="test_email_subject" maxlength="200" value="{{ old('test_email_subject') }}"
+                               class="focus:ring-blue-500 focus:border-blue-500 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                               placeholder="{{ __('system.settings.email_test_default_subject') }}">
+                        @error('test_email_subject')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="test_email_message" class="block text-sm font-medium text-gray-700 mb-1">{{ __('system.settings.email_test_message') }}</label>
+                        <textarea id="test_email_message" name="test_email_message" rows="4" maxlength="5000"
+                                  class="focus:ring-blue-500 focus:border-blue-500 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                                  placeholder="{{ __('system.settings.email_test_default_message') }}">{{ old('test_email_message') }}</textarea>
+                        @error('test_email_message')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+                <div class="px-6 pb-6 flex justify-end">
+                    <button type="submit" class="px-6 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg shadow-sm transition-colors">
+                        {{ __('system.settings.email_test_send') }}
                     </button>
                 </div>
             </div>

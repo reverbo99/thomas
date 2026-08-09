@@ -576,6 +576,7 @@ Route::middleware('auth')->group(function () {
         Route::get('settings', [SystemController::class, 'setting'])->name('system.setting');
         Route::post('settings', [SystemController::class, 'setting_update'])->name('setting.update');
         Route::post('settings/sms/test', [SystemController::class, 'sms_test'])->name('setting.sms.test');
+        Route::post('settings/email/test', [SystemController::class, 'email_test'])->name('setting.email.test');
         Route::post('vender/percentage', [SystemController::class, 'vender_percent'])->name('vender.percent');
 
         Route::get('/refunds', [SystemController::class, 'refunds'])->name('system.refunds');

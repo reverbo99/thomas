@@ -43,4 +43,6 @@ return [
     'access_updated' => 'Ruhusa imesasishwa kwa mafanikio!',
     'sms_test_sent' => 'SMS ya majaribio imepokelewa na :driver (kitambulisho: :id).',
     'sms_test_failed' => 'SMS ya majaribio imeshindikana kwenye :driver: :error',
+    'email_test_sent' => 'Barua pepe ya majaribio imetumwa kwa :email.',
+    'email_test_failed' => 'Barua pepe ya majaribio imeshindikana: :error',
 ];
