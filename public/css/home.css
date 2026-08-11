@@ -1349,19 +1349,61 @@ body {
 }
 
 .page-input {
+    display: block;
     width: 100%;
     padding: 0.75rem 1rem;
-    border: 1px solid var(--home-border);
-    border-radius: 0.5rem;
+    border: 1px solid var(--otapp-input-border);
+    border-radius: var(--otapp-input-radius);
     font-size: 0.9375rem;
+    line-height: 1.4;
     color: var(--home-text);
+    background-color: var(--otapp-input-bg);
     transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .page-input:focus {
     outline: none;
     border-color: var(--home-primary);
     box-shadow: 0 0 0 3px rgba(46, 48, 147, 0.15);
+}
+
+.page-input:disabled {
+    background-color: #f9fafb;
+    color: var(--home-muted);
+    cursor: not-allowed;
+    border-color: var(--otapp-input-border);
+}
+
+/* Native selects: match input chrome (not caret-only) */
+select.page-input {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: var(--otapp-input-bg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    padding-right: 2.5rem;
+}
+
+/*
+ * Tailwind CDN Preflight sets border-width:0 on *. When its stylesheet
+ * lands after home.css, color-only utilities (border-gray-300) look invisible.
+ * Re-assert width/style on portal forms (do not use !important here — find_bus uses border-0).
+ */
+.vendor-portal .page-input:not(.border-0),
+.vendor-dash .page-input:not(.border-0) {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--otapp-input-border);
+}
+
+/* Vendor / bus-owner portals: teal focus (portal brand) */
+.vendor-dash .page-input:focus,
+.vendor-parcel-form-card .page-input:focus {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.22);
 }
 
 .page-search-card {
@@ -2926,10 +2968,12 @@ body {
     white-space: nowrap;
 }
 
-.page-input--readonly {
-    background: #f1f5f9;
+.page-input--readonly,
+.page-input[readonly] {
+    background: #f9fafb;
     color: var(--home-muted);
     cursor: default;
+    border-color: var(--otapp-input-border);
 }
 
 .booking-field--full {
@@ -5689,6 +5733,49 @@ body {
     border: 1px solid var(--home-border);
     border-radius: 0.75rem;
     padding: 1rem;
+}
+
+/* Parcel registration: clearly visible input boxes on white / gray panels */
+.vendor-parcel-form-card .page-input,
+.vendor-parcel-form-card select.page-input,
+.vendor-parcel-form-card textarea.page-input {
+    background-color: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.vendor-parcel-form-card select.page-input {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.75rem center !important;
+    background-size: 1rem !important;
+}
+
+.vendor-parcel-form-card .page-input:focus,
+.vendor-parcel-form-card select.page-input:focus,
+.vendor-parcel-form-card textarea.page-input:focus {
+    border-color: #0d9488 !important;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+}
+
+.vendor-parcel-form-card .page-input.page-input--readonly,
+.vendor-parcel-form-card .page-input[readonly] {
+    background-color: #f9fafb !important;
+    border-color: #cbd5e1 !important;
+}
+
+.vendor-parcel-form-card .page-input:disabled {
+    background-color: #f3f4f6 !important;
+    border-color: #cbd5e1 !important;
+}
+
+.vendor-parcel-form-card .page-input.border-red-500 {
+    border-color: #ef4444 !important;
+}
+
+.vendor-parcel-form-card .page-input.border-red-500:focus {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
 }
 
 .vendor-history-actions {

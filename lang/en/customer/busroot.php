@@ -83,7 +83,7 @@ return [
     'pay_reserved_subtitle' => 'Complete payment before your reservation expires.',
     'age' => 'Age',
     'user_has_infant_child' => 'User has infant/child',
-    'excess_luggage' => 'Excess Luggage (Max :dimensions, :weight, Fee: :fee)',
+    'excess_luggage' => 'Excess Luggage (Max :dimensions, :weight, Fee: :fee (per kg))',
     'excess_luggage_description' => 'Excess Luggage Description',
     'e_g_1_extra_bag_large_box' => 'e.g., 1 extra bag, large box',
     'estimated_weight_kg' => 'Estimated Weight (kg)',

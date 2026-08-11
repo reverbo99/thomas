@@ -34,6 +34,9 @@ class ExcessLuggageService
     /** Company receipt / exit QR suffix — payload is `{booking_code}|XLUG`. */
     public const COMPANY_QR_SUFFIX = 'XLUG';
 
+    /** Default TZS/kg when settings.excess_luggage_fee_per_kg is unset or 0. */
+    public const DEFAULT_FEE_PER_KG = 2500.0;
+
     public function normalizeStatus(?Booking $booking): ?string
     {
         if (!$booking) {
@@ -66,6 +69,7 @@ class ExcessLuggageService
 
     /**
      * Platform rate used for weight-based excess luggage reconciliation (TZS / kg).
+     * Raw setting value (may be 0); booking fee applies DEFAULT_FEE_PER_KG fallback separately.
      */
     public function feePerKg(?Setting $settings = null): float
     {
@@ -75,17 +79,44 @@ class ExcessLuggageService
     }
 
     /**
+     * Booking-time excess luggage fee (TZS).
+     * fee = max(0, estimated_weight) × fee_per_kg
+     * fee_per_kg from settings.excess_luggage_fee_per_kg; fallback 2500 if unset/0.
+     */
+    public function computeBookingFee(bool $hasExcessLuggage, $estimatedWeight, ?Setting $settings = null): float
+    {
+        if (!$hasExcessLuggage) {
+            return 0.0;
+        }
+
+        $weight = (float) $estimatedWeight;
+        if ($weight <= 0) {
+            return 0.0;
+        }
+
+        $rate = $this->feePerKg($settings);
+        if ($rate <= 0) {
+            $rate = self::DEFAULT_FEE_PER_KG;
+        }
+
+        return round($weight * $rate, 2);
+    }
+
+    /**
      * Compute weigh-in verdict + refund/top-up delta from actual vs estimated weight.
+     *
+     * Booking fee is weight × rate (see computeBookingFee). Weigh-in reconciles paid fee
+     * against actual weight using the same rate when available.
      *
      * Formula (weight-based, preferred when settings.excess_luggage_fee_per_kg > 0):
      *   delta = round((actual_weight - estimated_weight) × fee_per_kg, 2)
      * When estimated_weight is missing:
      *   delta = round(actual_weight × fee_per_kg - paid_fee, 2)
-     * Fallback when fee_per_kg is 0 but estimated_weight > 0 (matches flat booking fee):
+     * Fallback when fee_per_kg is 0 but estimated_weight > 0 (proportional to paid fee):
      *   delta = round(paid_fee × (actual_weight - estimated_weight) / estimated_weight, 2)
      *
      * Dimensions are stored for the receipt but are not part of the fee formula
-     * (booking uses a flat excess fee; no volumetric charge exists in this system).
+     * (no volumetric charge exists in this system).
      *
      * @return array{delta: float, verdict: string, fee_per_kg: float, actual_weight: ?float, estimated_weight: ?float, paid_fee: float}
      */

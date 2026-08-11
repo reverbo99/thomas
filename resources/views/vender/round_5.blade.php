@@ -131,7 +131,13 @@
                                                         onchange="toggleExcessLuggageDescription()">
                                                     <label for="excess_luggage_roundtrip"
                                                         class="ml-2 block text-sm font-medium text-gray-700">
-                                                        {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money(2500))]) }}
+                                                        @php
+                                                            $luggageFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
+                                                            if ($luggageFeePerKg <= 0) {
+                                                                $luggageFeePerKg = 2500;
+                                                            }
+                                                        @endphp
+                                                        {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money($luggageFeePerKg) . '/kg')]) }}
                                                     </label>
                                                 </div>
                                                 <div id="excessLuggageDescriptionField" class="hidden mt-2">
@@ -279,6 +285,15 @@
     </section>
 
     <script>
+        const luggageFeePerKg = {{ json_encode((float) $luggageFeePerKg) }};
+
+        function currentExcessLuggageFee() {
+            const cb = document.getElementById('excess_luggage_roundtrip');
+            const w = parseFloat(document.getElementById('estimated_weight')?.value || '0');
+            if (!cb?.checked || !(w > 0)) return 0;
+            return w * luggageFeePerKg;
+        }
+
         function toggleDateInput() {
             const checkbox = document.getElementById('Insurance');
             const dateInput = document.getElementById('insuranceDate');
@@ -306,25 +321,27 @@
         function toggleExcessLuggageDescription() {
             const excessLuggageCheckbox = document.getElementById('excess_luggage_roundtrip');
             const excessLuggageDescriptionField = document.getElementById('excessLuggageDescriptionField');
+            const estimatedWeightInput = document.getElementById('estimated_weight');
             if (excessLuggageCheckbox.checked) {
                 excessLuggageDescriptionField.classList.remove('hidden');
+                if (estimatedWeightInput) {
+                    estimatedWeightInput.required = true;
+                }
             } else {
                 excessLuggageDescriptionField.classList.add('hidden');
+                if (estimatedWeightInput) {
+                    estimatedWeightInput.required = false;
+                }
             }
             updateTotalPayableRoundtrip();
         }
 
         function updateTotalPayableRoundtrip() {
-            const excessLuggageCheckbox = document.getElementById('excess_luggage_roundtrip');
             const totalPayableElement = document.getElementById('total_payable_amount_roundtrip');
             let currentTotal = parseFloat("{{ $fees + $price }}");
-            const excessLuggageFee = 2500;
+            currentTotal += currentExcessLuggageFee();
             const isUsdDisplay = @json(session('currency') == 'Usd');
             const usdRate = {{ app('usdToTzs') ?? 2500 }};
-
-            if (excessLuggageCheckbox.checked) {
-                currentTotal += excessLuggageFee;
-            }
 
             const displayTotal = isUsdDisplay && usdRate > 0 ? (currentTotal / usdRate) : currentTotal;
             totalPayableElement.innerHTML = "{{ $currency }} " + formatMoney(displayTotal);
@@ -333,5 +350,7 @@
         function formatMoney(amount) {
             return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
+
+        document.getElementById('estimated_weight')?.addEventListener('input', updateTotalPayableRoundtrip);
     </script>
 @endsection

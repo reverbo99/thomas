@@ -84,13 +84,6 @@
             <span>{{ __('all.parcels') }}</span>
         </a>
 
-        <a href="{{ route('vender.excess_luggage.index') }}"
-           class="vendor-sidebar__link {{ request()->routeIs('vender.excess_luggage.*') ? 'vendor-sidebar__link--active' : '' }}"
-           @if(request()->routeIs('vender.excess_luggage.*')) aria-current="page" @endif>
-            <i class="fas fa-suitcase-rolling" aria-hidden="true"></i>
-            <span>{{ __('vender/luggage.excess_luggage') }}</span>
-        </a>
-
         <p class="vendor-sidebar__section">{{ __('assistance/sidebar.account') }}</p>
 
         <a href="{{ route('vender.profile') }}"

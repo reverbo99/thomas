@@ -116,6 +116,10 @@
                                                         class="ml-2 block text-sm font-medium text-gray-700">{{ __('customer/busroot.user_has_infant_child') }}</label>
                                                 </div>
                                                 <!-- Excess Luggage Checkbox -->
+                                                @php
+                                                    $luggageFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
+                                                    if ($luggageFeePerKg <= 0) $luggageFeePerKg = 2500;
+                                                @endphp
                                                 <div class="flex items-center mt-4">
                                                     <input type="checkbox" id="excess_luggage_roundtrip" name="excess_luggage"
                                                         value="1"
@@ -123,7 +127,7 @@
                                                         onchange="toggleExcessLuggageDescription()">
                                                     <label for="excess_luggage_roundtrip"
                                                         class="ml-2 block text-sm font-medium text-gray-700">
-                                                        {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money(2500))]) }}
+                                                        {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money($luggageFeePerKg) . '/kg')]) }}
                                                     </label>
                                                 </div>
                                                 <div id="excessLuggageDescriptionField" class="hidden mt-2">
@@ -138,7 +142,7 @@
                                                     </label>
                                                     <input type="number" step="0.1" min="0" name="estimated_weight" id="estimated_weight"
                                                            class="text-gray-800 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                           placeholder="20">
+                                                           placeholder="20" oninput="updateTotalPayableRoundtrip()">
                                                 </div>
                                                 <!-- Age Group -->
                                                 <div>
@@ -293,24 +297,32 @@
         function toggleExcessLuggageDescription() {
             const excessLuggageCheckbox = document.getElementById('excess_luggage_roundtrip');
             const excessLuggageDescriptionField = document.getElementById('excessLuggageDescriptionField');
+            const estimatedWeightInput = document.getElementById('estimated_weight');
             if (excessLuggageCheckbox.checked) {
                 excessLuggageDescriptionField.classList.remove('hidden');
+                if (estimatedWeightInput) estimatedWeightInput.required = true;
             } else {
                 excessLuggageDescriptionField.classList.add('hidden');
+                if (estimatedWeightInput) {
+                    estimatedWeightInput.required = false;
+                    estimatedWeightInput.value = '';
+                }
             }
             updateTotalPayableRoundtrip();
         }
 
         function updateTotalPayableRoundtrip() {
             const excessLuggageCheckbox = document.getElementById('excess_luggage_roundtrip');
+            const estimatedWeightInput = document.getElementById('estimated_weight');
             const totalPayableElement = document.getElementById('total_payable_amount_roundtrip');
             let currentTotal = parseFloat("{{ $fees + $price }}");
-            const excessLuggageFee = 2500;
+            const luggageFeePerKg = {{ json_encode($luggageFeePerKg) }};
             const isUsdDisplay = @json(session('currency') == 'Usd');
             const usdRate = {{ app('usdToTzs') ?? 2500 }};
 
             if (excessLuggageCheckbox.checked) {
-                currentTotal += excessLuggageFee;
+                const weight = parseFloat(estimatedWeightInput?.value) || 0;
+                currentTotal += weight * luggageFeePerKg;
             }
 
             const displayTotal = isUsdDisplay && usdRate > 0 ? (currentTotal / usdRate) : currentTotal;

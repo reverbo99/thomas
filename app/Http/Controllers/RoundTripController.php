@@ -18,14 +18,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use App\Services\DiscountService;
+use App\Services\ExcessLuggageService;
 use App\Services\FareFormulaService;
 use App\Services\RouteDistanceService;
 use Illuminate\Support\Str;
 
 class RoundTripController extends Controller
 {
-    const EXCESS_LUGGAGE_FEE = 2500; // TSh. 2,500 for excess luggage
-
     private function roundtripLegData($row): array
     {
         if (!$row) {
@@ -1323,12 +1322,31 @@ class RoundTripController extends Controller
 
         $total_amount = session()->get('booking_form')['total_amount'];
         $excessLuggageFee = 0;
+        $bus_info = session()->get('booking_form', []);
 
-        if (session()->get('booking_form')['has_excess_luggage'] == 1) {
-            $excessLuggageFee = self::EXCESS_LUGGAGE_FEE;
-            $bus_info = session()->get('booking_form', []);
+        if ((int) ($bus_info['has_excess_luggage'] ?? 0) === 1) {
+            if ((float) ($bus_info['estimated_weight'] ?? 0) <= 0) {
+                if ($this->isInlineBookingRequest($request)) {
+                    return response()->json(['ok' => false, 'message' => __('all.estimated_weight_required')], 422);
+                }
+
+                return redirect()->to(round_trip_route('payment'))->with('error', __('all.estimated_weight_required'));
+            }
+            $excessLuggageFee = app(ExcessLuggageService::class)->computeBookingFee(
+                true,
+                $bus_info['estimated_weight'],
+                $setting
+            );
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
             $bus_info['excess_luggage_fee_before_discount'] = $excessLuggageFee;
+            session()->put('booking_form', $bus_info);
+        } else {
+            $bus_info['has_excess_luggage'] = 0;
+            $bus_info['excess_luggage'] = 0;
+            $bus_info['excess_luggage_fee'] = 0;
+            $bus_info['excess_luggage_fee_before_discount'] = 0;
+            $bus_info['excess_luggage_description'] = null;
+            $bus_info['estimated_weight'] = null;
             session()->put('booking_form', $bus_info);
         }
 

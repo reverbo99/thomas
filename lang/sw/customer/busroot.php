@@ -83,7 +83,7 @@ return [
     'pay_reserved_subtitle' => 'Kamilisha malipo kabla uhifadhi wako haujaisha.',
     'age' => 'Umri',
     'user_has_infant_child' => 'Abiria ana mtoto mchanga/mtoto',
-    'excess_luggage' => 'Mzigo wa Ziada (Upeo :dimensions, :weight, Ada: :fee)',
+    'excess_luggage' => 'Mzigo wa Ziada (Upeo :dimensions, :weight, Ada: :fee (kwa kilo))',
     'excess_luggage_description' => 'Maelezo ya Mzigo wa Ziada',
     'e_g_1_extra_bag_large_box' => 'k.m., begi 1 la ziada, sanduku kubwa',
     'estimated_weight_kg' => 'Uzito Uliokadiriwa (kg)',

@@ -15,7 +15,7 @@ return [
     'parcel_commission_percentage' => 'Parcel Commission Percentage',
     'parcel_commission_percentage_desc' => 'Percentage of each parcel amount kept as system commission.',
     'excess_luggage_fee_per_kg' => 'Excess Luggage Fee Per Kg',
-    'excess_luggage_fee_per_kg_desc' => 'Shown on the printed ticket as an informational rate/estimate only — the amount actually charged at checkout stays the flat excess luggage fee.',
+    'excess_luggage_fee_per_kg_desc' => 'Rate charged at ticket booking for excess luggage: excess weight (kg) × this fee per kg.',
     'parcel_fee_per_kg' => 'Parcel Transport Fee Per Kg',
     'parcel_fee_per_kg_desc' => 'Shown on the printed parcel receipt as the transport rate per kg.',
     'payment_gateway' => 'Payment Gateway Settings',

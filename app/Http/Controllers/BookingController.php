@@ -26,6 +26,7 @@ use App\Models\User;
 use App\Models\VenderBalance;
 use App\Services\BookingSettlementService;
 use App\Services\DiscountService;
+use App\Services\ExcessLuggageService;
 use App\Services\FareFormulaService;
 use App\Services\RouteDistanceService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -768,11 +769,22 @@ class BookingController extends Controller
 
         $total_amount = session()->get('booking_form')['total_amount'];
 
-        // Handle excess luggage fee for public flow (same logic as customer/vendor controllers)
+        // Handle excess luggage fee for public flow (weight × fee_per_kg)
         $excessLuggageFee = 0;
         $bus_info = session()->get('booking_form', []);
         if ((int) ($bus_info['excess_luggage'] ?? 0) === 1) {
-            $excessLuggageFee = 2500; // TSh. 2,500
+            if ((float) ($bus_info['estimated_weight'] ?? 0) <= 0) {
+                if ($this->isInlineBookingRequest($request)) {
+                    return response()->json(['ok' => false, 'message' => __('all.estimated_weight_required')], 422);
+                }
+
+                return redirect()->to(booking_route('pay'))->with('error', __('all.estimated_weight_required'));
+            }
+            $excessLuggageFee = app(ExcessLuggageService::class)->computeBookingFee(
+                true,
+                $bus_info['estimated_weight'],
+                $setting
+            );
             $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
             $bus_info['excess_luggage_fee_before_discount'] = $excessLuggageFee;

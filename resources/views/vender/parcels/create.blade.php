@@ -39,6 +39,9 @@
     </header>
 
     <div class="vendor-parcel-form-card">
+        @if(session('error'))
+            <div class="booking-alert booking-alert--error mb-4" role="alert">{{ session('error') }}</div>
+        @endif
         @if ($errors->any())
             <div class="booking-alert booking-alert--error mb-6" role="alert">
                 <ul class="list-disc list-inside text-sm mb-0">
@@ -53,16 +56,12 @@
             @csrf
             <input type="hidden" name="bus_id" value="{{ $bus->id }}">
 
-            @if(session('error'))
-                <div class="booking-alert booking-alert--error mb-4">{{ session('error') }}</div>
-            @endif
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div class="vendor-form-field">
                     <label for="parcel_number">{{ __('vender/parcels.parcel_number') }}</label>
                     <input type="text" name="parcel_number" id="parcel_number"
                         value="{{ old('parcel_number', 'PCL-' . strtoupper(Str::random(6))) }}" required readonly
-                        class="page-input bg-gray-50">
+                        class="page-input page-input--readonly">
                 </div>
                 <div class="vendor-form-field">
                     <label for="parcel_type">{{ __('vender/parcels.parcel_type') }}</label>
@@ -102,13 +101,15 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="vendor-form-field">
                         <label for="sender_name">{{ __('vender/parcels.sender_name') }}</label>
-                        <input type="text" name="sender_name" id="sender_name" value="{{ old('sender_name') }}" required class="page-input">
+                        <input type="text" name="sender_name" id="sender_name" value="{{ old('sender_name') }}" required class="page-input" autocomplete="name">
                     </div>
                     <div class="vendor-form-field">
                         <label for="sender_contact">{{ __('vender/parcels.sender_contact') }}</label>
-                        <input type="text" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" required class="page-input">
+                        <input type="tel" name="sender_contact" id="sender_contact" value="{{ old('sender_contact') }}" required class="page-input @error('sender_contact') border-red-500 @enderror"
+                            inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.contact_phone_placeholder') }}">
+                        @error('sender_contact')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                     </div>
-                    <div class="vendor-form-field">
+                    <div class="vendor-form-field md:col-span-2">
                         <label for="parcel_instructions">{{ __('vender/parcels.parcel_instructions') }}</label>
                         <select name="parcel_instructions" id="parcel_instructions" required class="page-input">
                             <option value="" disabled {{ old('parcel_instructions') ? '' : 'selected' }}>{{ __('vender/parcels.select_instructions') }}</option>
@@ -124,19 +125,23 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="vendor-form-field">
                         <label for="receiver_name">{{ __('vender/parcels.receiver_name') }}</label>
-                        <input type="text" name="receiver_name" id="receiver_name" value="{{ old('receiver_name') }}" required class="page-input">
+                        <input type="text" name="receiver_name" id="receiver_name" value="{{ old('receiver_name') }}" required class="page-input" autocomplete="name">
                     </div>
                     <div class="vendor-form-field">
                         <label for="receiver_contact_1">{{ __('vender/parcels.receiver_contact_1') }}</label>
-                        <input type="text" name="receiver_contact_1" id="receiver_contact_1" value="{{ old('receiver_contact_1') }}" required class="page-input">
+                        <input type="tel" name="receiver_contact_1" id="receiver_contact_1" value="{{ old('receiver_contact_1') }}" required class="page-input @error('receiver_contact_1') border-red-500 @enderror"
+                            inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.contact_phone_placeholder') }}">
+                        @error('receiver_contact_1')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                     </div>
                     <div class="vendor-form-field">
                         <label for="receiver_contact_2">{{ __('vender/parcels.receiver_contact_2') }}</label>
-                        <input type="text" name="receiver_contact_2" id="receiver_contact_2" value="{{ old('receiver_contact_2') }}" class="page-input">
+                        <input type="tel" name="receiver_contact_2" id="receiver_contact_2" value="{{ old('receiver_contact_2') }}" class="page-input @error('receiver_contact_2') border-red-500 @enderror"
+                            inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.contact_phone_placeholder') }}">
+                        @error('receiver_contact_2')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                     </div>
                     <div class="vendor-form-field">
                         <label for="receiver_delivery_address" id="receiver_address_label">{{ __('vender/parcels.receiver_delivery_address') }}</label>
-                        <input type="text" name="receiver_delivery_address" id="receiver_delivery_address" value="{{ old('receiver_delivery_address') }}" required class="page-input">
+                        <input type="text" name="receiver_delivery_address" id="receiver_delivery_address" value="{{ old('receiver_delivery_address') }}" required class="page-input" autocomplete="street-address">
                     </div>
                 </div>
             </div>
@@ -146,37 +151,44 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="vendor-form-field">
                         <label for="receiving_agent_name">{{ __('vender/parcels.receiving_agent_name') }}</label>
-                        <input type="text" name="receiving_agent_name" id="receiving_agent_name" value="{{ old('receiving_agent_name') }}" class="page-input">
+                        <input type="text" name="receiving_agent_name" id="receiving_agent_name" value="{{ old('receiving_agent_name') }}" class="page-input" autocomplete="name">
                     </div>
                     <div class="vendor-form-field">
                         <label for="receiving_agent_phone">{{ __('vender/parcels.receiving_agent_phone') }}</label>
-                        <input type="text" name="receiving_agent_phone" id="receiving_agent_phone" value="{{ old('receiving_agent_phone') }}" class="page-input">
+                        <input type="tel" name="receiving_agent_phone" id="receiving_agent_phone" value="{{ old('receiving_agent_phone') }}" class="page-input"
+                            inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.contact_phone_placeholder') }}">
                     </div>
                     <div class="vendor-form-field">
                         <label for="delivery_rider_name">{{ __('vender/parcels.delivery_rider_name') }}</label>
-                        <input type="text" name="delivery_rider_name" id="delivery_rider_name" value="{{ old('delivery_rider_name') }}" class="page-input">
+                        <input type="text" name="delivery_rider_name" id="delivery_rider_name" value="{{ old('delivery_rider_name') }}" class="page-input" autocomplete="name">
                     </div>
                     <div class="vendor-form-field">
                         <label for="delivery_rider_phone">{{ __('vender/parcels.delivery_rider_phone') }}</label>
-                        <input type="text" name="delivery_rider_phone" id="delivery_rider_phone" value="{{ old('delivery_rider_phone') }}" class="page-input">
+                        <input type="tel" name="delivery_rider_phone" id="delivery_rider_phone" value="{{ old('delivery_rider_phone') }}" class="page-input"
+                            inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.contact_phone_placeholder') }}">
                     </div>
                 </div>
             </div>
 
-            <div class="vendor-form-field">
-                <label for="amount_paid">{{ __('vender/parcels.amount_paid', ['currency' => $currency]) }}</label>
-                <input type="number" name="amount_paid" id="amount_paid" step="0.01" value="{{ old('amount_paid') }}" required class="page-input" placeholder="0.00">
-            </div>
-
-            <div class="vendor-form-field">
-                <label for="discount_code">{{ __('vender/parcels.discount_coupon') }}</label>
-                <input type="text" name="discount_code" id="discount_code" value="{{ old('discount_code') }}" class="page-input" placeholder="CODE">
-            </div>
-
-            <div class="vendor-form-field">
-                <label for="phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
-                <input type="text" name="phone" id="phone" value="{{ old('phone') }}" class="page-input" placeholder="07XXXXXXXX">
-                <p class="text-xs text-gray-500 mt-1">{{ __('vender/parcels.clickpesa_hint') }}</p>
+            <div class="vendor-parcel-form-card__section">
+                <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.payment_details') }}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="vendor-form-field">
+                        <label for="amount_paid">{{ __('vender/parcels.amount_paid', ['currency' => $currency]) }}</label>
+                        <input type="number" name="amount_paid" id="amount_paid" step="0.01" value="{{ old('amount_paid') }}" required class="page-input" placeholder="0.00">
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="discount_code">{{ __('vender/parcels.discount_coupon') }}</label>
+                        <input type="text" name="discount_code" id="discount_code" value="{{ old('discount_code') }}" class="page-input" placeholder="CODE">
+                    </div>
+                    <div class="vendor-form-field md:col-span-2">
+                        <label for="phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
+                        <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" class="page-input @error('phone') border-red-500 @enderror"
+                            inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.clickpesa_phone_placeholder') }}">
+                        <p class="text-xs text-gray-500 mt-1">{{ __('vender/parcels.clickpesa_hint') }}</p>
+                        @error('phone')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                    </div>
+                </div>
             </div>
 
             <div class="vendor-form-field">

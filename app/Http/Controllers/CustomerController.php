@@ -22,14 +22,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use App\Services\DiscountService;
+use App\Services\ExcessLuggageService;
 use App\Services\FareFormulaService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
 {
-    const EXCESS_LUGGAGE_FEE = 2500; // TSh. 2,500 for excess luggage
-
     public function index()
     {
         return $this->dashboard();
@@ -490,7 +489,14 @@ class CustomerController extends Controller
         $bus_info = session()->get('booking_form', []);
 
         if ((int) ($bus_info['excess_luggage'] ?? 0) === 1) {
-            $excessLuggageFee = self::EXCESS_LUGGAGE_FEE;
+            if ((float) ($bus_info['estimated_weight'] ?? 0) <= 0) {
+                return redirect()->route('customer.pay')->with('error', __('all.estimated_weight_required'));
+            }
+            $excessLuggageFee = app(ExcessLuggageService::class)->computeBookingFee(
+                true,
+                $bus_info['estimated_weight'],
+                $setting
+            );
             $bus_info['has_excess_luggage'] = 1;
             $bus_info['excess_luggage_fee'] = $excessLuggageFee;
             $bus_info['excess_luggage_fee_before_discount'] = $excessLuggageFee;

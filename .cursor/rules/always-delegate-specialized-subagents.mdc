@@ -1,5 +1,5 @@
 ---
-description: Always delegate UI, translation, currency, and role-specific account tasks to the matching specialized subagent.
+description: Always delegate image understanding, UI, translation, currency, and role-specific account tasks to the matching specialized subagent.
 alwaysApply: true
 ---
 
@@ -9,6 +9,7 @@ For every conversation and task, apply these defaults whenever relevant work app
 
 ## Global task delegation (any feature or change)
 
+- Use `imageagent` for understanding attached/pasted images: screenshots, mockups, photos, diagrams, OCR/text extraction, UI bug reads from visuals, and structured image summaries before coding.
 - Use `newuiagent` for UI/UX design, layout, styling, Blade view structure, and visual consistency work.
 - Use `translateragent` for translating hardcoded text, i18n keys, locale parity, and language-string fixes.
 - Use `multcurrencyagent` for currency conversion logic, amount display, exchange-rate behavior, and TZS/USD handling.

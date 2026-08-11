@@ -70,7 +70,9 @@
             <h2 class="font-semibold mb-2">{{ __('vender/parcels.pay_clickpesa') }}</h2>
             <form method="POST" action="{{ route($showPrefix.'.pay', $parcel->id) }}" class="space-y-3">
                 @csrf
-                <input type="text" name="phone" value="{{ old('phone', $parcel->sender_contact) }}" class="w-full rounded-lg border-gray-300" required>
+                <label class="block text-sm font-medium text-gray-700 mb-1" for="retry_phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
+                <input type="tel" id="retry_phone" name="phone" value="{{ old('phone', $parcel->sender_contact) }}" class="w-full rounded-lg border-gray-300" required inputmode="tel" autocomplete="tel" placeholder="{{ __('vender/parcels.clickpesa_phone_placeholder') }}">
+                <p class="text-xs text-gray-500 mt-1">{{ __('vender/parcels.clickpesa_hint') }}</p>
                 <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">{{ __('vender/parcels.pay_and_register') }}</button>
             </form>
         </div>

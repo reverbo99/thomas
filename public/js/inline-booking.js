@@ -810,7 +810,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const enabled = !!luggageToggle.checked;
             luggageFieldsWrap.classList.toggle('hidden', !enabled);
             if (luggageDesc) luggageDesc.disabled = !enabled;
-            if (luggageWeight) luggageWeight.disabled = !enabled;
+            if (luggageWeight) {
+                luggageWeight.disabled = !enabled;
+                luggageWeight.required = enabled;
+            }
             if (!enabled) {
                 if (luggageDesc) luggageDesc.value = '';
                 if (luggageWeight) luggageWeight.value = '';
@@ -820,7 +823,9 @@ document.addEventListener('DOMContentLoaded', function () {
         function extrasAddonsTotal() {
             let addons = 0;
             if (luggageToggle?.checked) {
-                addons += Number(config.excessLuggageFee || 2500);
+                const feePerKg = Number(config.excessLuggageFeePerKg ?? config.excessLuggageFee ?? 2500);
+                const weight = parseFloat(luggageWeight?.value) || 0;
+                addons += weight * feePerKg;
             }
             return addons;
         }
@@ -1090,6 +1095,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateTotals();
             });
             toggleInlineLuggageFields();
+        }
+
+        if (luggageWeight && !luggageWeight.dataset.bound) {
+            luggageWeight.dataset.bound = '1';
+            luggageWeight.addEventListener('input', updateTotals);
         }
 
         if (extrasForm && !extrasForm.dataset.bound) {

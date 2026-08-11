@@ -14,6 +14,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
 use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 
@@ -160,6 +161,18 @@ class ParcelController extends Controller
 
     public function store(Request $request)
     {
+        $this->normalizeOptionalPhoneInputs($request, [
+            'phone',
+            'receiver_contact_2',
+            'receiving_agent_phone',
+            'delivery_rider_phone',
+        ]);
+
+        $phoneLike = $this->phoneValidationRules(required: false);
+        $phoneLikeRequired = $this->phoneValidationRules(required: true);
+        $phoneMsg = __('vender/parcels.contact_must_be_phone');
+        $phonePlaceholderMsg = __('vender/parcels.contact_placeholder_not_allowed');
+
         $data = $request->validate([
             'bus_id' => 'required|exists:buses,id',
             'parcel_number' => 'required|string|unique:parcels,parcel_number',
@@ -172,17 +185,30 @@ class ParcelController extends Controller
             'width' => 'nullable|numeric|min:0',
             'length' => 'nullable|numeric|min:0',
             'sender_name' => 'required|string',
-            'sender_contact' => 'required|string',
+            'sender_contact' => $phoneLikeRequired,
             'parcel_instructions' => 'required|in:collection,delivery',
             'receiver_name' => 'required|string',
-            'receiver_contact_1' => 'required|string',
-            'receiver_contact_2' => 'nullable|string',
+            'receiver_contact_1' => $phoneLikeRequired,
+            'receiver_contact_2' => $phoneLike,
             'receiver_delivery_address' => 'required|string',
             'receiving_agent_name' => 'nullable|string|max:150',
-            'receiving_agent_phone' => 'nullable|string|max:40',
+            'receiving_agent_phone' => $phoneLike,
             'delivery_rider_name' => 'nullable|string|max:150',
-            'delivery_rider_phone' => 'nullable|string|max:40',
-            'phone' => 'nullable|string|max:20',
+            'delivery_rider_phone' => $phoneLike,
+            'phone' => $this->phoneValidationRules(required: false, max: 20),
+        ], [
+            'sender_contact.regex' => $phoneMsg,
+            'sender_contact.not_in' => $phonePlaceholderMsg,
+            'receiver_contact_1.regex' => $phoneMsg,
+            'receiver_contact_1.not_in' => $phonePlaceholderMsg,
+            'receiver_contact_2.regex' => $phoneMsg,
+            'receiver_contact_2.not_in' => $phonePlaceholderMsg,
+            'receiving_agent_phone.regex' => $phoneMsg,
+            'receiving_agent_phone.not_in' => $phonePlaceholderMsg,
+            'delivery_rider_phone.regex' => $phoneMsg,
+            'delivery_rider_phone.not_in' => $phonePlaceholderMsg,
+            'phone.regex' => $phoneMsg,
+            'phone.not_in' => $phonePlaceholderMsg,
         ]);
 
         $bus = bus::with('campany')->findOrFail($data['bus_id']);
@@ -191,6 +217,7 @@ class ParcelController extends Controller
         try {
             $this->flow->assertBusAcceptsParcels($bus);
             $this->flow->assertCapacity($bus, isset($data['weight']) ? (float) $data['weight'] : null);
+            $this->assertParcelSchemaReady();
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -242,16 +269,27 @@ class ParcelController extends Controller
             Log::error('Parcel register failed before ClickPesa', [
                 'user_id' => Auth::id(),
                 'bus_id' => $data['bus_id'] ?? null,
+                'parcel_number' => $data['parcel_number'] ?? null,
+                'is_vendor' => $isVendor,
+                'exception' => $e::class,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->withInput()->with(
-                'error',
-                __('vender/parcels.register_failed')
-            );
+            $message = __('vender/parcels.register_failed');
+            if (config('app.debug')) {
+                $message .= ' [' . $e->getMessage() . ']';
+            }
+
+            return back()->withInput()->with('error', $message);
         }
 
-        return $this->startClickPesaPayment($parcel, $data['phone'] ?? $parcel->sender_contact);
+        $clickPesaPhone = trim((string) ($data['phone'] ?? ''));
+        if ($clickPesaPhone === '') {
+            $clickPesaPhone = (string) $parcel->sender_contact;
+        }
+
+        return $this->startClickPesaPayment($parcel, $clickPesaPhone);
     }
 
     public function pay(Request $request, $id)
@@ -261,7 +299,14 @@ class ParcelController extends Controller
             return redirect($this->showUrl($parcel))->with('success', __('vender/parcels.already_paid'));
         }
 
-        $request->validate(['phone' => 'nullable|string|max:20']);
+        $this->normalizeOptionalPhoneInputs($request, ['phone']);
+        $request->validate(
+            ['phone' => $this->phoneValidationRules(required: false, max: 20)],
+            [
+                'phone.regex' => __('vender/parcels.contact_must_be_phone'),
+                'phone.not_in' => __('vender/parcels.contact_placeholder_not_allowed'),
+            ]
+        );
 
         return $this->startClickPesaPayment($parcel, $request->phone ?: $parcel->sender_contact);
     }
@@ -645,5 +690,72 @@ class ParcelController extends Controller
         $route = $this->isBusOwnerContext() ? 'bus_owner.parcels.show' : 'vender.parcels.show';
 
         return route($route, $parcel->id);
+    }
+
+    /**
+     * Empty optional phone fields become null so nullable+regex does not fail on "".
+     * Placeholder text (07XXXXXXXX) is also cleared to null when left as a value.
+     */
+    private function normalizeOptionalPhoneInputs(Request $request, array $fields): void
+    {
+        $merge = [];
+        foreach ($fields as $field) {
+            $raw = $request->input($field);
+            if ($raw === null) {
+                continue;
+            }
+            $value = trim((string) $raw);
+            if ($value === '' || preg_match('/^07X+$/i', $value)) {
+                $merge[$field] = null;
+                continue;
+            }
+            $merge[$field] = $value;
+        }
+        if ($merge !== []) {
+            $request->merge($merge);
+        }
+    }
+
+    /** @return list<string> */
+    private function phoneValidationRules(bool $required, int $max = 40): array
+    {
+        return [
+            $required ? 'required' : 'nullable',
+            'string',
+            'max:' . $max,
+            'not_in:07XXXXXXXX,07xxxxxxxx',
+            'regex:/^(?=.*\d)[\d\s+\-]{9,20}$/',
+        ];
+    }
+
+    /**
+     * Fail fast with an actionable message when parcel flow migrations were not applied.
+     */
+    private function assertParcelSchemaReady(): void
+    {
+        $needed = [
+            'payment_status',
+            'created_by',
+            'discount_code',
+            'discount_amount',
+            'amount_before_discount',
+            'receiving_agent_name',
+            'receiving_agent_phone',
+            'delivery_rider_name',
+            'delivery_rider_phone',
+        ];
+        $missing = [];
+        foreach ($needed as $col) {
+            if (!Schema::hasColumn('parcels', $col)) {
+                $missing[] = $col;
+            }
+        }
+
+        if ($missing !== []) {
+            Log::error('Parcel schema missing columns required for register', [
+                'missing' => $missing,
+            ]);
+            throw new \RuntimeException(__('vender/parcels.schema_outdated'));
+        }
     }
 }
