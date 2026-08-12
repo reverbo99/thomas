@@ -6,7 +6,6 @@ use App\Models\AdminWallet;
 use App\Models\Booking;
 use App\Models\Setting;
 use App\Models\User;
-use App\Models\VenderBalance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -68,14 +67,16 @@ class ExcessLuggageService
     }
 
     /**
-     * Platform rate used for weight-based excess luggage reconciliation (TZS / kg).
-     * Raw setting value (may be 0); booking fee applies DEFAULT_FEE_PER_KG fallback separately.
+     * Platform rate used for weight-based excess luggage (TZS / kg).
+     * Uses settings.excess_luggage_fee_per_kg; falls back to DEFAULT_FEE_PER_KG (2500) when unset/0.
+     * Weigh-in reconciliation and booking fee share this same effective rate.
      */
     public function feePerKg(?Setting $settings = null): float
     {
         $settings = $settings ?: Setting::query()->first();
+        $rate = round((float) ($settings->excess_luggage_fee_per_kg ?? 0), 2);
 
-        return round((float) ($settings->excess_luggage_fee_per_kg ?? 0), 2);
+        return $rate > 0 ? $rate : self::DEFAULT_FEE_PER_KG;
     }
 
     /**
@@ -94,12 +95,7 @@ class ExcessLuggageService
             return 0.0;
         }
 
-        $rate = $this->feePerKg($settings);
-        if ($rate <= 0) {
-            $rate = self::DEFAULT_FEE_PER_KG;
-        }
-
-        return round($weight * $rate, 2);
+        return round($weight * $this->feePerKg($settings), 2);
     }
 
     /**
@@ -267,11 +263,17 @@ class ExcessLuggageService
         return $delta;
     }
 
+    /**
+     * ClickPesa order reference — must be ≤ 20 alphanumeric characters.
+     * Format: {shortCode}XLUG{6-digit time} (max 6+4+6 = 16).
+     */
     public function buildPaymentReference(Booking $booking): string
     {
         $code = preg_replace('/[^A-Za-z0-9]/', '', (string) $booking->booking_code) ?: 'BK';
+        $shortCode = substr($code, 0, 6);
+        $shortTime = substr((string) time(), -6);
 
-        return $code . 'XLUG' . time();
+        return $shortCode . 'XLUG' . $shortTime;
     }
 
     public function findByPaymentReference(string $reference): ?Booking
@@ -303,11 +305,10 @@ class ExcessLuggageService
     }
 
     /**
-     * Credit system / vendor / bus-owner shares for the extra (positive) luggage amount,
+     * Credit system / government / bus-owner shares for the extra (positive) luggage amount,
      * sync customer_paid_total for GMV, then mark ready.
      *
-     * Split matches checkout settlement (split_luggage_fee_amount): system first cut of
-     * gross, then vendor ticket-commission % of the non-system remainder, owner rest.
+     * Split: admin 5% + government 5% + bus owner 90% (split_luggage_fee_amount).
      */
     public function confirmTopUpPayment(Booking $booking, string $reference): Booking
     {
@@ -331,9 +332,9 @@ class ExcessLuggageService
             }
 
             $booking->loadMissing(['vender.VenderAccount', 'vender.VenderBalances', 'bus.campany.balance']);
-            $split = split_luggage_fee_amount($extra, booking_vendor_commission_percent($booking));
+            $split = split_luggage_fee_amount($extra);
             $systemShare = $split['system'];
-            $vendorShare = $split['vendor'];
+            $governmentShare = $split['government'];
             $ownerShare = $split['owner'];
 
             $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
@@ -350,6 +351,14 @@ class ExcessLuggageService
             }
 
             $bus = $booking->bus;
+            if ($governmentShare > 0 && $bus && $bus->campany) {
+                \App\Models\GovernmentLevy::create([
+                    'campany_id' => $bus->campany->id,
+                    'booking_id' => $booking->booking_code,
+                    'amount' => $governmentShare,
+                ]);
+            }
+
             if ($bus && $bus->campany && $bus->campany->balance && $ownerShare > 0) {
                 $bus->campany->balance->increment('amount', $ownerShare);
             } elseif ($ownerShare > 0) {
@@ -357,17 +366,6 @@ class ExcessLuggageService
                     'booking_id' => $booking->id,
                     'owner_share' => $ownerShare,
                 ]);
-            }
-
-            if ($vendorShare > 0 && (int) ($booking->vender_id ?? 0) > 0) {
-                $vb = $booking->vender?->VenderBalances ?: VenderBalance::firstOrCreate(
-                    ['user_id' => $booking->vender_id],
-                    ['amount' => 0]
-                );
-                if ($vb->amount === null) {
-                    $vb->forceFill(['amount' => 0])->save();
-                }
-                $vb->increment('amount', $vendorShare);
             }
 
             // Fold top-up into GMV base without a second luggage addend in dashboard sums.
@@ -389,7 +387,7 @@ class ExcessLuggageService
                 'booking_id' => $booking->id,
                 'extra' => $extra,
                 'system_share' => $systemShare,
-                'vendor_share' => $vendorShare,
+                'government_share' => $governmentShare,
                 'owner_share' => $ownerShare,
                 'customer_paid_total' => $payload['customer_paid_total'] ?? null,
                 'reference' => $reference,

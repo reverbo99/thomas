@@ -127,10 +127,21 @@
                                                 <p class="text-gray-500 mb-0">{{ __('vender/history.drop_point') }}
                                                     {{ $booking->dropping_point ?? __('vender/history.na') }}</p>
                                                 @if ($booking->has_excess_luggage ?? false)
+                                                    @php
+                                                        $luggageGross = (float) ($booking->excess_luggage_fee ?? 0);
+                                                        $luggageOwnerNet = bus_owner_luggage_fee($booking);
+                                                        $luggageAdminShare = system_luggage_fee($booking);
+                                                        $luggageGovShare = government_luggage_fee($booking);
+                                                    @endphp
                                                     <p class="mb-0">
                                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">
-                                                            {{ __('vender/luggage.excess_luggage') }}: {{ $currency ?? 'TSH' }} {{ convert_money($booking->excess_luggage_fee ?? 0) }}
+                                                            {{ __('vender/luggage.excess_luggage_net') }}: {{ $currency ?? 'TSH' }} {{ convert_money($luggageOwnerNet) }}
                                                         </span>
+                                                    </p>
+                                                    <p class="mb-0 text-[10px] text-gray-500">
+                                                        {{ __('vender/luggage.fee_gross') }}: {{ $currency ?? 'TSH' }} {{ convert_money($luggageGross) }}
+                                                        · {{ __('vender/luggage.fee_admin_5') }}: {{ convert_money($luggageAdminShare) }}
+                                                        · {{ __('vender/luggage.fee_government_5') }}: {{ convert_money($luggageGovShare) }}
                                                     </p>
                                                 @endif
                                             </div>
@@ -168,11 +179,13 @@
                                                 $govLevyOnFare = booking_government_levy_on_fare($booking);
                                                 $govLevyOnService = booking_government_levy_on_service($booking);
                                                 $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
-                                                $rowServiceFee = booking_service_fee($booking);
+                                                $hasLuggage = (bool) ($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0;
+                                                $luggageAdminShare = $hasLuggage ? system_luggage_fee($booking) : 0;
+                                                $luggageGovShare = $hasLuggage ? government_luggage_fee($booking) : 0;
+                                                $luggageOwnerNet = $hasLuggage ? bus_owner_luggage_fee($booking) : 0;
                                             @endphp
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"
-                                                data-service-fee="{{ $rowServiceFee }}"
                                                 data-discount="{{ $booking->discount_amount ?? 0 }}"
                                                 data-gov-levy="{{ $govLevyOnFare + $govLevyOnService }}"
                                                 data-vat="{{ $booking->vat ?? 0 }}">
@@ -180,15 +193,20 @@
                                                     {{ __('vender/history.commission_total') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($totalCommission) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">
-                                                    {{ __('vender/history.service_fee') }}
-                                                    {{ $currency ?? 'TSH' }} {{ convert_money($rowServiceFee) }}</p>
-                                                <p class="text-gray-500 font-medium mb-0">
                                                     {{ __('vender/history.discount') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($booking->discount_amount ?? 0) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnFare) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy_service') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnService) }}</p>
+                                                @if ($hasLuggage)
+                                                    <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.luggage_admin') }}
+                                                        {{ $currency ?? 'TSH' }} {{ convert_money($luggageAdminShare) }}</p>
+                                                    <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.luggage_government') }}
+                                                        {{ $currency ?? 'TSH' }} {{ convert_money($luggageGovShare) }}</p>
+                                                    <p class="text-teal-700 font-medium mb-0">{{ __('vender/history.luggage_owner_net') }}
+                                                        {{ $currency ?? 'TSH' }} {{ convert_money($luggageOwnerNet) }}</p>
+                                                @endif
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">
@@ -358,7 +376,7 @@
                             <div class="mt-3 rounded-md border border-teal-100 bg-teal-50/60 p-3 space-y-3">
                                 <p class="text-xs font-semibold uppercase tracking-wide text-teal-800">{{ __('vender/luggage.auto_reconciliation') }}</p>
                                 <p class="text-xs text-gray-500">{{ __('vender/luggage.fee_per_kg_label') }}:
-                                    {{ session('currency', 'TZS') }} {{ convert_money((float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0)) }}
+                                    {{ session('currency', 'TZS') }} {{ convert_money(app(\App\Services\ExcessLuggageService::class)->feePerKg()) }}
                                 </p>
                                 <div>
                                     <label for="excessLuggageVerdictDisplay" class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.weight_verdict') }}</label>
@@ -527,7 +545,7 @@
             const excessLuggageReceiptBtn = document.getElementById('excessLuggageReceiptBtn');
             const excessLuggageUrlTemplate = '{{ route('booking.excess_luggage.update', ':id') }}';
             const excessLuggageReceiptUrlTemplate = '{{ route('excess_luggage.receipt.print', ':id') }}';
-            const luggageFeePerKg = {{ json_encode((float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0)) }};
+            const luggageFeePerKg = {{ json_encode((float) app(\App\Services\ExcessLuggageService::class)->feePerKg()) }};
             const luggageVerdictLabels = {
                 underestimated: @json(__('vender/luggage.weight_verdict_underestimated')),
                 overestimated: @json(__('vender/luggage.weight_verdict_overestimated')),

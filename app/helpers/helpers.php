@@ -597,32 +597,26 @@ if (!function_exists('system_luggage_percent')) {
 
 if (!function_exists('split_luggage_fee_amount')) {
     /**
-     * Split a gross excess-luggage amount across system / vendor / bus owner.
+     * Split a gross excess-luggage amount: admin 5% + government 5% + bus owner 90%.
      *
-     * Documented choice: same topology as ParcelFlowService (not ticket fare commission).
-     * - System takes SYSTEM_LUGGAGE_PERCENT of gross first — fixed, so System Income is unchanged.
-     * - Vendor then takes their ticket commission % (VenderAccount.percentage / default) of the
-     *   NON-system remainder; owner keeps the rest. Sums to 100% of gross.
-     * Ticket fare commission instead takes % of the *system commission pool*; luggage
-     * intentionally follows the parcel remainder pattern so the platform cut stays a flat
-     * % of luggage GMV while still using the vendor's existing ticket % setting (no new %).
+     * Vendor no longer takes a share of luggage (ticket commission stays on fare/service only).
+     * $vendorPercent is accepted for call-site compatibility but ignored.
      *
-     * @return array{system: float, vendor: float, owner: float}
+     * Example: 10,000 → admin 500, government 500, owner 9,000.
+     *
+     * @return array{system: float, government: float, vendor: float, owner: float}
      */
     function split_luggage_fee_amount(float $gross, ?float $vendorPercent = null): array
     {
         $gross = max(0.0, (float) $gross);
         $system = round($gross * system_luggage_percent() / 100, 2);
-        $remainder = round($gross - $system, 2);
-        $vendor = 0.0;
-        if ($vendorPercent !== null && $vendorPercent > 0) {
-            $vendor = round($remainder * min(100.0, (float) $vendorPercent) / 100, 2);
-        }
-        $owner = round($remainder - $vendor, 2);
+        $government = round($gross * government_levy_percent() / 100, 2);
+        $owner = round($gross - $system - $government, 2);
 
         return [
             'system' => $system,
-            'vendor' => $vendor,
+            'government' => $government,
+            'vendor' => 0.0,
             'owner' => $owner,
         ];
     }
@@ -679,7 +673,7 @@ if (!function_exists('vendor_luggage_fee')) {
 
 if (!function_exists('bus_owner_luggage_fee')) {
     /**
-     * Bus owner's share of excess luggage after system cut and vendor remainder share.
+     * Bus owner's share of excess luggage after admin (5%) and government (5%) — 90% of gross.
      */
     function bus_owner_luggage_fee($booking): float
     {
@@ -687,6 +681,16 @@ if (!function_exists('bus_owner_luggage_fee')) {
             booking_luggage_fee($booking),
             booking_vendor_commission_percent($booking)
         )['owner'];
+    }
+}
+
+if (!function_exists('government_luggage_fee')) {
+    /**
+     * Government levy share of a booking's excess luggage fee (5% of gross).
+     */
+    function government_luggage_fee($booking): float
+    {
+        return split_luggage_fee_amount(booking_luggage_fee($booking), null)['government'];
     }
 }
 
@@ -794,7 +798,7 @@ if (!function_exists('booking_government_levy_on_commission')) {
 if (!function_exists('booking_government_levy_on_luggage')) {
     function booking_government_levy_on_luggage($booking): float
     {
-        return government_levy_on_amount(booking_luggage_fee($booking));
+        return government_luggage_fee($booking);
     }
 }
 

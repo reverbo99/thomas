@@ -156,9 +156,10 @@ class BookingSettlementService
 
         $systemBalanceAmount = (float) $result['system_commission_total'];
         $luggageFee = booking_luggage_fee($booking);
-        // Luggage: system first cut of gross, then vendor ticket-% of remainder, owner rest.
-        $luggageSplit = split_luggage_fee_amount($luggageFee, $vendorPct);
+        // Luggage: admin 5% + government 5% + bus owner 90%.
+        $luggageSplit = split_luggage_fee_amount($luggageFee);
         $systemLuggageShare = $luggageSplit['system'];
+        $governmentLuggageShare = $luggageSplit['government'];
         $vendorLuggageShare = $luggageSplit['vendor'];
         $busOwnerLuggageShare = $luggageSplit['owner'];
         $paymentFeesAmount = (float) $result['service_pool_after_vendor'];
@@ -263,7 +264,7 @@ class BookingSettlementService
         GovernmentLevy::create([
             'campany_id' => $bus->campany->id,
             'booking_id' => $booking->booking_code,
-            'amount' => $governmentLevyOnServiceFee,
+            'amount' => $governmentLevyOnServiceFee + $governmentLuggageShare,
         ]);
 
         $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy + $systemLuggageShare);
@@ -277,6 +278,7 @@ class BookingSettlementService
             'payment_fees_amount' => $paymentFeesAmount,
             'luggage_fee' => $luggageFee,
             'system_luggage_share' => $systemLuggageShare,
+            'government_luggage_share' => $governmentLuggageShare,
             'vendor_luggage_share' => $vendorLuggageShare,
             'bus_owner_luggage_share' => $busOwnerLuggageShare,
             'vendor_fee_share' => $vendorFee,

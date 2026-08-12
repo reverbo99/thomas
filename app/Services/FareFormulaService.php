@@ -30,8 +30,8 @@ class FareFormulaService
     public const DEFAULT_GOVERNMENT_LEVY_PERCENT = 5.0;
 
     /**
-     * System's first-cut % of gross excess luggage fee (System Income).
-     * Vendor then takes their ticket commission % of the non-system remainder; owner keeps the rest.
+     * System (admin) % of gross excess luggage fee (System Income).
+     * Luggage split is fixed: admin 5% + government 5% + bus owner 90%.
      */
     public const SYSTEM_LUGGAGE_PERCENT = 5.0;
 

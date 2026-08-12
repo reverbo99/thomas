@@ -5,6 +5,11 @@
     $currency = $currency ?? session('currency', 'TZS');
     $feePerKg = $luggageService->feePerKg();
     $estimatedWeightJs = $booking->estimated_weight !== null ? (float) $booking->estimated_weight : null;
+    $grossLuggageFee = (float) ($booking->excess_luggage_fee ?? 0);
+    $defaultFee = $grossLuggageFee > 0
+        ? $grossLuggageFee
+        : ($estimatedWeightJs !== null ? round($estimatedWeightJs * $feePerKg, 2) : $feePerKg);
+    $luggageSplit = split_luggage_fee_amount($grossLuggageFee > 0 ? $grossLuggageFee : (float) $defaultFee);
 @endphp
 
 @if (session('success'))
@@ -80,6 +85,7 @@
             </span>
         </p>
         <p class="mt-2 text-sm text-gray-600">{{ __('vender/luggage.fee') }}: {{ $currency }} {{ convert_money($booking->excess_luggage_fee ?? 0) }}</p>
+        <p class="mt-1 text-sm font-semibold text-teal-700">{{ __('vender/luggage.fee_net_to_owner') }}: {{ $currency }} {{ convert_money($luggageSplit['owner']) }}</p>
         @if($amountDue > 0)
             <p class="mt-1 text-sm font-semibold text-red-600">{{ __('vender/luggage.amount_due') }}: {{ $currency }} {{ convert_money($amountDue) }}</p>
         @endif
@@ -116,7 +122,7 @@
             <input type="hidden" name="luggage_action" value="set">
             <div>
                 <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.excess_luggage_fee') }}</label>
-                <input type="number" step="0.01" min="0" name="excess_luggage_fee" value="{{ old('excess_luggage_fee', $booking->excess_luggage_fee ?: 2500) }}"
+                <input type="number" step="0.01" min="0" name="excess_luggage_fee" value="{{ old('excess_luggage_fee', $defaultFee) }}"
                        class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500" required>
             </div>
             <div>
@@ -171,6 +177,13 @@
                            class="mt-1 w-full rounded-lg border-gray-200 bg-white shadow-sm text-gray-800">
                     <p class="mt-1 text-xs text-gray-500" id="xlugDeltaHint">{{ __('vender/luggage.refund_payment_hint_v2') }}</p>
                 </div>
+                <div class="border-t border-teal-100 pt-2 space-y-1 text-sm text-gray-700" id="xlugFeeBreakdown">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-teal-800">{{ __('vender/luggage.fee_breakdown') }}</p>
+                    <p class="mb-0"><span class="text-gray-500">{{ __('vender/luggage.fee_gross') }}:</span> <span id="xlugGrossDisplay">{{ $currency }} {{ convert_money($grossLuggageFee > 0 ? $grossLuggageFee : $defaultFee) }}</span></p>
+                    <p class="mb-0"><span class="text-gray-500">{{ __('vender/luggage.fee_admin_5') }}:</span> <span id="xlugAdminDisplay">{{ $currency }} {{ convert_money($luggageSplit['system']) }}</span></p>
+                    <p class="mb-0"><span class="text-gray-500">{{ __('vender/luggage.fee_government_5') }}:</span> <span id="xlugGovDisplay">{{ $currency }} {{ convert_money($luggageSplit['government']) }}</span></p>
+                    <p class="mb-0 font-semibold text-teal-800"><span>{{ __('vender/luggage.fee_bus_owner_90') }}:</span> <span id="xlugOwnerDisplay">{{ $currency }} {{ convert_money($luggageSplit['owner']) }}</span></p>
+                </div>
             </div>
             <div class="flex flex-wrap gap-2 pt-2">
                 <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">{{ __('vender/luggage.save_weigh_in') }}</button>
@@ -194,8 +207,33 @@
                 const verdictValue = document.getElementById('xlugVerdictValue');
                 const refundInput = document.getElementById('xlugRefundAmount');
                 const hintEl = document.getElementById('xlugDeltaHint');
+                const grossEl = document.getElementById('xlugGrossDisplay');
+                const adminEl = document.getElementById('xlugAdminDisplay');
+                const govEl = document.getElementById('xlugGovDisplay');
+                const ownerEl = document.getElementById('xlugOwnerDisplay');
+                const currency = @json($currency);
 
                 function round2(n) { return Math.round(n * 100) / 100; }
+
+                function money(n) {
+                    return currency + ' ' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+
+                function splitFee(gross) {
+                    gross = Math.max(0, Number(gross) || 0);
+                    const system = round2(gross * 0.05);
+                    const government = round2(gross * 0.05);
+                    const owner = round2(gross - system - government);
+                    return { system: system, government: government, owner: owner };
+                }
+
+                function updateBreakdown(gross) {
+                    const split = splitFee(gross);
+                    if (grossEl) grossEl.textContent = money(gross);
+                    if (adminEl) adminEl.textContent = money(split.system);
+                    if (govEl) govEl.textContent = money(split.government);
+                    if (ownerEl) ownerEl.textContent = money(split.owner);
+                }
 
                 function compute() {
                     const actualRaw = actualInput && actualInput.value !== '' ? parseFloat(actualInput.value) : NaN;
@@ -228,6 +266,10 @@
                         else if (delta < 0) hintEl.textContent = labels.hintNegative;
                         else hintEl.textContent = labels.hintZero;
                     }
+
+                    // Show split on total luggage fee after reconciliation (paid + positive top-up).
+                    const totalGross = round2((isNaN(paid) ? 0 : paid) + Math.max(0, delta));
+                    updateBreakdown(totalGross);
                 }
 
                 ['input', 'change'].forEach(function (evt) {
