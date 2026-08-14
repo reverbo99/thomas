@@ -702,14 +702,41 @@ class ExcessLuggageService
         return strcasecmp($code, (string) $booking->booking_code) === 0;
     }
 
+    /**
+     * Resolve an exit scan from the company QR, booking/verification code,
+     * numeric booking ID, or an XLUG payment reference.
+     */
     public function findByCompanyQr(string $raw): ?Booking
     {
-        $code = $this->parseCompanyQrPayload($raw);
-        if ($code === null) {
+        $value = trim($raw);
+        if ($value === '') {
             return null;
         }
 
-        return Booking::query()->where('booking_code', $code)->first();
+        $qrBookingCode = $this->parseCompanyQrPayload($value);
+        if ($qrBookingCode !== null) {
+            return Booking::query()->where('booking_code', $qrBookingCode)->first();
+        }
+
+        $booking = Booking::query()
+            ->where(function ($query) use ($value) {
+                $query->where('booking_code', $value)
+                    ->orWhere('verification_code', $value)
+                    ->orWhere('luggage_payment_ref', $value);
+
+                if (ctype_digit($value)) {
+                    $query->orWhereKey((int) $value);
+                }
+            })
+            ->first();
+
+        if ($booking) {
+            return $booking;
+        }
+
+        return stripos($value, 'XLUG') !== false
+            ? $this->findByPaymentReference($value)
+            : null;
     }
 
     public function statusLabel(?string $status): string
