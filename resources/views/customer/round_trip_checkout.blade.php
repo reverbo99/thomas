@@ -43,5 +43,5 @@
 
 @push('scripts')
     @include('test.partials.guest_i18n')
-    <script src="{{ asset('js/inline-booking.js') }}"></script>
+    <script src="{{ asset('js/inline-booking.js') }}?v={{ filemtime(public_path('js/inline-booking.js')) }}"></script>
 @endpush

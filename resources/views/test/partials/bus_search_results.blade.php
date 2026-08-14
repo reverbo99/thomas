@@ -64,6 +64,6 @@
         <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
         @include('test.partials.guest_i18n')
-        <script src="{{ asset('js/inline-booking.js') }}"></script>
+        <script src="{{ asset('js/inline-booking.js') }}?v={{ filemtime(public_path('js/inline-booking.js')) }}"></script>
     @endpush
 @endonce
