@@ -297,16 +297,31 @@
 
     <div class="space-y-6">
         {{-- Pay extra via gateway / request luggage refund --}}
-        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 class="mb-2 text-lg font-semibold text-gray-800">{{ __('vender/luggage.step_pay') }}</h2>
-            <p class="mb-3 text-sm text-gray-600">{{ __('vender/luggage.pay_hint') }}</p>
+        @php
+            $test_mode = \App\Models\Setting::isTestMode();
+        @endphp
+        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-2 text-lg font-semibold text-gray-800 dark:text-gray-100">{{ __('vender/luggage.step_pay') }}</h2>
+            @if($test_mode && $amountDue > 0)
+                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100" role="status">
+                    <p class="font-semibold">{{ __('vender/luggage.test_mode_notice') }}</p>
+                    <p class="mt-1 text-xs">{{ __('vender/luggage.test_mode_hint') }}</p>
+                </div>
+                <form method="POST" action="{{ route($ctx['pay_route'], $booking->id) }}">
+                    @csrf
+                    <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400">
+                        {{ __('vender/luggage.pay_test_mode', ['amount' => $currency . ' ' . convert_money($amountDue)]) }}
+                    </button>
+                </form>
+            @else
+            <p class="mb-3 text-sm text-gray-600 dark:text-gray-300">{{ __('vender/luggage.pay_hint') }}</p>
             @if($amountDue > 0)
                 <form method="POST" action="{{ route($ctx['pay_route'], $booking->id) }}" class="space-y-3">
                     @csrf
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.phone') }}</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('vender/luggage.phone') }}</label>
                         <input type="text" name="phone" value="{{ old('phone', $booking->customer_phone) }}"
-                               class="mt-1 w-full rounded-lg border-gray-300 shadow-sm" required>
+                               class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100" required>
                     </div>
                     <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
                         {{ __('vender/luggage.pay_clickpesa', ['amount' => $currency . ' ' . convert_money($amountDue)]) }}
@@ -368,6 +383,7 @@
                 @endif
             @else
                 <p class="text-sm text-gray-500">{{ __('vender/luggage.no_amount_due') }}</p>
+            @endif
             @endif
         </div>
 

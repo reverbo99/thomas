@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\ClickPesaController;
 use App\Models\Booking;
+use App\Models\Setting;
 use App\Services\ExcessLuggageService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 
@@ -112,6 +114,7 @@ class ExcessLuggageController extends Controller
             'amountDue' => $this->luggage->amountDue($booking),
             'refundAmount' => $this->luggage->refundAmount($booking),
             'luggageService' => $this->luggage,
+            'test_mode' => Setting::isTestMode(),
         ]);
     }
 
@@ -160,6 +163,10 @@ class ExcessLuggageController extends Controller
                 ->with('error', __('vender/luggage.no_amount_due'));
         }
 
+        if (Setting::isTestMode()) {
+            return $this->processTestPayment($booking, $ctx);
+        }
+
         $data = $request->validate([
             'phone' => 'nullable|string|max:20',
         ]);
@@ -201,6 +208,36 @@ class ExcessLuggageController extends Controller
             $email,
             $orderRef
         );
+    }
+
+    /** Mark excess-luggage top-up paid without ClickPesa when Settings → Test Mode is on. */
+    private function processTestPayment(Booking $booking, array $ctx)
+    {
+        $amountDue = $this->luggage->amountDue($booking);
+        if ($amountDue <= 0) {
+            return redirect()
+                ->route($ctx['show_route'], $booking->id)
+                ->with('error', __('vender/luggage.no_amount_due'));
+        }
+
+        $ref = substr('TESTXLUG' . $booking->id . substr((string) time(), -6), 0, 20);
+
+        try {
+            $this->luggage->confirmTopUpPayment($booking, $ref);
+        } catch (\Throwable $e) {
+            Log::error('Excess luggage test-mode payment failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route($ctx['show_route'], $booking->id)
+                ->with('error', __('vender/luggage.payment_failed_test_mode'));
+        }
+
+        return redirect()
+            ->route($ctx['show_route'], $booking->id)
+            ->with('success', __('vender/luggage.payment_success_test_mode'));
     }
 
     /**

@@ -132,6 +132,44 @@ class ClickPesaController extends Controller
     }
 
     /**
+     * When Settings → Test Mode is on, never call live ClickPesa for excess luggage.
+     */
+    private function completeLuggagePaymentInTestMode($order_id)
+    {
+        $meta = Session::get('excess_luggage_payment');
+        $bookingId = is_array($meta) ? ($meta['booking_id'] ?? null) : null;
+        $booking = $bookingId ? \App\Models\Booking::find($bookingId) : null;
+
+        if (!$booking) {
+            return $this->redirectPaymentFailure(__('vender/luggage.payment_failed_test_mode'));
+        }
+
+        $ref = preg_replace('/[^A-Za-z0-9]/', '', (string) ($order_id ?: ('TESTXLUG' . $booking->id . substr((string) time(), -6))));
+        if ($ref === '') {
+            $ref = 'TESTXLUG' . $booking->id;
+        }
+
+        try {
+            app(\App\Services\ExcessLuggageService::class)->confirmTopUpPayment($booking, $ref);
+        } catch (\Throwable $e) {
+            Log::error('Excess luggage test-mode settle from ClickPesa skip failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->redirectPaymentFailure(__('vender/luggage.payment_failed_test_mode'));
+        }
+
+        Session::forget('excess_luggage_payment');
+        $route = is_array($meta) ? ($meta['return_route'] ?? null) : null;
+        if (!$route || !\Illuminate\Support\Facades\Route::has($route)) {
+            $route = 'bus_owner.excess_luggage.show';
+        }
+
+        return redirect()->route($route, $booking->id)->with('success', __('vender/luggage.payment_success_test_mode'));
+    }
+
+    /**
      * Normalize a MSISDN for ClickPesa (Tanzania mobile money: 255 + 9 digits, typically 06/07 national).
      *
      * @return array{ok: bool, phone: string, error: string|null}
@@ -190,6 +228,9 @@ class ClickPesaController extends Controller
     {
         if (Setting::isTestMode() && Session::has('parcel_payment')) {
             return $this->completeParcelPaymentInTestMode($order_id);
+        }
+        if (Setting::isTestMode() && Session::has('excess_luggage_payment')) {
+            return $this->completeLuggagePaymentInTestMode($order_id);
         }
 
         // Prepare order details
