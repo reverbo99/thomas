@@ -93,6 +93,12 @@ return [
     'transaction_request_failed' => 'Ombi la muamala limeshindwa',
     // Fomu ya uwekaji
     'deposit_wallet_explanation' => 'Uwekaji huongezwa kwenye pochi yako ya pesa taslimu (inatumika unapouza tiketi kwa pesa taslimu). Kamisheni kutoka mauzo yanabaki kwenye pochi ya kamisheni. Unaweza kuhamisha kati ya hizo mbili kwenye ukurasa wa miamala. Tumia ClickPesa au PDO kama unavyopendelea.',
+    'test_mode_deposit_notice' => 'Hali ya majaribio imewashwa',
+    'test_mode_deposit_hint' => 'Hakuna lango halisi la malipo litakalotozwa. Kutuma fomu hii kutaongeza kiasi moja kwa moja kwenye pochi yako ya pesa taslimu kwa ajili ya majaribio.',
+    'deposit_test_mode_button' => 'Weka fedha (hali ya majaribio)',
+    'test_mode_deposit_success' => 'Kiasi cha majaribio TZS :amount kimeongezwa kwenye pochi yako ya pesa taslimu. Hakuna lango halisi la malipo lililotumika.',
+    'test_mode_deposit_failed' => 'Imeshindikana kuongeza kiasi cha majaribio kwenye pochi yako ya pesa taslimu.',
+    'test_mode_deposit_expired' => 'Fomu hii ya uwekaji wa majaribio imekwisha muda. Pakia upya ukurasa na ujaribu tena.',
     'clickpesa_mobile_money' => 'ClickPesa (pesa ya simu)',
     'mobile_number_ussd_clickpesa' => 'Nambari ya simu kwa USSD (ClickPesa)',
     'deposit_phone_hint' => 'Tumia nambari ya pesa ya simu ya Tanzania. Unaweza kuweka 07… au 06…, au fomu ya kimataifa 255… (hakuna + inahitajika). Mfumo hutuma 255 pamoja na tarakimu tisa kwa ClickPesa.',

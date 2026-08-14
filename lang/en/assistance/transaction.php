@@ -93,6 +93,12 @@ return [
     'transaction_request_failed' => 'Transaction request failed',
     // Deposit form
     'deposit_wallet_explanation' => 'Deposits are credited to your cash wallet (used when you sell tickets for cash). Commission from sold bookings stays in your commission wallet. You can move amounts between the two on the transactions page. Use ClickPesa or PDO as you prefer.',
+    'test_mode_deposit_notice' => 'Test mode is on',
+    'test_mode_deposit_hint' => 'No real payment gateway will be charged. Submitting this form credits the amount directly to your cash wallet for testing.',
+    'deposit_test_mode_button' => 'Deposit (test mode)',
+    'test_mode_deposit_success' => 'Test deposit of TZS :amount was added to your cash wallet. No live gateway was charged.',
+    'test_mode_deposit_failed' => 'The test deposit could not be added to your cash wallet.',
+    'test_mode_deposit_expired' => 'This test deposit form expired. Refresh the page and try again.',
     'clickpesa_mobile_money' => 'ClickPesa (mobile money)',
     'mobile_number_ussd_clickpesa' => 'Mobile number for USSD (ClickPesa)',
     'deposit_phone_hint' => 'Use a Tanzania mobile money number. You can enter 07… or 06…, or international form 255… (no + needed). The system sends 255 plus nine digits to ClickPesa.',

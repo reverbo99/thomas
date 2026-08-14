@@ -2,6 +2,10 @@
 
 @section('title', __('vender/busroot.deposit_to_vendor_wallet'))
 
+@php
+    $test_mode = \App\Models\Setting::isTestMode();
+@endphp
+
 @section('page_hero')
     @include('test.partials.page_hero', [
         'eyebrow' => __('all.highlink_isgc'),
@@ -15,22 +19,22 @@
     <div class="container mx-auto px-4 max-w-lg">
         <div class="vendor-panel fade-in">
             <div class="vendor-panel__body">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+        <h2 class="mb-6 text-center text-2xl font-bold text-gray-800 dark:text-gray-100">
             {{ __('vender/busroot.deposit_to_vendor_wallet') }}
         </h2>
-        <p class="text-sm text-gray-600 mb-4 text-center">
+        <p class="mb-4 text-center text-sm text-gray-600 dark:text-gray-300">
             {{ __('assistance/transaction.deposit_wallet_explanation') }}
         </p>
 
         {{-- Success & Error Messages --}}
         @if (session('success'))
-            <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4 rounded-lg" role="alert">
+            <div class="mb-4 rounded-lg border-l-4 border-green-500 bg-green-100 p-4 text-green-700 dark:bg-green-900/30 dark:text-green-100" role="alert">
                 <p>{{ session('success') }}</p>
             </div>
         @endif
 
         @if (session('error'))
-            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-lg" role="alert">
+            <div class="mb-4 rounded-lg border-l-4 border-red-500 bg-red-100 p-4 text-red-700 dark:bg-red-900/30 dark:text-red-100" role="alert">
                 <p>{{ session('error') }}</p>
             </div>
         @endif
@@ -41,18 +45,26 @@
 
             {{-- Amount --}}
             <div>
-                <label for="amount" class="block text-sm font-semibold text-gray-700 mb-1">
+                <label for="amount" class="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">
                     {{ __('vender/busroot.amount') }}
                 </label>
                 <input id="amount" type="number" name="amount" min="1"
                     value="{{ old('amount') }}"
-                    class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-200 h-10 px-2 focus:border-blue-500 @error('amount') border-red-500 @enderror"
+                    class="h-10 w-full rounded-lg border-gray-300 bg-white px-2 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100 @error('amount') border-red-500 @enderror"
                     required autofocus>
                 @error('amount')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                 @enderror
             </div>
 
+            @if($test_mode)
+                <input type="hidden" name="payment_method" value="test_mode">
+                <input type="hidden" name="test_deposit_token" value="{{ $testDepositToken }}">
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100" role="status">
+                    <p class="font-semibold">{{ __('assistance/transaction.test_mode_deposit_notice') }}</p>
+                    <p class="mt-1 text-xs">{{ __('assistance/transaction.test_mode_deposit_hint') }}</p>
+                </div>
+            @else
             {{-- Payment Method --}}
             <div>
                 <label for="payment_method" class="block text-sm font-semibold text-gray-700 mb-1">
@@ -140,11 +152,14 @@
                     @enderror
                 </div>
             </div>
+            @endif
 
             {{-- Submit Button --}}
             <div class="text-center">
                 <button type="submit" class="w-full page-btn">
-                    {{ __('vender/busroot.deposit_button') }}
+                    {{ $test_mode
+                        ? __('assistance/transaction.deposit_test_mode_button')
+                        : __('vender/busroot.deposit_button') }}
                 </button>
             </div>
         </form>

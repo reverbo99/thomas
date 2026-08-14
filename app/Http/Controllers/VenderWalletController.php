@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\PDOController;
 use App\Http\Controllers\TigosecureController;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\VenderBalance;
 use Illuminate\Http\Request;
@@ -12,23 +13,48 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 
 class VenderWalletController extends Controller
 {
     public function showDepositForm()
     {
-        return view('vender.deposit');
+        $testMode = Setting::isTestMode();
+        $testDepositToken = null;
+
+        if ($testMode) {
+            $testDepositToken = Str::random(40);
+            Session::put('vendor_wallet_test_deposit_token', $testDepositToken);
+        } else {
+            Session::forget('vendor_wallet_test_deposit_token');
+        }
+
+        return view('vender.deposit', [
+            'test_mode' => $testMode,
+            'testDepositToken' => $testDepositToken,
+        ]);
     }
 
     public function deposit(Request $request)
     {
-        $request->validate([
+        $testMode = Setting::isTestMode();
+        $rules = [
             'amount' => 'required|numeric|min:1',
-            'payment_method' => 'required|in:tigosecure,pdo,clickpesa',
             'deposit_phone' => 'nullable|string|max:30',
-        ]);
+        ];
+        $rules['payment_method'] = $testMode
+            ? 'required|in:test_mode'
+            : 'required|in:tigosecure,pdo,clickpesa';
+        if ($testMode) {
+            $rules['test_deposit_token'] = 'required|string|size:40';
+        }
+        $request->validate($rules);
 
         $user = auth()->user();
+        if ($testMode) {
+            return $this->processTestDeposit($request, $user);
+        }
+
         if ($request->payment_method == 'pdo') {
             $phone = $user->contact;
             $email = $user->email;
@@ -82,6 +108,57 @@ class VenderWalletController extends Controller
         }
 
         return back()->with('error', __('assistance/transaction.select_payment_method_error'));
+    }
+
+    private function processTestDeposit(Request $request, $user)
+    {
+        $sessionToken = (string) Session::get('vendor_wallet_test_deposit_token', '');
+        $requestToken = (string) $request->input('test_deposit_token', '');
+
+        if ($sessionToken === '' || !hash_equals($sessionToken, $requestToken)) {
+            return back()
+                ->withInput()
+                ->with('error', __('assistance/transaction.test_mode_deposit_expired'));
+        }
+
+        $amount = round((float) $request->amount, 2);
+
+        try {
+            DB::transaction(function () use ($user, $amount) {
+                $balance = VenderBalance::query()
+                    ->where('user_id', $user->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$balance) {
+                    throw new \RuntimeException(__('assistance/transaction.wallet_split_unavailable'));
+                }
+
+                if (Schema::hasColumn('vender_balances', 'sell_cash_amount')) {
+                    $balance->increment('sell_cash_amount', $amount);
+                } else {
+                    $balance->increment('amount', $amount);
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error('Vendor wallet test-mode deposit failed', [
+                'user_id' => $user->id,
+                'amount' => $amount,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', __('assistance/transaction.test_mode_deposit_failed'));
+        }
+
+        Session::forget(['vendor_wallet_test_deposit_token', 'amount', 'vender']);
+
+        return redirect()
+            ->route('vender.transaction')
+            ->with('success', __('assistance/transaction.test_mode_deposit_success', [
+                'amount' => number_format($amount, 2),
+            ]));
     }
 
     public function returned()
