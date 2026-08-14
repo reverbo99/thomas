@@ -175,8 +175,11 @@ document.addEventListener('DOMContentLoaded', function () {
         bindVerifyForm('inlineCashForm');
         bindVerifyForm('inlineResaveForm');
 
-        const testForm = paymentRoot.querySelector('[id^="test-mode-checkout-form"]');
-        if (testForm && testForm.dataset.testModeBound !== '1') {
+        const testForms = paymentRoot.querySelectorAll(
+            '[id^="test-mode-checkout-form"], [id^="test-mode-reserve-form"]'
+        );
+        testForms.forEach(function (testForm) {
+            if (testForm.dataset.testModeBound === '1') return;
             testForm.dataset.testModeBound = '1';
             testForm.addEventListener('submit', function (event) {
                 event.preventDefault();
@@ -188,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 appendContactFieldsToForm(testForm, contact);
                 testForm.submit();
             });
-        }
+        });
 
         const nextBtn = paymentRoot.querySelector('[data-inline-pay-next]');
         if (nextBtn && !nextBtn.dataset.bound) {
@@ -202,7 +205,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 const activePane = paymentRoot.querySelector('[data-inline-pay-pane].inline-payment__pane--active');
 
                 if (!activePane) {
-                    const testForm = paymentRoot.querySelector('[id^="test-mode-checkout-form"]');
+                    const testForm = paymentRoot.querySelector(
+                        '[id^="test-mode-checkout-form"], [id^="test-mode-reserve-form"]'
+                    );
                     if (testForm) {
                         testForm.requestSubmit();
                     }
