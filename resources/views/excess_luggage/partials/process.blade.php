@@ -2,6 +2,10 @@
 @php
     $status = $status ?? ($luggageService->normalizeStatus($booking) ?? 'none');
     $amountDue = $amountDue ?? $luggageService->amountDue($booking);
+    $refundAmount = $refundAmount ?? $luggageService->refundAmount($booking);
+    $refundDelta = (float) ($booking->luggage_refund_amount ?? 0);
+    $refundDisplay = $refundDelta < 0 ? round(abs($refundDelta), 2) : 0.0;
+    $payStatus = $booking->luggage_payment_status ?? null;
     $currency = $currency ?? session('currency', 'TZS');
     $feePerKg = $luggageService->feePerKg();
     $estimatedWeightJs = $booking->estimated_weight !== null ? (float) $booking->estimated_weight : null;
@@ -88,6 +92,11 @@
         <p class="mt-1 text-sm font-semibold text-teal-700">{{ __('vender/luggage.fee_net_to_owner') }}: {{ $currency }} {{ convert_money($luggageSplit['owner']) }}</p>
         @if($amountDue > 0)
             <p class="mt-1 text-sm font-semibold text-red-600">{{ __('vender/luggage.amount_due') }}: {{ $currency }} {{ convert_money($amountDue) }}</p>
+        @elseif($refundDisplay > 0)
+            <p class="mt-1 text-sm font-semibold text-amber-700">{{ __('vender/luggage.refund_owed') }}: {{ $currency }} {{ convert_money($refundDisplay) }}</p>
+            @if($payStatus)
+                <p class="mt-1 text-xs text-gray-500">{{ $luggageService->paymentStatusLabel($payStatus) }}</p>
+            @endif
         @endif
     </div>
 </div>
@@ -287,7 +296,7 @@
     </div>
 
     <div class="space-y-6">
-        {{-- Pay extra via gateway --}}
+        {{-- Pay extra via gateway / request luggage refund --}}
         <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
             <h2 class="mb-2 text-lg font-semibold text-gray-800">{{ __('vender/luggage.step_pay') }}</h2>
             <p class="mb-3 text-sm text-gray-600">{{ __('vender/luggage.pay_hint') }}</p>
@@ -303,6 +312,60 @@
                         {{ __('vender/luggage.pay_clickpesa', ['amount' => $currency . ' ' . convert_money($amountDue)]) }}
                     </button>
                 </form>
+            @elseif($refundDisplay > 0)
+                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p class="text-sm font-semibold text-amber-900">
+                        {{ __('vender/luggage.refund_owed') }}: {{ $currency }} {{ convert_money($refundDisplay) }}
+                    </p>
+                    <p class="mt-1 text-xs text-amber-800">{{ __('vender/luggage.refund_hint') }}</p>
+                </div>
+                @if($payStatus === \App\Services\ExcessLuggageService::PAYMENT_REFUND_PENDING)
+                    <p class="text-sm font-medium text-amber-800">{{ __('vender/luggage.refund_pending_admin') }}</p>
+                    @if(!empty($booking->luggage_payment_ref))
+                        <p class="mt-1 text-xs text-gray-500">{{ __('vender/luggage.refund_ref') }}: {{ $booking->luggage_payment_ref }}</p>
+                    @endif
+                @elseif($payStatus === \App\Services\ExcessLuggageService::PAYMENT_REFUNDED)
+                    <p class="text-sm font-medium text-green-700">{{ __('vender/luggage.refund_processed') }}</p>
+                @elseif($payStatus === \App\Services\ExcessLuggageService::PAYMENT_REFUND_REJECTED)
+                    <p class="mb-3 text-sm font-medium text-red-700">{{ __('vender/luggage.refund_was_rejected') }}</p>
+                    <form method="POST" action="{{ route($ctx['refund_route'], $booking->id) }}" class="space-y-3">
+                        @csrf
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_phone') }}</label>
+                            <input type="text" name="phone" value="{{ old('phone', $booking->customer_phone) }}"
+                                   class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_fullname') }}</label>
+                            <input type="text" name="fullname" value="{{ old('fullname', $booking->customer_name) }}"
+                                   class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
+                        </div>
+                        <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                            onclick="return confirm(@json(__('vender/luggage.confirm_refund_request')))">
+                            {{ __('vender/luggage.request_refund', ['amount' => $currency . ' ' . convert_money($refundDisplay)]) }}
+                        </button>
+                    </form>
+                @elseif($luggageService->canRequestRefund($booking))
+                    <form method="POST" action="{{ route($ctx['refund_route'], $booking->id) }}" class="space-y-3">
+                        @csrf
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_phone') }}</label>
+                            <input type="text" name="phone" value="{{ old('phone', $booking->customer_phone) }}"
+                                   class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.refund_fullname') }}</label>
+                            <input type="text" name="fullname" value="{{ old('fullname', $booking->customer_name) }}"
+                                   class="mt-1 w-full rounded-lg border-gray-300 shadow-sm">
+                        </div>
+                        <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                            onclick="return confirm(@json(__('vender/luggage.confirm_refund_request')))">
+                            {{ __('vender/luggage.request_refund', ['amount' => $currency . ' ' . convert_money($refundDisplay)]) }}
+                        </button>
+                    </form>
+                @else
+                    <p class="text-sm text-gray-500">{{ __('vender/luggage.refund_hint') }}</p>
+                @endif
             @else
                 <p class="text-sm text-gray-500">{{ __('vender/luggage.no_amount_due') }}</p>
             @endif

@@ -1,4 +1,7 @@
-@php $currency = $currency ?? session('currency', 'TZS'); @endphp
+@php
+    $currency = $currency ?? session('currency', 'TZS');
+    $isAdmin = $isAdmin ?? false;
+@endphp
 <form method="GET" action="{{ url()->current() }}" class="mb-4 flex flex-col gap-3 md:flex-row md:items-end">
     <div class="flex-1">
         <label class="block text-xs font-medium text-gray-600">{{ __('vender/luggage.search') }}</label>
@@ -25,6 +28,7 @@
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.route') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.bus') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.fee') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.refund_owed') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.status') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500"></th>
             </tr>
@@ -35,6 +39,9 @@
                     $st = $luggageService->normalizeStatus($b);
                     $from = $b->route->from ?? $b->bus->route->from ?? null;
                     $to = $b->route->to ?? $b->bus->route->to ?? null;
+                    $delta = (float) ($b->luggage_refund_amount ?? 0);
+                    $refundDisp = $delta < 0 ? abs($delta) : 0;
+                    $paySt = $b->luggage_payment_status ?? null;
                 @endphp
                 <tr>
                     <td class="px-4 py-3 font-medium text-gray-900">{{ $b->booking_code }}</td>
@@ -43,10 +50,37 @@
                     <td class="px-4 py-3 text-gray-600">{{ $b->bus->bus_number ?? '—' }}</td>
                     <td class="px-4 py-3 text-gray-900">{{ $currency }} {{ convert_money($b->excess_luggage_fee ?? 0) }}</td>
                     <td class="px-4 py-3">
+                        @if($refundDisp > 0)
+                            <span class="font-medium text-amber-800">{{ $currency }} {{ convert_money($refundDisp) }}</span>
+                            @if($paySt)
+                                <span class="mt-0.5 block text-xs text-gray-500">{{ $luggageService->paymentStatusLabel($paySt) }}</span>
+                            @endif
+                        @else
+                            <span class="text-gray-400">—</span>
+                        @endif
+                    </td>
+                    <td class="px-4 py-3">
                         <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{{ $luggageService->statusLabel($st) }}</span>
                     </td>
                     <td class="px-4 py-3 text-right">
-                        @if(!empty($ctx['show_route']))
+                        @if($isAdmin && $paySt === \App\Services\ExcessLuggageService::PAYMENT_REFUND_PENDING)
+                            <div class="flex flex-wrap items-center justify-end gap-2">
+                                <form method="POST" action="{{ route('system.excess_luggage.refund.approve', $b->id) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" class="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"
+                                        onclick="return confirm(@json(__('vender/luggage.confirm_approve_refund')))">
+                                        {{ __('vender/luggage.approve_refund') }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('system.excess_luggage.refund.reject', $b->id) }}" class="inline">
+                                    @csrf
+                                    <button type="submit" class="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700"
+                                        onclick="return confirm(@json(__('vender/luggage.confirm_reject_refund')))">
+                                        {{ __('vender/luggage.reject_refund') }}
+                                    </button>
+                                </form>
+                            </div>
+                        @elseif(!empty($ctx['show_route']))
                             <a href="{{ route($ctx['show_route'], $b->id) }}" class="text-teal-700 hover:underline">{{ __('vender/luggage.open') }}</a>
                         @else
                             <span class="text-gray-400">{{ $b->bus->campany->name ?? ($b->campany->name ?? '') }}</span>
@@ -55,7 +89,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">{{ __('vender/luggage.none_found') }}</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">{{ __('vender/luggage.none_found') }}</td>
                 </tr>
             @endforelse
         </tbody>

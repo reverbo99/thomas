@@ -9,6 +9,6 @@
         <h1 class="text-2xl font-bold text-gray-800">{{ __('vender/luggage.admin_tracking') }}</h1>
         <p class="text-sm text-gray-500">{{ __('vender/luggage.tracking_subtitle') }}</p>
     </div>
-    @include('excess_luggage.partials.tracking_table', ['ctx' => ['show_route' => null]])
+    @include('excess_luggage.partials.tracking_table', ['ctx' => ['show_route' => null], 'isAdmin' => true])
 </div>
 @endsection

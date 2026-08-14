@@ -195,12 +195,8 @@
                                         @if ((float) ($booking['luggage_fee'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">luggage:</span> {{ $booking['luggage_fee'] }}</p>
                                         @endif
-                                        <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ $booking['service_fee'] ?? 'N/A' }}</p>
                                         <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ $booking['commision'] ?? 'N/A' }}</p>
                                         <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ $booking['gov_levy'] ?? '0' }}</p>
-                                        @if ((float) ($booking['gov_levy_service'] ?? 0) > 0)
-                                        <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy (service):</span> {{ $booking['gov_levy_service'] }}</p>
-                                        @endif
                                     </div>
                                 </td>
                                 <td>
@@ -218,7 +214,6 @@
                     @php
                         $sumBusFare = collect($bookings)->sum(fn ($row) => (float) ($row['bus_fee'] ?? 0));
                         $sumLuggage = collect($bookings)->sum(fn ($row) => (float) ($row['luggage_fee'] ?? 0));
-                        $sumService = collect($bookings)->sum(fn ($row) => (float) ($row['service_fee'] ?? 0));
                         $sumCommission = collect($bookings)->sum(fn ($row) => (float) ($row['commision'] ?? 0));
                         $sumGovLevy = collect($bookings)->sum(fn ($row) => (float) ($row['gov_levy'] ?? 0));
                         $sumTotal = collect($bookings)->sum(fn ($row) => (float) ($row['total'] ?? 0));
@@ -231,7 +226,6 @@
                                 @if ($sumLuggage > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">luggage:</span> {{ number_format($sumLuggage, 2) }}</p>
                                 @endif
-                                <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ number_format($sumService, 2) }}</p>
                                 <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ number_format($sumCommission, 2) }}</p>
                                 <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ number_format($sumGovLevy, 2) }}</p>
                             </td>

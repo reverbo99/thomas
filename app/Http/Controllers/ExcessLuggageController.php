@@ -110,6 +110,7 @@ class ExcessLuggageController extends Controller
             'ctx' => $ctx,
             'status' => $this->luggage->normalizeStatus($booking),
             'amountDue' => $this->luggage->amountDue($booking),
+            'refundAmount' => $this->luggage->refundAmount($booking),
             'luggageService' => $this->luggage,
         ]);
     }
@@ -200,6 +201,31 @@ class ExcessLuggageController extends Controller
             $email,
             $orderRef
         );
+    }
+
+    /**
+     * Staff requests admin approval for a luggage overpayment refund
+     * (actual weight lower than estimated — negative luggage_refund_amount).
+     */
+    public function requestRefund(Request $request, $bookingId)
+    {
+        $ctx = $this->resolveContext();
+        $booking = $this->findAuthorizedBooking($bookingId, $ctx);
+
+        $data = $request->validate([
+            'phone' => 'nullable|string|max:20',
+            'fullname' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $this->luggage->requestRefund($booking, Auth::user(), $data);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route($ctx['show_route'], $booking->id)
+            ->with('success', __('vender/luggage.refund_request_sent'));
     }
 
     public function assign(Request $request, $bookingId)
@@ -367,13 +393,61 @@ class ExcessLuggageController extends Controller
             });
         }
 
-        $bookings = $query->latest('id')->paginate(25)->withQueryString();
+        // Surface pending luggage refunds first for admin processing.
+        $bookings = $query
+            ->orderByRaw("CASE WHEN luggage_payment_status = ? THEN 0 ELSE 1 END", [
+                ExcessLuggageService::PAYMENT_REFUND_PENDING,
+            ])
+            ->latest('id')
+            ->paginate(25)
+            ->withQueryString();
 
         return view('system.excess_luggage.index', [
             'bookings' => $bookings,
             'filters' => ['status' => $status, 'q' => $search],
             'luggageService' => $this->luggage,
+            'isAdmin' => true,
         ]);
+    }
+
+    public function adminApproveRefund($bookingId)
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->isActive() && (
+            $user->hasAccess(\App\Models\Access::LINKS['SYSTEM_INCOME'])
+            || $user->hasAccess(\App\Models\Access::LINKS['BOOKING_HISTORY'])
+            || $user->hasAccess(\App\Models\Access::LINKS['REFUNDS'])
+        ), 403);
+
+        $booking = Booking::findOrFail($bookingId);
+
+        try {
+            $this->luggage->approveRefund($booking, $user);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('vender/luggage.refund_approved'));
+    }
+
+    public function adminRejectRefund($bookingId)
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->isActive() && (
+            $user->hasAccess(\App\Models\Access::LINKS['SYSTEM_INCOME'])
+            || $user->hasAccess(\App\Models\Access::LINKS['BOOKING_HISTORY'])
+            || $user->hasAccess(\App\Models\Access::LINKS['REFUNDS'])
+        ), 403);
+
+        $booking = Booking::findOrFail($bookingId);
+
+        try {
+            $this->luggage->rejectRefund($booking, $user);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('error', __('vender/luggage.refund_rejected'));
     }
 
     private function resolveContext(): array
@@ -395,6 +469,7 @@ class ExcessLuggageController extends Controller
                 'show_route' => 'vender.excess_luggage.show',
                 'weigh_route' => 'vender.excess_luggage.weigh',
                 'pay_route' => 'vender.excess_luggage.pay',
+                'refund_route' => 'vender.excess_luggage.refund',
                 'assign_route' => 'vender.excess_luggage.assign',
                 'reclaim_route' => 'vender.excess_luggage.reclaim',
                 'print_route' => 'vender.excess_luggage.print',
@@ -416,6 +491,7 @@ class ExcessLuggageController extends Controller
             'show_route' => 'bus_owner.excess_luggage.show',
             'weigh_route' => 'bus_owner.excess_luggage.weigh',
             'pay_route' => 'bus_owner.excess_luggage.pay',
+            'refund_route' => 'bus_owner.excess_luggage.refund',
             'assign_route' => 'bus_owner.excess_luggage.assign',
             'reclaim_route' => 'bus_owner.excess_luggage.reclaim',
             'print_route' => 'bus_owner.excess_luggage.print',

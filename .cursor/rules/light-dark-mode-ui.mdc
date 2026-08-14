@@ -1,0 +1,30 @@
+---
+description: Every UI/UX surface must support light and dark mode
+alwaysApply: true
+---
+
+# Light and dark mode (required)
+
+Every new or changed **UI/UX** surface must support both **light** and **dark** themes. Do not ship pages, components, or screens that only look correct in one mode.
+
+## Required
+
+- Theme toggle (or system preference + optional override) available in the relevant shell/layout
+- Persist user preference (e.g. `localStorage` / session / user setting)
+- Use theme tokens / CSS variables (or Tailwind `dark:` variants) — not hard-coded one-mode colors
+- Text, borders, icons, charts, maps, and images must remain readable and on-brand in both modes
+- Respect `prefers-color-scheme` when no saved preference exists
+
+## Avoid
+
+- Hard-coded hex/rgb backgrounds or text that break in the other mode
+- Light-only or dark-only mockups treated as “done”
+- Mixing ad-hoc colors that ignore the shared theme tokens
+
+## When building or changing UI
+
+1. Implement (or reuse) the shared theme system first.
+2. Style with semantic tokens (`bg-background`, `text-foreground`, brand accents) or equivalent project variables.
+3. Verify contrast and hierarchy in **both** light and dark before finishing.
+
+Applies to web Blade/JS, Flutter apps, admin/vendor/customer portals, and marketing pages unless the user explicitly exempts a surface.

@@ -447,6 +447,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/{booking}', [ExcessLuggageController::class, 'show'])->name('show');
             Route::post('/{booking}/weigh', [ExcessLuggageController::class, 'weighIn'])->name('weigh');
             Route::post('/{booking}/pay', [ExcessLuggageController::class, 'pay'])->name('pay');
+            Route::post('/{booking}/refund', [ExcessLuggageController::class, 'requestRefund'])->name('refund');
             Route::post('/{booking}/assign', [ExcessLuggageController::class, 'assign'])->name('assign');
             Route::post('/{booking}/reclaim', [ExcessLuggageController::class, 'reclaim'])->name('reclaim');
             Route::get('/{booking}/print', [ExcessLuggageController::class, 'printReceipt'])->name('print');
@@ -519,6 +520,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/system_payments/export/pdf', [SystemController::class, 'systemIncomeReportPdf'])->name('system.payments.pdf');
         Route::get('/system_payments/export/csv', [SystemController::class, 'systemIncomeReportCsv'])->name('system.payments.csv');
         Route::get('/excess-luggage', [ExcessLuggageController::class, 'adminIndex'])->name('system.excess_luggage');
+        Route::post('/excess-luggage/{booking}/refund/approve', [ExcessLuggageController::class, 'adminApproveRefund'])->name('system.excess_luggage.refund.approve');
+        Route::post('/excess-luggage/{booking}/refund/reject', [ExcessLuggageController::class, 'adminRejectRefund'])->name('system.excess_luggage.refund.reject');
         Route::get('/parcels', [ParcelController::class, 'adminIndex'])->name('system.parcels');
         Route::get('/parcels/manifest', [ParcelController::class, 'adminManifest'])->name('system.parcels.manifest');
         Route::get('/government-levy', [SystemController::class, 'governmentLevyReport'])->name('system.government_levy');
@@ -686,6 +689,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/{booking}', [ExcessLuggageController::class, 'show'])->name('show');
             Route::post('/{booking}/weigh', [ExcessLuggageController::class, 'weighIn'])->name('weigh');
             Route::post('/{booking}/pay', [ExcessLuggageController::class, 'pay'])->name('pay');
+            Route::post('/{booking}/refund', [ExcessLuggageController::class, 'requestRefund'])->name('refund');
             Route::post('/{booking}/assign', [ExcessLuggageController::class, 'assign'])->name('assign');
             Route::post('/{booking}/reclaim', [ExcessLuggageController::class, 'reclaim'])->name('reclaim');
             Route::get('/{booking}/print', [ExcessLuggageController::class, 'printReceipt'])->name('print');

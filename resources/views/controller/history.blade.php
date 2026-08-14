@@ -177,7 +177,6 @@
                                         <td class="py-2 px-4">
                                             @php
                                                 $govLevyOnFare = booking_government_levy_on_fare($booking);
-                                                $govLevyOnService = booking_government_levy_on_service($booking);
                                                 $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
                                                 $hasLuggage = (bool) ($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0;
                                                 $luggageAdminShare = $hasLuggage ? system_luggage_fee($booking) : 0;
@@ -187,7 +186,7 @@
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"
                                                 data-discount="{{ $booking->discount_amount ?? 0 }}"
-                                                data-gov-levy="{{ $govLevyOnFare + $govLevyOnService }}"
+                                                data-gov-levy="{{ $govLevyOnFare }}"
                                                 data-vat="{{ $booking->vat ?? 0 }}">
                                                 <p class="text-gray-500 font-medium mb-0">
                                                     {{ __('vender/history.commission_total') }}
@@ -197,8 +196,6 @@
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($booking->discount_amount ?? 0) }}</p>
                                                 <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnFare) }}</p>
-                                                <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy_service') }}
-                                                    {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnService) }}</p>
                                                 @if ($hasLuggage)
                                                     <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.luggage_admin') }}
                                                         {{ $currency ?? 'TSH' }} {{ convert_money($luggageAdminShare) }}</p>

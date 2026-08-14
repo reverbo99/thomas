@@ -1272,15 +1272,14 @@ if (!function_exists('booking_to_report_row')) {
             ? round($customerTotal)
             : round($busFee + $luggageFee + $serviceFee + $insurance);
 
-        // Manifest "Paid fare" excludes the platform service fee (product requirement).
-        $paidFare = $customerTotal > 0
-            ? round(max(0, $customerTotal - $serviceFee))
-            : round($busFee + $luggageFee + $insurance);
-
         $routeFrom = optional($booking->schedule)->from ?? optional(optional($booking->bus)->route)->from ?? 'N/A';
         $routeTo = optional($booking->schedule)->to ?? optional(optional($booking->bus)->route)->to ?? 'N/A';
         $routeLabel = strtoupper(trim($routeFrom . '-' . $routeTo, '-'));
         $discountAmount = round((float) ($booking->discount_amount ?? 0));
+
+        // Manifest "Paid fare" = ticket nauli only (busFee; coupon already applied).
+        // Excludes luggage, service fee, and insurance — extras stay in Remarks.
+        $paidFare = round(max(0, $busFee));
 
         $travelDateRaw = $booking->travel_date
             ? \Carbon\Carbon::parse($booking->travel_date)

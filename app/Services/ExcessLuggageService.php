@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Log;
  * declared → weighed → awaiting_payment|ready → assigned → retrieved
  *
  * Extra collect (positive luggage_refund_amount) settles via ClickPesa;
- * refunds (negative) are recorded as a manual note only.
+ * refunds (negative) are requested by staff and approved by system admin
+ * via luggage_payment_status (refund_noted → refund_pending → refunded).
  */
 class ExcessLuggageService
 {
@@ -29,6 +30,9 @@ class ExcessLuggageService
     public const PAYMENT_PENDING = 'pending';
     public const PAYMENT_PAID = 'paid';
     public const PAYMENT_REFUND_NOTED = 'refund_noted';
+    public const PAYMENT_REFUND_PENDING = 'refund_pending';
+    public const PAYMENT_REFUNDED = 'refunded';
+    public const PAYMENT_REFUND_REJECTED = 'refund_rejected';
 
     /** Company receipt / exit QR suffix — payload is `{booking_code}|XLUG`. */
     public const COMPANY_QR_SUFFIX = 'XLUG';
@@ -173,7 +177,7 @@ class ExcessLuggageService
     /**
      * Record weigh-in measurements and fee reconciliation.
      * Verdict + luggage_refund_amount are computed automatically from actual vs estimated weight.
-     * Positive delta → awaiting ClickPesa; negative → refund_noted; zero → ready.
+     * Positive delta → awaiting ClickPesa; negative → refund_noted (staff may request admin refund); zero → ready.
      */
     public function weighIn(Booking $booking, array $data, User $actor): Booking
     {
@@ -212,6 +216,7 @@ class ExcessLuggageService
                 ? self::STATUS_AWAITING_PAYMENT
                 : self::STATUS_READY,
             'luggage_payment_status' => $paymentStatus,
+            'luggage_payment_ref' => null,
             'luggage_weighed_at' => now(),
             'luggage_weighed_by' => $actor->id,
             // Clear prior assignment/retrieval if re-weighing
@@ -261,6 +266,221 @@ class ExcessLuggageService
         }
 
         return $delta;
+    }
+
+    /**
+     * Absolute refund owed to the passenger when weigh-in found overpayment
+     * (negative luggage_refund_amount). Zero once admin has approved the refund.
+     */
+    public function refundAmount(Booking $booking): float
+    {
+        $delta = (float) ($booking->luggage_refund_amount ?? 0);
+        if ($delta >= 0) {
+            return 0.0;
+        }
+        if ($booking->luggage_payment_status === self::PAYMENT_REFUNDED) {
+            return 0.0;
+        }
+
+        return round(abs($delta), 2);
+    }
+
+    public function canRequestRefund(Booking $booking): bool
+    {
+        if ((float) ($booking->luggage_refund_amount ?? 0) >= 0) {
+            return false;
+        }
+        if ($booking->luggage_payment_status === self::PAYMENT_REFUNDED) {
+            return false;
+        }
+        if ($booking->luggage_payment_status === self::PAYMENT_REFUND_PENDING) {
+            return false;
+        }
+
+        return in_array($booking->luggage_payment_status, [
+            self::PAYMENT_REFUND_NOTED,
+            self::PAYMENT_REFUND_REJECTED,
+            self::PAYMENT_NONE,
+            null,
+            '',
+        ], true);
+    }
+
+    public function hasPendingRefundRequest(Booking $booking): bool
+    {
+        return $booking->luggage_payment_status === self::PAYMENT_REFUND_PENDING
+            && (float) ($booking->luggage_refund_amount ?? 0) < 0;
+    }
+
+    /**
+     * Staff submits a luggage overpayment refund for system-admin approval.
+     * Stores a short ref on luggage_payment_ref (XLUGREF…).
+     */
+    public function requestRefund(Booking $booking, User $actor, array $data = []): Booking
+    {
+        $amount = $this->refundAmount($booking);
+        if ($amount <= 0) {
+            throw new \RuntimeException(__('vender/luggage.no_refund_due'));
+        }
+
+        if ($booking->luggage_payment_status === self::PAYMENT_REFUND_PENDING) {
+            throw new \RuntimeException(__('vender/luggage.refund_already_pending'));
+        }
+
+        if ($booking->luggage_payment_status === self::PAYMENT_REFUNDED) {
+            throw new \RuntimeException(__('vender/luggage.refund_already_processed'));
+        }
+
+        if (!$this->canRequestRefund($booking)) {
+            throw new \RuntimeException(__('vender/luggage.no_refund_due'));
+        }
+
+        $phone = trim((string) ($data['phone'] ?? $booking->customer_phone ?? ''));
+        $name = trim((string) ($data['fullname'] ?? $booking->customer_name ?? ''));
+        $ref = $this->buildRefundRequestReference($booking);
+
+        $currentStatus = $this->normalizeStatus($booking);
+        $booking->update([
+            'luggage_payment_status' => self::PAYMENT_REFUND_PENDING,
+            'luggage_payment_ref' => $ref,
+            // Keep luggage operational status so assign/reclaim stay available.
+            'luggage_status' => in_array($currentStatus, [
+                self::STATUS_ASSIGNED,
+                self::STATUS_RETRIEVED,
+            ], true)
+                ? $booking->luggage_status
+                : self::STATUS_READY,
+        ]);
+
+        Log::info('Excess luggage refund requested', [
+            'booking_id' => $booking->id,
+            'amount' => $amount,
+            'reference' => $ref,
+            'phone' => $phone,
+            'fullname' => $name,
+            'actor_id' => $actor->id,
+        ]);
+
+        return $booking->fresh();
+    }
+
+    public function buildRefundRequestReference(Booking $booking): string
+    {
+        $code = preg_replace('/[^A-Za-z0-9]/', '', (string) $booking->booking_code) ?: 'BK';
+        $shortCode = substr($code, 0, 6);
+        $shortTime = substr((string) time(), -6);
+
+        return $shortCode . 'XLUGREF' . $shortTime;
+    }
+
+    /**
+     * System admin approves a pending luggage refund: reverse fee shares for |delta|,
+     * reduce excess_luggage_fee, mark payment status refunded.
+     */
+    public function approveRefund(Booking $booking, User $actor): Booking
+    {
+        return DB::transaction(function () use ($booking, $actor) {
+            $booking = Booking::whereKey($booking->id)->lockForUpdate()->first();
+
+            if ($booking->luggage_payment_status === self::PAYMENT_REFUNDED) {
+                return $booking;
+            }
+
+            if ($booking->luggage_payment_status !== self::PAYMENT_REFUND_PENDING) {
+                throw new \RuntimeException(__('vender/luggage.refund_not_pending'));
+            }
+
+            $refund = $this->refundAmount($booking);
+            if ($refund <= 0) {
+                throw new \RuntimeException(__('vender/luggage.no_refund_due'));
+            }
+
+            $booking->loadMissing(['bus.campany.balance']);
+            $split = split_luggage_fee_amount($refund);
+            $systemShare = $split['system'];
+            $governmentShare = $split['government'];
+            $ownerShare = $split['owner'];
+
+            $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
+            if ($adminWallet && $systemShare > 0) {
+                $adminWallet->decrement('balance', min((float) $adminWallet->balance, $systemShare));
+            }
+
+            $bus = $booking->bus;
+            if ($governmentShare > 0 && $bus && $bus->campany) {
+                \App\Models\GovernmentLevy::create([
+                    'campany_id' => $bus->campany->id,
+                    'booking_id' => $booking->booking_code,
+                    'amount' => -1 * $governmentShare,
+                ]);
+            }
+
+            if ($bus && $bus->campany && $bus->campany->balance && $ownerShare > 0) {
+                $bus->campany->balance->decrement(
+                    'amount',
+                    min((float) $bus->campany->balance->amount, $ownerShare)
+                );
+            } elseif ($ownerShare > 0) {
+                Log::warning('Excess luggage refund: bus owner balance missing', [
+                    'booking_id' => $booking->id,
+                    'owner_share' => $ownerShare,
+                ]);
+            }
+
+            $newFee = max(0.0, round((float) ($booking->excess_luggage_fee ?? 0) - $refund, 2));
+            $payload = [
+                'excess_luggage_fee' => $newFee,
+                'luggage_payment_status' => self::PAYMENT_REFUNDED,
+            ];
+            if ($booking->customer_paid_total !== null) {
+                $payload['customer_paid_total'] = max(
+                    0.0,
+                    round((float) $booking->customer_paid_total - $refund, 2)
+                );
+            }
+
+            $booking->update($payload);
+
+            Log::info('Excess luggage refund approved', [
+                'booking_id' => $booking->id,
+                'refund' => $refund,
+                'system_share' => $systemShare,
+                'government_share' => $governmentShare,
+                'owner_share' => $ownerShare,
+                'actor_id' => $actor->id,
+                'reference' => $booking->luggage_payment_ref,
+            ]);
+
+            return $booking->fresh();
+        });
+    }
+
+    public function rejectRefund(Booking $booking, User $actor): Booking
+    {
+        if ($booking->luggage_payment_status !== self::PAYMENT_REFUND_PENDING) {
+            throw new \RuntimeException(__('vender/luggage.refund_not_pending'));
+        }
+
+        $booking->update([
+            'luggage_payment_status' => self::PAYMENT_REFUND_REJECTED,
+        ]);
+
+        Log::info('Excess luggage refund rejected', [
+            'booking_id' => $booking->id,
+            'actor_id' => $actor->id,
+            'reference' => $booking->luggage_payment_ref,
+        ]);
+
+        return $booking->fresh();
+    }
+
+    public function paymentStatusLabel(?string $status): string
+    {
+        $status = $status ?: 'none';
+        $key = 'vender/luggage.payment_' . $status;
+        $translated = __($key);
+
+        return $translated === $key ? ucfirst(str_replace('_', ' ', $status)) : $translated;
     }
 
     /**
