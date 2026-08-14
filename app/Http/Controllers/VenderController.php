@@ -682,6 +682,12 @@ class VenderController extends Controller
         $isResave = $request->boolean('resave_ticket')
             || $request->input('payment_method') === 'resave';
 
+        if ($isResave && !$request->filled('contactNumber')) {
+            $request->merge([
+                'contactNumber' => session('booking_form.customer_number'),
+            ]);
+        }
+
         $request->validate([
             'contactNumber' => ['required', 'string'],
             'contactEmail' => ['nullable', 'email'],

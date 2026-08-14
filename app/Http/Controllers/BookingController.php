@@ -892,6 +892,16 @@ class BookingController extends Controller
 
     public function get_payment(Request $request)
     {
+        $isResave = $request->boolean('resave_ticket')
+            && auth()->check()
+            && in_array(auth()->user()->role, ['customer', 'vender'], true);
+
+        if ($isResave && !$request->filled('contactNumber')) {
+            $request->merge([
+                'contactNumber' => session('booking_form.customer_number'),
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'contactNumber' => ['required', 'string'],
             'contactEmail' => ['nullable', 'email'],
@@ -919,10 +929,6 @@ class BookingController extends Controller
         $payment_method = $request->payment_method;
 
         session()->put('booking_form', $bus_info);
-
-        $isResave = $request->boolean('resave_ticket')
-            && auth()->check()
-            && in_array(auth()->user()->role, ['customer', 'vender'], true);
 
         $canonicalAmount = session()->get('booking_form')['payable_amount'] ?? $request->amount;
         return $this->pay($canonicalAmount, $user, $payment_method, $isResave);

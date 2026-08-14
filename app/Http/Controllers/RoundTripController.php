@@ -1461,6 +1461,15 @@ class RoundTripController extends Controller
 
     public function get_payment(Request $request)
     {
+        $isResave = $request->boolean('resave_ticket')
+            || $request->input('payment_method') === 'resave';
+
+        if ($isResave && !$request->filled('contactNumber')) {
+            $request->merge([
+                'contactNumber' => session('booking_form.customer_number'),
+            ]);
+        }
+
         $request->validate([
             'contactNumber' => ['required', 'string'],
             'contactEmail' => ['nullable', 'email'],
@@ -1494,8 +1503,6 @@ class RoundTripController extends Controller
         ]);
 
         $canonicalAmount = $this->resolveRoundTripPayableAmount($request->amount);
-        $isResave = $request->has('resave_ticket') && $request->input('resave_ticket') == '1';
-
         return $this->pay($canonicalAmount, $user, $payment_method, $isResave);
     }
 
