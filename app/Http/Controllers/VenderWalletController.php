@@ -7,6 +7,7 @@ use App\Http\Controllers\TigosecureController;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\VenderBalance;
+use App\Services\VenderWalletDepositService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,18 +21,22 @@ class VenderWalletController extends Controller
     public function showDepositForm()
     {
         $testMode = Setting::isTestMode();
-        $testDepositToken = null;
+        $testDepositReference = null;
 
         if ($testMode) {
-            $testDepositToken = Str::random(40);
-            Session::put('vendor_wallet_test_deposit_token', $testDepositToken);
+            $testDepositReference = 'TESTVWDEP'
+                . auth()->id()
+                . 'T'
+                . now()->format('YmdHis')
+                . strtoupper(Str::random(6));
+            Session::put('vendor_wallet_test_deposit_reference', $testDepositReference);
         } else {
-            Session::forget('vendor_wallet_test_deposit_token');
+            Session::forget('vendor_wallet_test_deposit_reference');
         }
 
         return view('vender.deposit', [
             'test_mode' => $testMode,
-            'testDepositToken' => $testDepositToken,
+            'testDepositReference' => $testDepositReference,
         ]);
     }
 
@@ -39,14 +44,14 @@ class VenderWalletController extends Controller
     {
         $testMode = Setting::isTestMode();
         $rules = [
-            'amount' => 'required|numeric|min:1',
+            'amount' => 'required|numeric|min:1|max:999999999999.99',
             'deposit_phone' => 'nullable|string|max:30',
         ];
         $rules['payment_method'] = $testMode
             ? 'required|in:test_mode'
             : 'required|in:tigosecure,pdo,clickpesa';
         if ($testMode) {
-            $rules['test_deposit_token'] = 'required|string|size:40';
+            $rules['test_deposit_reference'] = 'required|string|max:64';
         }
         $request->validate($rules);
 
@@ -112,10 +117,10 @@ class VenderWalletController extends Controller
 
     private function processTestDeposit(Request $request, $user)
     {
-        $sessionToken = (string) Session::get('vendor_wallet_test_deposit_token', '');
-        $requestToken = (string) $request->input('test_deposit_token', '');
+        $sessionReference = (string) Session::get('vendor_wallet_test_deposit_reference', '');
+        $requestReference = (string) $request->input('test_deposit_reference', '');
 
-        if ($sessionToken === '' || !hash_equals($sessionToken, $requestToken)) {
+        if ($sessionReference === '' || !hash_equals($sessionReference, $requestReference)) {
             return back()
                 ->withInput()
                 ->with('error', __('assistance/transaction.test_mode_deposit_expired'));
@@ -124,22 +129,11 @@ class VenderWalletController extends Controller
         $amount = round((float) $request->amount, 2);
 
         try {
-            DB::transaction(function () use ($user, $amount) {
-                $balance = VenderBalance::query()
-                    ->where('user_id', $user->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$balance) {
-                    throw new \RuntimeException(__('assistance/transaction.wallet_split_unavailable'));
-                }
-
-                if (Schema::hasColumn('vender_balances', 'sell_cash_amount')) {
-                    $balance->increment('sell_cash_amount', $amount);
-                } else {
-                    $balance->increment('amount', $amount);
-                }
-            });
+            app(VenderWalletDepositService::class)->settleTestDeposit(
+                (int) $user->id,
+                $amount,
+                $requestReference
+            );
         } catch (\Throwable $e) {
             Log::error('Vendor wallet test-mode deposit failed', [
                 'user_id' => $user->id,
@@ -152,7 +146,7 @@ class VenderWalletController extends Controller
                 ->with('error', __('assistance/transaction.test_mode_deposit_failed'));
         }
 
-        Session::forget(['vendor_wallet_test_deposit_token', 'amount', 'vender']);
+        Session::forget(['vendor_wallet_test_deposit_reference', 'amount', 'vender']);
 
         return redirect()
             ->route('vender.transaction')

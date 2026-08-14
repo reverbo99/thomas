@@ -3,7 +3,7 @@
 @section('title', __('vender/busroot.deposit_to_vendor_wallet'))
 
 @php
-    $test_mode = \App\Models\Setting::isTestMode();
+    $test_mode = $test_mode ?? false;
 @endphp
 
 @section('page_hero')
@@ -48,7 +48,7 @@
                 <label for="amount" class="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">
                     {{ __('vender/busroot.amount') }}
                 </label>
-                <input id="amount" type="number" name="amount" min="1"
+                <input id="amount" type="number" name="amount" min="1" max="999999999999.99" step="0.01"
                     value="{{ old('amount') }}"
                     class="h-10 w-full rounded-lg border-gray-300 bg-white px-2 text-gray-900 shadow-sm focus:border-blue-500 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100 @error('amount') border-red-500 @enderror"
                     required autofocus>
@@ -59,10 +59,11 @@
 
             @if($test_mode)
                 <input type="hidden" name="payment_method" value="test_mode">
-                <input type="hidden" name="test_deposit_token" value="{{ $testDepositToken }}">
-                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100" role="status">
-                    <p class="font-semibold">{{ __('assistance/transaction.test_mode_deposit_notice') }}</p>
-                    <p class="mt-1 text-xs">{{ __('assistance/transaction.test_mode_deposit_hint') }}</p>
+                <input type="hidden" name="test_deposit_reference" value="{{ $testDepositReference }}">
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100"
+                    role="status" aria-live="polite" aria-labelledby="deposit-test-mode-title" aria-describedby="deposit-test-mode-description">
+                    <p id="deposit-test-mode-title" class="font-semibold">{{ __('assistance/transaction.test_mode_deposit_notice') }}</p>
+                    <p id="deposit-test-mode-description" class="mt-1 text-xs">{{ __('assistance/transaction.test_mode_deposit_hint') }}</p>
                 </div>
             @else
             {{-- Payment Method --}}
