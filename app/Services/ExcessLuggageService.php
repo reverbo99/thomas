@@ -6,6 +6,7 @@ use App\Models\AdminWallet;
 use App\Models\Booking;
 use App\Models\Setting;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -706,19 +707,20 @@ class ExcessLuggageService
      * Resolve an exit scan from the company QR, booking/verification code,
      * numeric booking ID, or an XLUG payment reference.
      */
-    public function findByCompanyQr(string $raw): ?Booking
+    public function findByCompanyQr(string $raw, ?Builder $query = null): ?Booking
     {
         $value = trim($raw);
         if ($value === '') {
             return null;
         }
 
+        $query = $query ?: Booking::query();
         $qrBookingCode = $this->parseCompanyQrPayload($value);
         if ($qrBookingCode !== null) {
-            return Booking::query()->where('booking_code', $qrBookingCode)->first();
+            return $query->where('booking_code', $qrBookingCode)->first();
         }
 
-        $booking = Booking::query()
+        return $query
             ->where(function ($query) use ($value) {
                 $query->where('booking_code', $value)
                     ->orWhere('verification_code', $value)
@@ -729,14 +731,6 @@ class ExcessLuggageService
                 }
             })
             ->first();
-
-        if ($booking) {
-            return $booking;
-        }
-
-        return stripos($value, 'XLUG') !== false
-            ? $this->findByPaymentReference($value)
-            : null;
     }
 
     public function statusLabel(?string $status): string
@@ -750,8 +744,8 @@ class ExcessLuggageService
     }
 
     /**
-     * Receipt print allowed only when ticket is paid and no top-up is still owed.
-     * Blocks: unpaid ticket, awaiting_payment status, pending luggage_payment_status, or amountDue > 0.
+     * Receipt print is allowed for paid tickets, or reserved tickets whose
+     * luggage charge is paid, when no top-up remains due.
      */
     public function canPrintReceipt(?Booking $booking): bool
     {
@@ -767,7 +761,14 @@ class ExcessLuggageService
             return false;
         }
 
-        if (($booking->payment_status ?? '') !== 'Paid') {
+        $ticketPaid = ($booking->payment_status ?? '') === 'Paid';
+        $reservedWithPaidLuggage = in_array(
+            ($booking->payment_status ?? ''),
+            ['Reserved', 'resaved'],
+            true
+        ) && ($booking->luggage_payment_status ?? null) === self::PAYMENT_PAID;
+
+        if (!$ticketPaid && !$reservedWithPaidLuggage) {
             return false;
         }
 

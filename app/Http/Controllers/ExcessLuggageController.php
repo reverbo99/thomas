@@ -86,7 +86,13 @@ class ExcessLuggageController extends Controller
         $code = trim($request->ticket_code);
         $booking = $this->baseQuery($ctx)
             ->with(['bus.campany', 'schedule'])
-            ->where('payment_status', 'Paid')
+            ->where(function ($query) {
+                $query->where('payment_status', 'Paid')
+                    ->orWhere(function ($reserved) {
+                        $reserved->whereIn('payment_status', ['Reserved', 'resaved'])
+                            ->where('luggage_payment_status', ExcessLuggageService::PAYMENT_PAID);
+                    });
+            })
             ->where(function ($q) use ($code) {
                 $q->where('booking_code', $code)
                     ->orWhere('verification_code', $code);
@@ -322,18 +328,27 @@ class ExcessLuggageController extends Controller
             'qr_payload' => 'required|string|max:200',
         ]);
 
-        $booking = $this->luggage->findByCompanyQr($data['qr_payload']);
+        $booking = $this->luggage->findByCompanyQr(
+            $data['qr_payload'],
+            $this->baseQuery($ctx)
+        );
         if (!$booking) {
             return back()
                 ->withInput()
-                ->with('error', __('vender/luggage.qr_invalid'));
+                ->with('error', __('vender/luggage.scan_code_invalid'));
         }
 
-        $authorized = $this->baseQuery($ctx)->whereKey($booking->id)->exists();
-        if (!$authorized) {
+        $isReservedTicket = in_array(
+            ($booking->payment_status ?? ''),
+            ['Reserved', 'resaved'],
+            true
+        );
+        if ($isReservedTicket
+            && ($booking->luggage_payment_status ?? null) !== ExcessLuggageService::PAYMENT_PAID
+        ) {
             return back()
                 ->withInput()
-                ->with('error', __('vender/luggage.qr_unauthorized'));
+                ->with('error', __('vender/luggage.scan_payment_required'));
         }
 
         $hasLuggage = (int) ($booking->has_excess_luggage ?? 0) === 1
