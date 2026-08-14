@@ -88,8 +88,13 @@ class ParcelFlowService
     public function buildPaymentReference(Parcel $parcel): string
     {
         $code = preg_replace('/[^A-Za-z0-9]/', '', (string) $parcel->parcel_number) ?: 'PCL';
+        $code = strtoupper(substr($code, 0, 9));
 
-        return $code . 'PCL' . time();
+        // ClickPesa requires orderReference to be <= 20 alphanumeric characters,
+        // so the timestamp suffix is trimmed to keep code + 'PCL' + suffix within budget.
+        $suffix = substr((string) time(), -8);
+
+        return substr($code . 'PCL' . $suffix, 0, 20);
     }
 
     public function findByPaymentReference(string $reference): ?Parcel
