@@ -1,4 +1,5 @@
 @php
+    $test_mode = $test_mode ?? \App\Models\Setting::isTestMode();
     $status = $status ?? $flow->normalizeStatus($parcel);
     $showPrefix = request()->routeIs('bus_owner.*') ? 'bus_owner.parcels' : 'vender.parcels';
     $currency = $currency ?? session('currency', 'TZS');

@@ -13,6 +13,7 @@
     $routeFrom = $bus->schedule->from ?? $bus->route->from ?? null;
     $routeTo = $bus->schedule->to ?? $bus->route->to ?? null;
     $oldInstr = old('parcel_instructions', 'collection');
+    $test_mode = $test_mode ?? \App\Models\Setting::isTestMode();
     // Preflight zeros border-width — need `border` + color; match vendor teal chrome
     $fieldClass = 'mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500';
     $readonlyFieldClass = 'mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 shadow-sm';

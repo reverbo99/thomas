@@ -39,6 +39,7 @@ class Setting extends Model
 
     protected $casts = [
         'at_sandbox' => 'boolean',
+        'test_mode' => 'boolean',
         // Gateway secrets are stored encrypted at rest; they are only ever
         // decrypted inside the SMS drivers, never rendered back to the form.
         'at_api_key' => 'encrypted',
@@ -58,5 +59,12 @@ class Setting extends Model
         }
 
         return (bool) (static::query()->value('enforce_customer_email_verification') ?? false);
+    }
+
+    public static function isTestMode(): bool
+    {
+        $settings = static::query()->first();
+
+        return (bool) ($settings?->test_mode ?? false);
     }
 }

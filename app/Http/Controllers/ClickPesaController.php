@@ -93,6 +93,45 @@ class ClickPesaController extends Controller
     }
 
     /**
+     * When Settings → Test Mode is on, never call live ClickPesa for parcels.
+     */
+    private function completeParcelPaymentInTestMode($order_id)
+    {
+        $meta = Session::get('parcel_payment');
+        $parcelId = is_array($meta) ? ($meta['parcel_id'] ?? null) : null;
+        $parcel = $parcelId ? \App\Models\Parcel::find($parcelId) : null;
+
+        if (!$parcel) {
+            return $this->redirectPaymentFailure(__('vender/parcels.payment_failed_test_mode'));
+        }
+
+        $ref = preg_replace('/[^A-Za-z0-9]/', '', (string) ($order_id ?: ('TESTPCL' . $parcel->id . substr((string) time(), -6))));
+        if ($ref === '') {
+            $ref = 'TESTPCL' . $parcel->id;
+        }
+
+        try {
+            $parcel = app(\App\Services\ParcelFlowService::class)->confirmPayment($parcel, $ref, 'test_mode');
+            app(ParcelController::class)->finalizeAfterPayment($parcel);
+        } catch (\Throwable $e) {
+            Log::error('Parcel test-mode settle from ClickPesa skip failed', [
+                'parcel_id' => $parcel->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->redirectPaymentFailure(__('vender/parcels.payment_failed_test_mode'));
+        }
+
+        Session::forget('parcel_payment');
+        $route = is_array($meta) ? ($meta['return_route'] ?? null) : null;
+        if (!$route || !\Illuminate\Support\Facades\Route::has($route)) {
+            $route = 'bus_owner.parcels.show';
+        }
+
+        return redirect()->route($route, $parcel->id)->with('success', __('vender/parcels.payment_success_test_mode'));
+    }
+
+    /**
      * Normalize a MSISDN for ClickPesa (Tanzania mobile money: 255 + 9 digits, typically 06/07 national).
      *
      * @return array{ok: bool, phone: string, error: string|null}
@@ -149,6 +188,10 @@ class ClickPesaController extends Controller
      */
     public function initiatePayment($amount, $first_name, $last_name, $phone, $email, $order_id = null)
     {
+        if (Setting::isTestMode() && Session::has('parcel_payment')) {
+            return $this->completeParcelPaymentInTestMode($order_id);
+        }
+
         // Prepare order details
         $orderDetails = [
             'amount' => $amount,

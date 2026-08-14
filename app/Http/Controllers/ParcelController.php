@@ -609,7 +609,7 @@ class ParcelController extends Controller
 
     private function isTestMode(): bool
     {
-        return (bool) (Setting::query()->value('test_mode') ?? false);
+        return Setting::isTestMode();
     }
 
     /** Mark parcel paid without ClickPesa when Settings → Test Mode is on. */

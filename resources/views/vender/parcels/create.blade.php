@@ -10,6 +10,7 @@
         'Electronic' => __('vender/parcels.type_electronic'),
         'Other' => __('vender/parcels.type_other'),
     ];
+    $test_mode = $test_mode ?? \App\Models\Setting::isTestMode();
 @endphp
 
 @section('content')
