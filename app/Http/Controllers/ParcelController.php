@@ -6,6 +6,7 @@ use App\Http\Controllers\ClickPesaController;
 use App\Models\bus;
 use App\Models\City;
 use App\Models\Parcel;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\DiscountService;
 use App\Services\ParcelFlowService;
@@ -155,8 +156,9 @@ class ParcelController extends Controller
 
         $view = $this->isBusOwnerContext() ? 'bus_owner.parcels.create' : 'vender.parcels.create';
         $storeRoute = $this->isBusOwnerContext() ? 'bus_owner.parcels.store' : 'vender.parcels.store';
+        $test_mode = $this->isTestMode();
 
-        return view($view, compact('bus', 'storeRoute'));
+        return view($view, compact('bus', 'storeRoute', 'test_mode'));
     }
 
     public function store(Request $request)
@@ -284,6 +286,10 @@ class ParcelController extends Controller
             return back()->withInput()->with('error', $message);
         }
 
+        if ($this->isTestMode()) {
+            return $this->processTestPayment($parcel);
+        }
+
         $clickPesaPhone = trim((string) ($data['phone'] ?? ''));
         if ($clickPesaPhone === '') {
             $clickPesaPhone = (string) $parcel->sender_contact;
@@ -297,6 +303,10 @@ class ParcelController extends Controller
         $parcel = $this->findAuthorizedParcel($id);
         if ($parcel->payment_status === ParcelFlowService::PAY_PAID) {
             return redirect($this->showUrl($parcel))->with('success', __('vender/parcels.already_paid'));
+        }
+
+        if ($this->isTestMode()) {
+            return $this->processTestPayment($parcel);
         }
 
         $this->normalizeOptionalPhoneInputs($request, ['phone']);
@@ -320,6 +330,7 @@ class ParcelController extends Controller
             'parcel' => $parcel,
             'flow' => $this->flow,
             'status' => $this->flow->normalizeStatus($parcel),
+            'test_mode' => $this->isTestMode(),
         ]);
     }
 
@@ -596,8 +607,45 @@ class ParcelController extends Controller
         $this->flow->notifyRegistered($parcel->fresh(['bus.campany', 'bus.route']));
     }
 
+    private function isTestMode(): bool
+    {
+        return (bool) (Setting::query()->value('test_mode') ?? false);
+    }
+
+    /** Mark parcel paid without ClickPesa when Settings → Test Mode is on. */
+    private function processTestPayment(Parcel $parcel)
+    {
+        if (!$this->isTestMode()) {
+            return redirect($this->showUrl($parcel))->with('error', __('vender/parcels.test_mode_not_enabled'));
+        }
+
+        if ($parcel->payment_status === ParcelFlowService::PAY_PAID) {
+            return redirect($this->showUrl($parcel))->with('success', __('vender/parcels.already_paid'));
+        }
+
+        $ref = 'TESTPCL' . $parcel->id . substr((string) time(), -6);
+
+        try {
+            $parcel = $this->flow->confirmPayment($parcel, $ref, 'test_mode');
+            $this->finalizeAfterPayment($parcel);
+        } catch (\Throwable $e) {
+            Log::error('Parcel test-mode payment failed', [
+                'parcel_id' => $parcel->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect($this->showUrl($parcel))->with('error', __('vender/parcels.payment_failed_test_mode'));
+        }
+
+        return redirect($this->showUrl($parcel))->with('success', __('vender/parcels.payment_success_test_mode'));
+    }
+
     private function startClickPesaPayment(Parcel $parcel, ?string $phone)
     {
+        if ($this->isTestMode()) {
+            return $this->processTestPayment($parcel);
+        }
+
         $normalized = ClickPesaController::normalizeTanzaniaMsisdnForClickPesa((string) $phone);
         if (!$normalized['ok']) {
             return redirect($this->showUrl($parcel))->with(

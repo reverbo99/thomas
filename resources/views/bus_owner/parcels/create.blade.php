@@ -124,6 +124,12 @@
                     <label class="text-sm font-medium">{{ __('vender/parcels.discount_coupon') }}</label>
                     <input type="text" name="discount_code" value="{{ old('discount_code') }}" class="{{ $fieldClass }}" placeholder="CODE">
                 </div>
+                @if($test_mode ?? false)
+                    <div class="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100" role="status">
+                        <p class="font-semibold">{{ __('vender/parcels.test_mode_notice') }}</p>
+                        <p class="mt-1 text-xs">{{ __('vender/parcels.phone_not_required_test_mode') }}</p>
+                    </div>
+                @else
                 <div class="md:col-span-2">
                     <label class="text-sm font-medium" for="phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
                     <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" class="{{ $fieldClass }} @error('phone') border-red-500 @enderror"
@@ -131,10 +137,11 @@
                     <p class="mt-1 text-xs text-gray-500">{{ __('vender/parcels.clickpesa_hint') }}</p>
                     @error('phone')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
+                @endif
             </div>
         </div>
 
-        <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-white text-sm">{{ __('vender/parcels.pay_and_register') }}</button>
+        <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400">{{ ($test_mode ?? false) ? __('vender/parcels.pay_and_register_test_mode') : __('vender/parcels.pay_and_register') }}</button>
     </form>
 </div>
 

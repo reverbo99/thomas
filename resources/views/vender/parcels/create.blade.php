@@ -181,6 +181,14 @@
                         <label for="discount_code">{{ __('vender/parcels.discount_coupon') }}</label>
                         <input type="text" name="discount_code" id="discount_code" value="{{ old('discount_code') }}" class="page-input" placeholder="CODE">
                     </div>
+                    @if($test_mode ?? false)
+                    <div class="vendor-form-field md:col-span-2">
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100" role="status">
+                            <p class="font-semibold">{{ __('vender/parcels.test_mode_notice') }}</p>
+                            <p class="mt-1 text-xs">{{ __('vender/parcels.phone_not_required_test_mode') }}</p>
+                        </div>
+                    </div>
+                    @else
                     <div class="vendor-form-field md:col-span-2">
                         <label for="phone">{{ __('vender/parcels.clickpesa_phone') }}</label>
                         <input type="tel" name="phone" id="phone" value="{{ old('phone') }}" class="page-input @error('phone') border-red-500 @enderror"
@@ -188,6 +196,7 @@
                         <p class="text-xs text-gray-500 mt-1">{{ __('vender/parcels.clickpesa_hint') }}</p>
                         @error('phone')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                     </div>
+                    @endif
                 </div>
             </div>
 
@@ -201,7 +210,11 @@
                     <i class="fas fa-arrow-left"></i> {{ __('vender/parcels.back') }}
                 </a>
                 <button type="submit" class="page-btn">
-                    {{ __('vender/parcels.pay_and_register') }} <i class="fas fa-mobile-alt"></i>
+                    @if($test_mode ?? false)
+                        {{ __('vender/parcels.pay_and_register_test_mode') }}
+                    @else
+                        {{ __('vender/parcels.pay_and_register') }} <i class="fas fa-mobile-alt"></i>
+                    @endif
                 </button>
             </div>
         </form>
