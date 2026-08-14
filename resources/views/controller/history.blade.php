@@ -89,6 +89,7 @@
                                         data-actual-width="{{ $booking->actual_width !== null ? (float) $booking->actual_width : '' }}"
                                         data-luggage-refund-amount="{{ $booking->luggage_refund_amount !== null ? (float) $booking->luggage_refund_amount : '' }}"
                                         data-luggage-weight-verdict="{{ e($booking->luggage_weight_verdict ?? '') }}"
+                                        data-luggage-weighed-at="{{ $booking->luggage_weighed_at ?? '' }}"
                                         data-luggage-payment-status="{{ e($booking->luggage_payment_status ?? '') }}"
                                         data-luggage-status="{{ e($booking->luggage_status ?? '') }}"
                                         data-payment-status="{{ e($booking->payment_status ?? '') }}"
@@ -399,10 +400,13 @@
                         <div class="flex gap-2 ml-auto">
                             <button type="button" id="excessLuggageCancelBtn"
                                 class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">{{ __('vender/luggage.cancel') }}</button>
-                            <button type="submit"
-                                class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">{{ __('vender/luggage.save') }}</button>
+                            <button type="submit" id="excessLuggageSaveBtn"
+                                class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-slate-700 dark:disabled:text-slate-300">{{ __('vender/luggage.save') }}</button>
                         </div>
                     </div>
+                    <p id="excessLuggageSavedHelp" class="hidden px-4 pb-4 text-sm text-gray-600 dark:text-gray-300" role="status">
+                        {{ __('vender/luggage.weigh_in_saved') }}
+                    </p>
                 </form>
             </div>
         </div>
@@ -540,6 +544,8 @@
             const excessLuggageRefundInput = document.getElementById('excessLuggageRefundInput');
             const excessLuggageRefundHint = document.getElementById('excessLuggageRefundHint');
             const excessLuggageReceiptBtn = document.getElementById('excessLuggageReceiptBtn');
+            const excessLuggageSaveBtn = document.getElementById('excessLuggageSaveBtn');
+            const excessLuggageSavedHelp = document.getElementById('excessLuggageSavedHelp');
             const excessLuggageUrlTemplate = '{{ route('booking.excess_luggage.update', ':id') }}';
             const excessLuggageReceiptUrlTemplate = '{{ route('excess_luggage.receipt.print', ':id') }}';
             const luggageFeePerKg = {{ json_encode((float) app(\App\Services\ExcessLuggageService::class)->feePerKg()) }};
@@ -609,6 +615,7 @@
                 const actualLength = row.attr('data-actual-length') || '';
                 const actualHeight = row.attr('data-actual-height') || '';
                 const actualWidth = row.attr('data-actual-width') || '';
+                const measurementsSaved = (row.attr('data-luggage-weighed-at') || '') !== '';
                 const luggagePayStatus = (row.attr('data-luggage-payment-status') || '').toLowerCase();
                 const luggageStatus = (row.attr('data-luggage-status') || '').toLowerCase();
                 const bookingPayStatus = row.attr('data-payment-status') || '';
@@ -638,6 +645,9 @@
                 excessLuggageRemoveBtn.classList.toggle('hidden', !hasLuggage);
                 excessLuggageReceiptBtn.classList.toggle('hidden', !canPrintReceipt);
                 excessLuggageReceiptBtn.setAttribute('href', excessLuggageReceiptUrlTemplate.replace(':id', bookingId));
+                excessLuggageSaveBtn.disabled = measurementsSaved;
+                excessLuggageSaveBtn.setAttribute('aria-disabled', measurementsSaved ? 'true' : 'false');
+                excessLuggageSavedHelp.classList.toggle('hidden', !measurementsSaved);
                 recomputeLuggageDelta();
                 excessLuggageModal.classList.remove('hidden');
             });

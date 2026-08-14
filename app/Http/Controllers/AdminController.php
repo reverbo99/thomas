@@ -1770,14 +1770,18 @@ $q->where('id', auth()->user()->campany->id);
             return back()->with('success', __('vender/luggage.removed_success'));
         }
 
-        $svc->weighIn($booking, $request->only([
-            'excess_luggage_fee',
-            'excess_luggage_description',
-            'actual_weight',
-            'actual_length',
-            'actual_height',
-            'actual_width',
-        ]), $user);
+        try {
+            $svc->weighIn($booking, $request->only([
+                'excess_luggage_fee',
+                'excess_luggage_description',
+                'actual_weight',
+                'actual_length',
+                'actual_height',
+                'actual_width',
+            ]), $user);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', __('vender/luggage.saved_success'));
     }

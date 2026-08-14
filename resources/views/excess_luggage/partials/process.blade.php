@@ -10,6 +10,7 @@
     $feePerKg = $luggageService->feePerKg();
     $estimatedWeightJs = $booking->estimated_weight !== null ? (float) $booking->estimated_weight : null;
     $grossLuggageFee = (float) ($booking->excess_luggage_fee ?? 0);
+    $measurementsSaved = !empty($booking->luggage_weighed_at);
     $defaultFee = $grossLuggageFee > 0
         ? $grossLuggageFee
         : ($estimatedWeightJs !== null ? round($estimatedWeightJs * $feePerKg, 2) : $feePerKg);
@@ -195,7 +196,11 @@
                 </div>
             </div>
             <div class="flex flex-wrap gap-2 pt-2">
-                <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">{{ __('vender/luggage.save_weigh_in') }}</button>
+                <button type="submit"
+                        class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+                        @if($measurementsSaved) disabled aria-disabled="true" @endif>
+                    {{ __('vender/luggage.save_weigh_in') }}
+                </button>
             </div>
         </form>
         <script>
@@ -408,7 +413,7 @@
                 @csrf
                 <div>
                     <label class="block text-sm font-medium text-gray-700">{{ __('vender/luggage.qr_payload_label') }}</label>
-                    <input type="text" name="qr_payload" value="{{ old('qr_payload') }}" required
+                    <input type="text" name="qr_payload" value="{{ old('qr_payload', session('scanned_luggage_code')) }}" required
                            class="mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
                            placeholder="{{ __('vender/luggage.qr_payload_placeholder') }}"
                            autocomplete="off"

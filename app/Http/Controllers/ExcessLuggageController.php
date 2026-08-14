@@ -150,7 +150,11 @@ class ExcessLuggageController extends Controller
                 ->with('success', __('vender/luggage.removed_success'));
         }
 
-        $this->luggage->weighIn($booking, $data, Auth::user());
+        try {
+            $this->luggage->weighIn($booking, $data, Auth::user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()
             ->route($ctx['show_route'], $booking->id)
@@ -296,7 +300,12 @@ class ExcessLuggageController extends Controller
             'qr_payload' => 'required|string|max:200',
         ]);
 
-        if (!$this->luggage->matchesCompanyQr($booking, $data['qr_payload'])) {
+        $scannedBooking = $this->luggage->findByCompanyQr(
+            $data['qr_payload'],
+            $this->baseQuery($ctx)
+        );
+
+        if (!$scannedBooking || !$scannedBooking->is($booking)) {
             return back()->with('error', __('vender/luggage.qr_mismatch'));
         }
 
@@ -361,17 +370,10 @@ class ExcessLuggageController extends Controller
                 ->with('error', __('vender/luggage.qr_no_luggage'));
         }
 
-        try {
-            $this->luggage->reclaim($booking, Auth::user());
-        } catch (\RuntimeException $e) {
-            return back()
-                ->withInput()
-                ->with('error', $e->getMessage());
-        }
-
         return redirect()
             ->route($ctx['show_route'], $booking->id)
-            ->with('success', __('vender/luggage.reclaimed_success'));
+            ->with('scanned_luggage_code', $this->luggage->buildCompanyQrPayload($booking))
+            ->with('success', __('vender/luggage.scan_ready_to_confirm'));
     }
 
     public function printReceipt($bookingId)

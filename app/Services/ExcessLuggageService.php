@@ -182,6 +182,10 @@ class ExcessLuggageService
      */
     public function weighIn(Booking $booking, array $data, User $actor): Booking
     {
+        if (!empty($booking->luggage_weighed_at)) {
+            throw new \RuntimeException(__('vender/luggage.weigh_in_already_saved'));
+        }
+
         $fee = (float) ($data['excess_luggage_fee'] ?? $booking->excess_luggage_fee ?? 0);
 
         $calc = $this->computeWeighInReconciliation(
