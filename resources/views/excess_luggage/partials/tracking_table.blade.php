@@ -54,11 +54,16 @@
                     <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($b->excess_luggage_fee ?? 0) }}</td>
                     <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
                         @if($escrow)
-                            {{ $currency }} {{ convert_money($escrow->held_amount ?? 0) }}
-                            @if((float)($escrow->surplus_amount ?? 0) > 0)
-                                <span class="mt-0.5 block text-xs text-amber-700 dark:text-amber-300">
-                                    +{{ $currency }} {{ convert_money($escrow->surplus_amount) }} {{ __('vender/luggage.escrow_surplus_short') }}
-                                </span>
+                            @php $netEscrow = $luggageService->netEscrowAmount($escrow); @endphp
+                            @if($netEscrow > 0)
+                                {{ $currency }} {{ convert_money($netEscrow) }}
+                                @if((float)($escrow->surplus_amount ?? 0) > 0 && in_array($escrow->status, [\App\Models\ExcessLuggageEscrow::STATUS_SURPLUS_HELD, \App\Models\ExcessLuggageEscrow::STATUS_REFUND_PENDING], true))
+                                    <span class="mt-0.5 block text-xs text-amber-700 dark:text-amber-300">
+                                        {{ __('vender/luggage.escrow_surplus_short') }}: {{ $currency }} {{ convert_money($escrow->surplus_amount) }}
+                                    </span>
+                                @endif
+                            @else
+                                <span class="text-gray-400">—</span>
                             @endif
                         @else
                             <span class="text-gray-400">—</span>

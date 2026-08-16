@@ -75,6 +75,7 @@ class ExcessLuggageEscrow extends Model
         return in_array($this->status, [
             self::STATUS_RELEASED,
             self::STATUS_SURPLUS_HELD,
+            self::STATUS_REFUNDED,
         ], true);
     }
 }

@@ -182,7 +182,9 @@ class SystemController extends Controller
             ->value('total');
         // System income from luggage: admin share only after escrow release.
         $luggageTotal = $this->sumReleasedLuggageAdminIncome();
-        $escrowBalance = app(ExcessLuggageService::class)->totalEscrowBalance();
+        $luggageService = app(ExcessLuggageService::class);
+        $escrowBalance = $luggageService->totalEscrowBalance();
+        $luggageBalanceTotal = $luggageService->totalLuggageCollected();
         $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
         $parcelCommissionTotal = round(
             (float) $this->commissionableParcelsQuery()->sum('amount_paid') * $parcelCommissionPercent / 100,
@@ -195,7 +197,7 @@ class SystemController extends Controller
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
-            'service', 'fees', 'luggageTotal', 'escrowBalance', 'parcelCommissionTotal', 'bima', 'balance',
+            'service', 'fees', 'luggageTotal', 'escrowBalance', 'luggageBalanceTotal', 'parcelCommissionTotal', 'bima', 'balance',
             'cancelledAmount', 'specialHireCommissionTotal'
         ));
     }

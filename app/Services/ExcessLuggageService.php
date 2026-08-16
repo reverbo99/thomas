@@ -367,6 +367,37 @@ class ExcessLuggageService
     }
 
     /**
+     * Gross luggage payments deposited into escrow (all bookings, incl. released/refunded).
+     */
+    public function totalLuggageCollected(): float
+    {
+        return round((float) ExcessLuggageEscrow::query()
+            ->sum('held_amount'), 2);
+    }
+
+    /**
+     * Luggage shares already released from escrow to admin / gov / bus owner.
+     */
+    public function totalLuggageReleased(): float
+    {
+        return round((float) ExcessLuggageEscrow::query()
+            ->whereNotNull('released_fee')
+            ->sum('released_fee'), 2);
+    }
+
+    /**
+     * Net amount still held in escrow for a single record.
+     */
+    public function netEscrowAmount(?ExcessLuggageEscrow $escrow): float
+    {
+        if (!$escrow) {
+            return 0.0;
+        }
+
+        return max(0.0, round((float) ($escrow->held_amount ?? 0) - (float) ($escrow->released_fee ?? 0), 2));
+    }
+
+    /**
      * Credit verified luggage shares from escrow to admin / government / bus owner wallets.
      */
     private function releaseEscrowFee(Booking $booking, ExcessLuggageEscrow $escrow, float $releasedFee): void

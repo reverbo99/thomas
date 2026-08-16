@@ -463,6 +463,8 @@ class ExcessLuggageController extends Controller
             'luggageService' => $this->luggage,
             'isAdmin' => true,
             'escrowBalance' => $this->luggage->totalEscrowBalance(),
+            'luggageBalanceTotal' => $this->luggage->totalLuggageCollected(),
+            'luggageReleasedTotal' => $this->luggage->totalLuggageReleased(),
         ]);
     }
 
