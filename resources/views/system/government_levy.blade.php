@@ -140,7 +140,8 @@
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{{ __('system.common.date') }}</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Route</th>
                             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Vendor</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Paid Amount</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.paid_amount') }}</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.bus_fee') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.levy_cat_commission') }}</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Gov Levy (Fare)</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Gov Levy (Service)</th>
@@ -157,6 +158,7 @@
                                 $commissionLevy = booking_government_levy_on_commission($booking);
                                 $luggageLevy = booking_government_levy_on_luggage($booking);
                                 $paidAmount = (float) ($booking->customer_paid_total ?? $booking->amount ?? 0);
+                                $busFee = (float) ($booking->busFee ?? 0);
                             @endphp
                             <tr class="hover:bg-slate-50 transition">
                                 <td class="px-4 py-3 text-sm text-slate-700 font-medium">{{ $booking->booking_code ?? 'N/A' }}</td>
@@ -172,6 +174,7 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-sm text-slate-700 text-right">{{ $currency }} {{ convert_money($paidAmount) }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-700 text-right">{{ $currency }} {{ convert_money($busFee) }}</td>
                                 <td class="px-4 py-3 text-sm text-blue-700 text-right font-medium">{{ $currency }} {{ convert_money($commissionLevy) }}</td>
                                 <td class="px-4 py-3 text-sm text-emerald-700 text-right font-medium">{{ $currency }} {{ convert_money($govLevyOnFare) }}</td>
                                 <td class="px-4 py-3 text-sm text-emerald-600 text-right font-medium">{{ $currency }} {{ convert_money($govLevyOnService) }}</td>
@@ -180,7 +183,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="px-4 py-8 text-center text-sm text-slate-500">{{ __('system.pages.no_paid_bookings_filter') }}</td>
+                                <td colspan="11" class="px-4 py-8 text-center text-sm text-slate-500">{{ __('system.pages.no_paid_bookings_filter') }}</td>
                             </tr>
                         @endforelse
                     </tbody>

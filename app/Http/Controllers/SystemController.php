@@ -1805,6 +1805,7 @@ class SystemController extends Controller
 
         return [
             'totalPaidAmount' => (float) $bookings->sum(fn ($b) => (float) ($b->customer_paid_total ?? $b->amount ?? 0)),
+            'totalBusFee' => (float) $bookings->sum(fn ($b) => (float) ($b->busFee ?? 0)),
             'totalVat' => (float) $bookings->sum('vat'),
             'totalGovLevyOnFare' => $levyFare,
             'totalGovLevyOnService' => $levyService,
@@ -2000,6 +2001,7 @@ class SystemController extends Controller
             'route' => ($booking->route->from ?? 'N/A') . ' - ' . ($booking->route->to ?? 'N/A'),
             'vendor' => ($booking->vender_id ?? 0) > 0 ? 'Involved' : 'Not Involved',
             'paid_amount' => number_format($paidAmount, 2),
+            'bus_fee' => number_format((float) ($booking->busFee ?? 0), 2),
             'vat' => number_format((float) ($booking->vat ?? 0), 2),
             'gov_levy_fare' => number_format($govLevyOnFare, 2),
             'gov_levy_service' => number_format($govLevyOnService, 2),

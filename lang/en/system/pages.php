@@ -102,6 +102,7 @@ return [
     'levy_special_hire_hint' => 'Derived at :percent% of platform_commission_amount (not stored as a ledger row).',
     'levy_no_special_hire' => 'No paid special hire orders with platform commission for this period.',
     'paid_amount' => 'Paid Amount',
+    'bus_fee' => 'Bus Fee',
     'vendor_involvement' => 'Vendor',
 
     // Balance / admin wallet

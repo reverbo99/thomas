@@ -108,6 +108,7 @@ return [
     'subtotal' => 'Jumla ndogo',
     'subtotal_fare_service' => 'Jumla ndogo (nauli + huduma)',
     'paid_amount' => 'Kiasi Kilicholipwa',
+    'bus_fee' => 'Nauli ya Basi',
     'vendor_involvement' => 'Muuzaji',
     'balance_title' => 'Historia ya Miamala',
     'balance_subtitle' => 'Angalia na simamia miamala yote ya mfumo',

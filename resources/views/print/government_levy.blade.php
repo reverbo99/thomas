@@ -77,6 +77,7 @@
                 <th>{{ __('system.common.route') }}</th>
                 <th>{{ __('system.pages.vendor_involvement') }}</th>
                 <th class="text-right">{{ __('system.pages.paid_amount') }}</th>
+                <th class="text-right">{{ __('system.pages.bus_fee') }}</th>
                 <th class="text-right">{{ __('system.pages.commission_levy') }}</th>
                 <th class="text-right">{{ __('system.pages.gov_levy_fare') }}</th>
                 <th class="text-right">{{ __('system.pages.gov_levy_service') }}</th>
@@ -92,6 +93,7 @@
                     <td>{{ $row['route'] }}</td>
                     <td>{{ $row['vendor'] }}</td>
                     <td class="text-right">{{ $row['paid_amount'] }}</td>
+                    <td class="text-right">{{ $row['bus_fee'] ?? '0.00' }}</td>
                     <td class="text-right">{{ $row['gov_levy_commission'] ?? '0.00' }}</td>
                     <td class="text-right">{{ $row['gov_levy_fare'] }}</td>
                     <td class="text-right">{{ $row['gov_levy_service'] }}</td>
@@ -103,6 +105,7 @@
         <tfoot>
             <tr>
                 <td colspan="5" class="text-right">{{ __('system.pages.subtotal_fare_service') }}</td>
+                <td class="text-right">{{ number_format($totals['totalBusFee'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['levyCommission'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['totalGovLevyOnFare'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['totalGovLevyOnService'] ?? 0, 2) }}</td>
