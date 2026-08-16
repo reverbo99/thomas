@@ -42,6 +42,10 @@
         <span><strong>{{ __('system.pages.grand_total') }}: {{ number_format($totals['totalGovernmentLevy'] ?? 0, 2) }}</strong></span>
     </div>
     <div class="summary">
+        <strong>{{ __('system.pages.grand_total_government_levy') }}</strong>
+        <span><strong>{{ number_format($totals['grandTotalGovernmentLevy'] ?? 0, 2) }}</strong></span>
+    </div>
+    <div class="summary">
         <strong>{{ __('system.pages.levy_history_parity_label') }}</strong>
         <span>{{ __('system.pages.levy_fare_short') }}: {{ number_format($totals['totalGovLevyOnFare'] ?? 0, 2) }}</span>
         <span>{{ __('system.pages.levy_service_short') }}: {{ number_format($totals['totalGovLevyOnService'] ?? 0, 2) }}</span>

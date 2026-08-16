@@ -18,6 +18,8 @@ return [
     'view_special_hire_details' => 'Ona akaunti za kukodi maalum',
     'parcel_commission' => 'Kamisheni ya Mizigo',
     'view_parcel_details' => 'Ona mapato ya mfumo · mizigo',
+    'total_government_levy' => 'Jumla ya Ushuru wa Serikali',
+    'view_government_levy_report' => 'Ona ripoti ya ushuru wa serikali (muda wote)',
     'paid_bookings_today' => ':count :label zilizolipwa leo',
     'paid_bookings_all_time' => ':count :label zilizolipwa (muda wote)',
     'paid_transactions_today' => ':count tiketi / mizigo / kukodi zilizolipwa leo',

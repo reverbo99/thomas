@@ -193,12 +193,16 @@ class SystemController extends Controller
         $balance = AdminWallet::sum('balance');
         $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
         $specialHireCommissionTotal = (float) SpecialHireOrder::where('payment_status', 'paid')->sum('platform_commission_amount');
+        $govLevyTotals = $this->computeGovernmentLevyCategoryTotals(
+            Request::create(route('system.government_levy'), 'GET', ['period' => 'all'])
+        );
+        $totalGovernmentLevy = $govLevyTotals['grandTotalGovernmentLevy'];
 
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
             'service', 'fees', 'luggageTotal', 'escrowBalance', 'luggageBalanceTotal', 'parcelCommissionTotal', 'bima', 'balance',
-            'cancelledAmount', 'specialHireCommissionTotal'
+            'cancelledAmount', 'specialHireCommissionTotal', 'totalGovernmentLevy'
         ));
     }
 
@@ -1803,6 +1807,7 @@ class SystemController extends Controller
             2
         );
         $totalBookingRowLevy = round($levyCommission + $levyFare + $levyService + $levyLuggage, 2);
+        $grandTotalGovernmentLevy = round($levyFare + $totalGovernmentLevy, 2);
 
         return [
             'totalPaidAmount' => (float) $bookings->sum(fn ($b) => (float) ($b->customer_paid_total ?? $b->amount ?? 0)),
@@ -1824,6 +1829,7 @@ class SystemController extends Controller
             'luggageBookingCount' => $bookings->filter(fn ($b) => booking_luggage_fee($b) > 0)->count(),
             'totalGovernmentLevy' => $totalGovernmentLevy,
             'totalBookingRowLevy' => $totalBookingRowLevy,
+            'grandTotalGovernmentLevy' => $grandTotalGovernmentLevy,
             'levyPercent' => government_levy_percent(),
         ];
     }

@@ -47,6 +47,8 @@ return [
     'max_uses' => 'Max Uses',
     'commission' => 'Commission',
     'grand_total' => 'Grand Total',
+    'grand_total_government_levy' => 'Grand Total Government Levy',
+    'grand_total_government_levy_hint' => 'Fare levy + all six categories at :percent% (commission, service, luggage, cancellation, parcel, special hire)',
     'total_payment' => 'Total Payment',
     'total_discount' => 'Total Discount',
     'total_vat' => 'Total VAT',

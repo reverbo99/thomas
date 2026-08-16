@@ -185,6 +185,25 @@
                     <p class="text-xs text-teal-500 mt-2">{{ __('system.dashboard.view_special_hire_details') }}</p>
                 </div>
             </a>
+
+            @if (auth()->user()->hasAccess(\App\Models\Access::LINKS['SYSTEM_INCOME']))
+            <a href="{{ route('system.government_levy') }}" class="no-underline">
+                <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-emerald-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-emerald-600">{{ __('system.dashboard.total_government_levy') }}</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">{{ $currency }} {{ convert_money($totalGovernmentLevy ?? 0) }}</h3>
+                        </div>
+                        <div class="p-3 rounded-lg bg-emerald-100 text-emerald-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-emerald-500 mt-2">{{ __('system.dashboard.view_government_levy_report') }}</p>
+                </div>
+            </a>
+            @endif
         </div>
     @endif
 

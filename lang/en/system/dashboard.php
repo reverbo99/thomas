@@ -18,6 +18,8 @@ return [
     'view_special_hire_details' => 'View special hire accounts',
     'parcel_commission' => 'Parcel Commission',
     'view_parcel_details' => 'View system income · parcels',
+    'total_government_levy' => 'Total Government Levy',
+    'view_government_levy_report' => 'View government levy report (all time)',
     'paid_bookings_today' => ':count paid :label today',
     'paid_bookings_all_time' => ':count paid :label (all time)',
     'paid_transactions_today' => ':count paid tickets / parcels / hires today',

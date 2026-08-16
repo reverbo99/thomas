@@ -46,6 +46,8 @@ return [
     'max_uses' => 'Matumizi ya Juu',
     'commission' => 'Kamisheni',
     'grand_total' => 'Jumla Kuu',
+    'grand_total_government_levy' => 'Jumla Kuu ya Ushuru wa Serikali',
+    'grand_total_government_levy_hint' => 'Ushuru wa nauli + makundi sita yote kwa :percent% (kamisheni, huduma, mizigo, kughairi, vifurushi, kukodi maalum)',
     'total_payment' => 'Jumla ya Malipo',
     'total_discount' => 'Jumla ya Punguzo',
     'total_vat' => 'Jumla ya VAT',

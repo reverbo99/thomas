@@ -70,6 +70,13 @@
             </div>
         @endif
 
+        {{-- Grand total government levy (all categories + fare) --}}
+        <div class="mb-6 rounded-xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 dark:border-emerald-600 p-6 shadow-sm">
+            <p class="text-sm font-semibold text-emerald-800 dark:text-emerald-200 uppercase tracking-wide">{{ __('system.pages.grand_total_government_levy') }}</p>
+            <p class="text-3xl font-bold text-emerald-900 dark:text-emerald-50 mt-2">{{ $currency }} {{ convert_money($grandTotalGovernmentLevy) }}</p>
+            <p class="text-xs text-emerald-700 dark:text-emerald-300 mt-1">{{ __('system.pages.grand_total_government_levy_hint', ['percent' => $levyPercentLabel]) }}</p>
+        </div>
+
         {{-- Six levy category cards --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             <div class="bg-white rounded-xl border border-blue-200 shadow-sm p-4">
