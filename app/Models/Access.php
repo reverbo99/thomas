@@ -50,4 +50,29 @@ class Access extends Model
         'PROFILE' => 'profile',
         'LOGOUT' => 'logout',
     ];
+
+    public static function busLinkLabels(): array
+    {
+        return [
+            self::BUS['DASHBOARD'] => __('vendor_sidebar.dashboard'),
+            self::BUS['BUSES'] => __('vendor_sidebar.my_buses'),
+            self::BUS['ROUTES'] => __('vendor_sidebar.manage_routes'),
+            self::BUS['SCHEDULES'] => __('vendor_sidebar.schedule'),
+            self::BUS['CITIES'] => __('vendor_sidebar.cities'),
+            self::BUS['BOOKING_HISTORY'] => __('vendor_sidebar.booking_history'),
+            self::BUS['EXCESS_LUGGAGE'] => __('vendor_sidebar.excess_luggage'),
+            self::BUS['RESAVED_TICKETS'] => __('vendor_sidebar.resaved_tickets'),
+            self::BUS['EARNINGS_PAYMENTS'] => __('local_bus_owners.earnings_payments'),
+            self::BUS['LOCAL_BUS_OWNERS'] => __('vendor_sidebar.local_bus_owners'),
+            self::BUS['OWNER_PERMISSIONS_VIEW'] => __('local_bus_owners.owner_permissions_view'),
+            self::BUS['OWNER_PERMISSIONS_EDIT'] => __('local_bus_owners.owner_permissions_edit'),
+            self::BUS['PROFILE'] => __('vendor_sidebar.profile'),
+            self::BUS['LOGOUT'] => __('vendor_sidebar.logout'),
+        ];
+    }
+
+    public static function labelForLink(string $link): string
+    {
+        return self::busLinkLabels()[$link] ?? str_replace(['.', '-'], ' ', $link);
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\Access;
 use App\Models\ExcessLuggageEscrow;
 use App\Models\bus;
 use App\Models\City;
@@ -1969,6 +1970,8 @@ $q->where('id', auth()->user()->campany->id);
      */
     public function updateExcessLuggage(Request $request, $bookingId)
     {
+        $this->authorizeBusOwnerExcessLuggageAccess();
+
         $user = Auth::user();
         $companyId = $user->campany->id ?? null;
         if (!$companyId) {
@@ -2028,6 +2031,8 @@ $q->where('id', auth()->user()->campany->id);
      */
     public function printExcessLuggageReceipt($bookingId)
     {
+        $this->authorizeBusOwnerExcessLuggageAccess();
+
         $user = Auth::user();
         $companyId = $user->campany->id ?? null;
         if (!$companyId) {
@@ -2084,6 +2089,20 @@ $q->where('id', auth()->user()->campany->id);
         $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
 
         return $pdf->stream('excess-luggage-receipt-' . $booking->booking_code . '.pdf');
+    }
+
+    private function authorizeBusOwnerExcessLuggageAccess(): void
+    {
+        $user = Auth::user();
+        if (!$user || $user->isBusCampany()) {
+            return;
+        }
+
+        abort_unless(
+            $user->hasAccessTo(Access::BUS['EXCESS_LUGGAGE'])
+                || $user->hasAccessTo(Access::BUS['BOOKING_HISTORY']),
+            403
+        );
     }
 
     public function busOwnerParcels()

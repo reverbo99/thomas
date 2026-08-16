@@ -28,6 +28,7 @@
                                 <option value="schedules">{{ __('vendor_sidebar.schedule') }}</option>
                                 <option value="cities">{{ __('vendor_sidebar.cities') }}</option>
                                 <option value="history">{{ __('vendor_sidebar.booking_history') }}</option>
+                                <option value="{{ \App\Models\Access::BUS['EXCESS_LUGGAGE'] }}">{{ __('vendor_sidebar.excess_luggage') }}</option>
                                 <option value="resaved.tickets">{{ __('vendor_sidebar.resaved_tickets') }}</option>
                                 <option value="erning">{{ __('local_bus_owners.earnings_payments') }}</option>
                                 <option value="local.bus.owners">{{ __('local_bus_owners.local_bus_owners') }}</option>
@@ -74,7 +75,7 @@
                                     @foreach ($user->access as $index => $access)
                                     <tr class="hover:bg-gray-50 transition-colors">
                                         <td class="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{{ $index + 1 }}</td>
-                                        <td class="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap capitalize">{{ str_replace('-', ' ', $access->link) }}</td>
+                                        <td class="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap">{{ \App\Models\Access::labelForLink($access->link) }}</td>
                                         <td class="px-3 sm:px-4 py-2 sm:py-3 whitespace-nowrap">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                                 @if($access->status == 'active') bg-green-100 text-green-800

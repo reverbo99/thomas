@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\ClickPesaController;
+use App\Models\Access;
 use App\Models\Booking;
 use App\Models\Setting;
 use App\Services\ExcessLuggageService;
@@ -532,6 +533,8 @@ class ExcessLuggageController extends Controller
             ];
         }
 
+        $this->authorizeBusOwnerLuggageAccess();
+
         return [
             'role' => 'bus_owner',
             'index_view' => 'bus_owner.excess_luggage.index',
@@ -552,6 +555,20 @@ class ExcessLuggageController extends Controller
             'print_route' => 'bus_owner.excess_luggage.print',
             'layout' => 'admin.app',
         ];
+    }
+
+    private function authorizeBusOwnerLuggageAccess(): void
+    {
+        $user = Auth::user();
+        if (!$user || $user->isBusCampany()) {
+            return;
+        }
+
+        abort_unless(
+            $user->hasAccessTo(Access::BUS['EXCESS_LUGGAGE'])
+                || $user->hasAccessTo(Access::BUS['BOOKING_HISTORY']),
+            403
+        );
     }
 
     private function baseQuery(array $ctx)
