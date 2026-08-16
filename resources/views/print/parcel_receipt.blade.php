@@ -246,6 +246,10 @@
                         <td>TRA Z Number:</td>
                         <td>{{ $parcel->tra_z_num ?? 'N/A' }}</td>
                     </tr>
+                    <tr>
+                        <td>TRA Amount:</td>
+                        <td>{{ number_format((float) ($parcel->amount_paid ?? 0), 2) }} TZS</td>
+                    </tr>
                 </table>
             </div>
         @endif

@@ -115,6 +115,7 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-600">{{ __('all.verification') ?? 'Verification' }}: <strong class="font-mono">{{ $data->tra_vnum }}</strong></p>
+                <p class="text-sm text-gray-600">{{ __('all.tra_amount') ?? 'TRA Amount' }}: <strong>{{ number_format((float) ($data->amount ?? 0), 2) }} TZS</strong></p>
             </div>
         @endif
 

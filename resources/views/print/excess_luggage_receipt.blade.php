@@ -277,6 +277,10 @@
                         <td>TRA Z Number:</td>
                         <td>{{ $booking->tra_z_num ?? 'N/A' }}</td>
                     </tr>
+                    <tr>
+                        <td>TRA Amount:</td>
+                        <td>{{ number_format((float) ($booking->amount ?? 0), 2) }} TZS</td>
+                    </tr>
                 </table>
             </div>
         @endif

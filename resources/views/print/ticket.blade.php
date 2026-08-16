@@ -410,6 +410,10 @@
                             <td>TRA Z Number:</td>
                             <td>{{ $data->tra_z_num ?? 'N/A' }}</td>
                         </tr>
+                        <tr>
+                            <td>TRA Amount:</td>
+                            <td>{{ number_format((float) ($data->amount ?? 0), 2) }} TZS</td>
+                        </tr>
                     </table>
                 </div>
             @endif
