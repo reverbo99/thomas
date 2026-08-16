@@ -103,6 +103,7 @@
                 <p class="text-xs font-medium text-purple-600 uppercase tracking-wide">{{ __('system.pages.levy_cat_parcel') }}</p>
                 <p class="text-xl font-semibold text-purple-800 mt-2">{{ $currency }} {{ convert_money($levyParcel) }}</p>
                 <p class="text-xs text-slate-400 mt-1">{{ $levyPercentLabel }}% × parcel amount paid · {{ $parcelCount }} {{ __('system.common.entries') }}</p>
+                <p class="text-xs text-purple-500 mt-0.5">{{ __('system.pages.levy_cat_parcel_excluded_hint') }}</p>
             </div>
             <div class="bg-white rounded-xl border border-teal-200 shadow-sm p-4">
                 <p class="text-xs font-medium text-teal-600 uppercase tracking-wide">{{ __('system.pages.levy_cat_special_hire') }}</p>

@@ -1803,7 +1803,7 @@ class SystemController extends Controller
         );
 
         $totalGovernmentLevy = round(
-            $levyCommission + $levyService + $levyLuggage + $levyCancellation + $levyParcel + $levySpecialHire,
+            $levyCommission + $levyService + $levyLuggage + $levyCancellation + $levySpecialHire,
             2
         );
         $totalBookingRowLevy = round($levyCommission + $levyFare + $levyService + $levyLuggage, 2);
@@ -1900,7 +1900,7 @@ class SystemController extends Controller
                 'category' => __('system.pages.total_gov_levy'),
                 'reference' => '—',
                 'date' => '—',
-                'detail' => 'six categories',
+                'detail' => 'commission + service + luggage + cancellation + special hire (parcel excluded)',
                 'fee_base' => '',
                 'gov_levy' => number_format($totals['totalGovernmentLevy'], 2),
             ],
