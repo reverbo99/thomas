@@ -158,7 +158,7 @@ return [
     'escrow_surplus_short' => 'surplus',
     'escrow_status' => 'Escrow status',
     'escrow_balance_total' => 'Total luggage escrow balance',
-    'escrow_balance_total_hint' => 'Still held by admin (awaiting weigh-in, top-up, or optional refund).',
+    'escrow_balance_total_hint' => 'Passenger top-ups still due, plus luggage refunds awaiting administrator approval.',
     'total_luggage_balance' => 'Total luggage balance',
     'total_luggage_balance_hint' => 'All excess-luggage payments collected from passengers (gross).',
     'total_luggage_released' => 'Already released from escrow',

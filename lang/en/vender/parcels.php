@@ -102,6 +102,7 @@ return [
     'height_label' => 'H:',
     'width_label' => 'L:',
     'parcel_status_updated' => 'Parcel status updated successfully.',
+    'completed_status_locked' => 'Completed parcels cannot be changed.',
     'parcel_acceptance_updated' => 'Parcel acceptance status updated.',
     'unauthorized_action' => 'Unauthorized action.',
     'print_receipt' => 'Print receipt',

@@ -101,6 +101,7 @@ return [
     'height_label' => 'K:',
     'width_label' => 'P:',
     'parcel_status_updated' => 'Hali ya mzigo imesasishwa kwa mafanikio.',
+    'completed_status_locked' => 'Mzigo uliokamilika hauwezi kubadilishwa tena.',
     'parcel_acceptance_updated' => 'Hali ya ukubali wa mizigo imesasishwa.',
     'unauthorized_action' => 'Kitendo kisichoidhinishwa.',
     'print_receipt' => 'Chapisha risiti',

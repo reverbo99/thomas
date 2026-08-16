@@ -353,16 +353,29 @@ class ExcessLuggageService
         return $translated === $key ? ucfirst(str_replace('_', ' ', $status)) : $translated;
     }
 
+    /**
+     * Admin-actionable escrow total: passenger top-ups still due, plus refunds
+     * awaiting administrator approval. Excludes pre-weigh holds and optional surplus.
+     */
     public function totalEscrowBalance(): float
     {
         return round((float) ExcessLuggageEscrow::query()
             ->whereIn('status', [
-                self::ESCROW_HELD,
                 self::ESCROW_AWAITING_TOPUP,
-                self::ESCROW_SURPLUS_HELD,
                 self::ESCROW_REFUND_PENDING,
             ])
-            ->selectRaw('COALESCE(SUM(GREATEST(0, held_amount - COALESCE(released_fee, 0))), 0) as balance')
+            ->selectRaw(
+                'COALESCE(SUM(CASE
+                    WHEN status = ? THEN GREATEST(0, COALESCE(delta_amount, 0))
+                    WHEN status = ? THEN GREATEST(0, COALESCE(
+                        refund_amount,
+                        surplus_amount,
+                        held_amount - COALESCE(released_fee, 0)
+                    ))
+                    ELSE 0
+                END), 0) as balance',
+                [self::ESCROW_AWAITING_TOPUP, self::ESCROW_REFUND_PENDING]
+            )
             ->value('balance'), 2);
     }
 

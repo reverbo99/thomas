@@ -245,8 +245,12 @@
                 @endphp
                 @if($receiptFrom || $receiptTo)
                 <tr>
-                    <td>From → To:</td>
-                    <td>{{ $receiptFrom ?: '—' }} → {{ $receiptTo ?: '—' }}</td>
+                    <td>From:</td>
+                    <td>{{ $receiptFrom ?: '—' }}</td>
+                </tr>
+                <tr>
+                    <td>To:</td>
+                    <td>{{ $receiptTo ?: '—' }}</td>
                 </tr>
                 @endif
             </table>

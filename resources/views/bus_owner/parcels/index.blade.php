@@ -5,7 +5,7 @@
 @section('content')
 <div class="container mx-auto px-4 py-6">
     @if (session('success'))
-        <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded-lg shadow-sm">
+        <div class="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded-lg shadow-sm dark:bg-green-900/30 dark:border-green-600">
             <div class="flex">
                 <div class="flex-shrink-0 text-green-500">
                     <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -13,7 +13,21 @@
                     </svg>
                 </div>
                 <div class="ml-3">
-                    <p class="text-sm font-medium text-green-800">{{ session('success') }}</p>
+                    <p class="text-sm font-medium text-green-800 dark:text-green-100">{{ session('success') }}</p>
+                </div>
+            </div>
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg shadow-sm dark:bg-red-900/30 dark:border-red-600">
+            <div class="flex">
+                <div class="flex-shrink-0 text-red-500">
+                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-red-800 dark:text-red-100">{{ session('error') }}</p>
                 </div>
             </div>
         </div>
@@ -118,15 +132,19 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <form action="{{ route('bus_owner.parcels.update_status', $parcel->id) }}" method="POST" class="flex items-center space-x-2">
-                                    @csrf
-                                    <select name="status" class="text-xs border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-                                        <option value="pending" {{ $parcel->status === 'pending' ? 'selected' : '' }}>{{ __('vender/parcels.pending') }}</option>
-                                        <option value="completed" {{ $parcel->status === 'completed' ? 'selected' : '' }}>{{ __('vender/parcels.completed') }}</option>
-                                        <option value="cancelled" {{ $parcel->status === 'cancelled' ? 'selected' : '' }}>{{ __('vender/parcels.cancelled') }}</option>
-                                    </select>
-                                    <button type="submit" class="text-indigo-600 hover:text-indigo-900 text-xs font-bold">{{ __('vender/parcels.update') }}</button>
-                                </form>
+                                @if($parcel->status === 'completed')
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('vender/parcels.completed_status_locked') }}</span>
+                                @else
+                                    <form action="{{ route('bus_owner.parcels.update_status', $parcel->id) }}" method="POST" class="flex items-center space-x-2">
+                                        @csrf
+                                        <select name="status" class="text-xs border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-100">
+                                            <option value="pending" {{ $parcel->status === 'pending' ? 'selected' : '' }}>{{ __('vender/parcels.pending') }}</option>
+                                            <option value="completed" {{ $parcel->status === 'completed' ? 'selected' : '' }}>{{ __('vender/parcels.completed') }}</option>
+                                            <option value="cancelled" {{ $parcel->status === 'cancelled' ? 'selected' : '' }}>{{ __('vender/parcels.cancelled') }}</option>
+                                        </select>
+                                        <button type="submit" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs font-bold">{{ __('vender/parcels.update') }}</button>
+                                    </form>
+                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 @if(app(\App\Services\ParcelFlowService::class)->canPrintReceipt($parcel))

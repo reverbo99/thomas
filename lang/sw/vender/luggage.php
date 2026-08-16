@@ -158,7 +158,7 @@ return [
     'escrow_surplus_short' => 'ziada',
     'escrow_status' => 'Hali ya escrow',
     'escrow_balance_total' => 'Jumla ya salio la escrow ya mzigo',
-    'escrow_balance_total_hint' => 'Bado imeshikiliwa na admin (inasubiri upimaji, malipo ya ziada, au marejesho ya hiari).',
+    'escrow_balance_total_hint' => 'Malipo ya ziada ya abiria yanasubiri, pamoja na marejesho ya mzigo yanayosubiri idhini ya msimamizi.',
     'total_luggage_balance' => 'Jumla ya salio la mzigo wa ziada',
     'total_luggage_balance_hint' => 'Malipo yote ya mzigo wa ziada yaliyokusanywa kutoka kwa abiria (jumla).',
     'total_luggage_released' => 'Tayari imetolewa kutoka escrow',

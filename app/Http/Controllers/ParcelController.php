@@ -447,6 +447,13 @@ class ParcelController extends Controller
             'status' => 'required|in:pending,registered,in_transit,arrived,completed,cancelled,awaiting_payment',
         ]);
 
+        if (
+            $this->isBusOwnerContext()
+            && $this->flow->normalizeStatus($parcel) === ParcelFlowService::STATUS_COMPLETED
+        ) {
+            return back()->with('error', __('vender/parcels.completed_status_locked'));
+        }
+
         // Prefer dedicated lifecycle actions; keep for simple cancel.
         if ($request->status === 'cancelled') {
             $parcel->update(['status' => ParcelFlowService::STATUS_CANCELLED]);
