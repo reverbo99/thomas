@@ -131,14 +131,18 @@
         @endif
 
         <div class="rounded-xl border bg-white p-5 shadow-sm flex flex-wrap gap-2">
+            <form method="POST" action="{{ route($showPrefix.'.receive', $parcel->id) }}">@csrf
+                <button class="rounded-lg bg-green-600 px-3 py-2 text-sm text-white" @if($status !== 'registered' || ($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_received') }}</button>
+            </form>
             <form method="POST" action="{{ route($showPrefix.'.depart', $parcel->id) }}">@csrf
-                <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white" @if(!in_array($status, ['registered','pending'], true)) disabled @endif>{{ __('vender/parcels.mark_departed') }}</button>
+                <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white" @if($status !== 'received') disabled @endif>{{ __('vender/parcels.mark_departed') }}</button>
             </form>
             <form method="POST" action="{{ route($showPrefix.'.arrive', $parcel->id) }}">@csrf
                 <button class="rounded-lg bg-purple-600 px-3 py-2 text-sm text-white" @if($status !== 'in_transit') disabled @endif>{{ __('vender/parcels.mark_arrived') }}</button>
             </form>
         </div>
 
+        @if(in_array($status, ['in_transit', 'arrived'], true))
         <div class="rounded-xl border bg-white p-5 shadow-sm">
             <h2 class="font-semibold mb-2">{{ __('vender/parcels.collect_verify') }}</h2>
             <p class="text-xs text-gray-500 mb-2">{{ __('vender/parcels.collect_hint') }}</p>
@@ -148,5 +152,6 @@
                 <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">{{ __('vender/parcels.mark_collected') }}</button>
             </form>
         </div>
+        @endif
     </div>
 </div>

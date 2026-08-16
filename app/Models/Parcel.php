@@ -38,6 +38,7 @@ class Parcel extends Model
         'receiver_contact_2',
         'receiver_delivery_address',
         'settled_at',
+        'received_at',
         'departed_at',
         'arrived_at',
         'collected_at',
@@ -52,6 +53,7 @@ class Parcel extends Model
 
     protected $casts = [
         'settled_at' => 'datetime',
+        'received_at' => 'datetime',
         'departed_at' => 'datetime',
         'arrived_at' => 'datetime',
         'collected_at' => 'datetime',

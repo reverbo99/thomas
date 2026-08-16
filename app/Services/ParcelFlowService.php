@@ -14,13 +14,14 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Parcel lifecycle: awaiting_payment → registered → in_transit → arrived → completed.
+ * Parcel lifecycle: awaiting_payment → registered → received → in_transit → arrived → completed.
  * ClickPesa settles wallets (system / owner / vendor), then TRA + notifications run.
  */
 class ParcelFlowService
 {
     public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
     public const STATUS_REGISTERED = 'registered';
+    public const STATUS_RECEIVED = 'received';
     public const STATUS_IN_TRANSIT = 'in_transit';
     public const STATUS_ARRIVED = 'arrived';
     public const STATUS_COMPLETED = 'completed';
@@ -236,10 +237,32 @@ class ParcelFlowService
         return $parcel->fresh();
     }
 
+    public function markReceived(Parcel $parcel): Parcel
+    {
+        $status = $this->normalizeStatus($parcel);
+        if ($status !== self::STATUS_REGISTERED) {
+            throw new \RuntimeException(__('vender/parcels.cannot_receive'));
+        }
+
+        if (($parcel->payment_status ?? null) !== self::PAY_PAID) {
+            throw new \RuntimeException(__('vender/parcels.cannot_receive_unpaid'));
+        }
+
+        $parcel->update([
+            'status' => self::STATUS_RECEIVED,
+            'received_at' => now(),
+        ]);
+
+        $parcel = $parcel->fresh(['bus.campany', 'bus.route']);
+        $this->notifyRegistered($parcel);
+
+        return $parcel;
+    }
+
     public function markDeparted(Parcel $parcel): Parcel
     {
         $status = $this->normalizeStatus($parcel);
-        if (!in_array($status, [self::STATUS_REGISTERED, self::STATUS_PENDING], true)) {
+        if ($status !== self::STATUS_RECEIVED) {
             throw new \RuntimeException(__('vender/parcels.cannot_depart'));
         }
 
@@ -299,7 +322,7 @@ class ParcelFlowService
     public function collect(Parcel $parcel, string $trackingNumber, User $actor): Parcel
     {
         $status = $this->normalizeStatus($parcel);
-        if (!in_array($status, [self::STATUS_ARRIVED, self::STATUS_IN_TRANSIT, self::STATUS_REGISTERED], true)) {
+        if (!in_array($status, [self::STATUS_ARRIVED, self::STATUS_IN_TRANSIT], true)) {
             throw new \RuntimeException(__('vender/parcels.cannot_collect'));
         }
 

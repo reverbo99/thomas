@@ -468,6 +468,7 @@ Route::middleware('auth')->group(function () {
              Route::get('/{id}', [ParcelController::class, 'show'])->name('show');
              Route::post('/{id}/pay', [ParcelController::class, 'pay'])->name('pay');
              Route::post('/{id}/assign', [ParcelController::class, 'assign'])->name('assign');
+             Route::post('/{id}/receive', [ParcelController::class, 'receive'])->name('receive');
              Route::post('/{id}/depart', [ParcelController::class, 'depart'])->name('depart');
              Route::post('/{id}/arrive', [ParcelController::class, 'arrive'])->name('arrive');
              Route::post('/{id}/collect', [ParcelController::class, 'collect'])->name('collect');
@@ -676,6 +677,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/{id}', [ParcelController::class, 'show'])->name('show');
             Route::post('/{id}/pay', [ParcelController::class, 'pay'])->name('pay');
             Route::post('/{id}/assign', [ParcelController::class, 'assign'])->name('assign');
+            Route::post('/{id}/receive', [ParcelController::class, 'receive'])->name('receive');
             Route::post('/{id}/depart', [ParcelController::class, 'depart'])->name('depart');
             Route::post('/{id}/arrive', [ParcelController::class, 'arrive'])->name('arrive');
             Route::post('/{id}/collect', [ParcelController::class, 'collect'])->name('collect');

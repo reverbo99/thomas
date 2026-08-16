@@ -39,6 +39,7 @@ class ParcelController extends Controller
             'today' => Parcel::where('vender_id', $venderId)->whereDate('created_at', today())->count(),
             'assigned' => Parcel::where('vender_id', $venderId)->whereIn('status', [
                 ParcelFlowService::STATUS_REGISTERED,
+                ParcelFlowService::STATUS_RECEIVED,
                 ParcelFlowService::STATUS_PENDING,
                 ParcelFlowService::STATUS_IN_TRANSIT,
             ])->count(),
@@ -373,6 +374,18 @@ class ParcelController extends Controller
         return back()->with('success', __('vender/parcels.assigned_success'));
     }
 
+    public function receive(Request $request, $id)
+    {
+        $parcel = $this->findAuthorizedParcel($id);
+        try {
+            $this->flow->markReceived($parcel);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('vender/parcels.received_success'));
+    }
+
     public function depart(Request $request, $id)
     {
         $parcel = $this->findAuthorizedParcel($id);
@@ -444,7 +457,7 @@ class ParcelController extends Controller
         $parcel = $this->findAuthorizedParcel($id);
 
         $request->validate([
-            'status' => 'required|in:pending,registered,in_transit,arrived,completed,cancelled,awaiting_payment',
+            'status' => 'required|in:pending,registered,received,in_transit,arrived,completed,cancelled,awaiting_payment',
         ]);
 
         if (
@@ -610,8 +623,6 @@ class ParcelController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
-
-        $this->flow->notifyRegistered($parcel->fresh(['bus.campany', 'bus.route']));
     }
 
     private function isTestMode(): bool
