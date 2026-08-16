@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Console\Commands\PurgeTransactionalDataCommand;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -9,6 +10,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class ArtisanCommandsController extends Controller
 {
+    public const PURGE_CONFIRM_PHRASE = PurgeTransactionalDataCommand::CONFIRM_PHRASE;
     /**
      * Whitelisted artisan actions (name => [command, default options]).
      * Options are merged with request-safe extras in run().
@@ -29,6 +31,7 @@ class ArtisanCommandsController extends Controller
         'optimize_clear' => ['optimize:clear', []],
         'migrate_status' => ['migrate:status', ['--no-ansi' => true]],
         'migrate_all' => ['migrate', ['--force' => true]],
+        'purge_transactional_data' => ['data:purge-transactional', ['--force' => true]],
     ];
 
     public function index()
@@ -54,9 +57,21 @@ class ArtisanCommandsController extends Controller
         $request->validate([
             'action' => ['required', 'string', 'in:'.implode(',', array_merge(array_keys(self::ALLOWED), ['migrate_file']))],
             'migration' => ['nullable', 'string', 'max:255'],
+            'confirm_phrase' => ['nullable', 'string', 'max:255'],
         ]);
 
         $action = $request->input('action');
+
+        if ($action === 'purge_transactional_data') {
+            if ($request->input('confirm_phrase') !== self::PURGE_CONFIRM_PHRASE) {
+                return $this->respond(
+                    $request,
+                    false,
+                    1,
+                    __('system.commands.purge_confirm_mismatch')
+                );
+            }
+        }
 
         if ($action === 'migrate_file') {
             $filename = $request->input('migration', '');

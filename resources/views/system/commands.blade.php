@@ -171,5 +171,87 @@
             </div>
         </div>
     </section>
+
+    <section class="rounded-xl border border-red-300 dark:border-red-800 bg-red-50/80 dark:bg-red-950/30 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-red-200 dark:border-red-900/60 bg-red-100/70 dark:bg-red-950/50">
+            <h2 class="text-lg font-semibold text-red-900 dark:text-red-100">{{ __('system.commands.purge_section') }}</h2>
+            <p class="text-xs text-red-800 dark:text-red-300 mt-0.5">{{ __('system.commands.purge_desc') }}</p>
+        </div>
+        <div class="p-5 space-y-4">
+            <div class="grid gap-4 md:grid-cols-3 text-sm">
+                <div class="rounded-lg border border-red-200 dark:border-red-900/50 bg-white/80 dark:bg-slate-900/50 p-4">
+                    <h3 class="font-semibold text-red-900 dark:text-red-100 mb-2">{{ __('system.commands.purge_will_delete') }}</h3>
+                    <ul class="list-disc list-inside space-y-1 text-red-800 dark:text-red-200 text-xs">
+                        @foreach (explode('|', __('system.commands.purge_delete_items')) as $item)
+                            <li>{{ $item }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                <div class="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-white/80 dark:bg-slate-900/50 p-4">
+                    <h3 class="font-semibold text-emerald-900 dark:text-emerald-100 mb-2">{{ __('system.commands.purge_will_preserve') }}</h3>
+                    <ul class="list-disc list-inside space-y-1 text-emerald-800 dark:text-emerald-200 text-xs">
+                        @foreach (explode('|', __('system.commands.purge_preserve_items')) as $item)
+                            <li>{{ $item }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                <div class="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-white/80 dark:bg-slate-900/50 p-4">
+                    <h3 class="font-semibold text-amber-900 dark:text-amber-100 mb-2">{{ __('system.commands.purge_will_reset') }}</h3>
+                    <ul class="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-200 text-xs">
+                        @foreach (explode('|', __('system.commands.purge_reset_items')) as $item)
+                            <li>{{ $item }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+
+            <form
+                id="purge-transactional-form"
+                action="{{ route('system.commands.run') }}"
+                method="post"
+                class="space-y-3"
+                onsubmit="return confirm(@json(__('system.commands.purge_js_confirm')))"
+            >
+                @csrf
+                <input type="hidden" name="action" value="purge_transactional_data">
+                <label for="purge-confirm-phrase" class="block text-sm font-medium text-red-900 dark:text-red-100">
+                    {{ __('system.commands.purge_confirm_label', ['phrase' => \App\Http\Controllers\ArtisanCommandsController::PURGE_CONFIRM_PHRASE]) }}
+                </label>
+                <input
+                    type="text"
+                    id="purge-confirm-phrase"
+                    name="confirm_phrase"
+                    autocomplete="off"
+                    placeholder="{{ __('system.commands.purge_confirm_placeholder') }}"
+                    class="w-full rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                >
+                <div class="flex flex-wrap items-center gap-3">
+                    <button
+                        type="submit"
+                        id="purge-submit-btn"
+                        disabled
+                        class="inline-flex items-center px-4 py-2.5 rounded-lg bg-red-600 text-white text-sm font-medium shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-slate-900"
+                    >
+                        {{ __('system.commands.purge_submit') }}
+                    </button>
+                    <span class="text-xs text-red-700 dark:text-red-300 font-mono">{{ __('system.commands.purge_cmd') }}</span>
+                </div>
+            </form>
+        </div>
+    </section>
 </div>
+
+<script>
+(function () {
+    var phrase = @json(\App\Http\Controllers\ArtisanCommandsController::PURGE_CONFIRM_PHRASE);
+    var input = document.getElementById('purge-confirm-phrase');
+    var button = document.getElementById('purge-submit-btn');
+    if (!input || !button) return;
+    function sync() {
+        button.disabled = input.value !== phrase;
+    }
+    input.addEventListener('input', sync);
+    sync();
+})();
+</script>
 @endsection
