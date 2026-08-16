@@ -19,7 +19,7 @@ class PurgeTransactionalDataCommand extends Command
     /**
      * @var string
      */
-    protected $description = 'Delete all bookings, parcels, excess luggage, and payout transactions; reset wallet balances.';
+    protected $description = 'Delete all bookings, parcels, excess luggage, special hire orders, and payout transactions; reset wallet balances.';
 
     public function handle(TransactionalDataPurgeService $purgeService): int
     {

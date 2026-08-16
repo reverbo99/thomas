@@ -29,6 +29,9 @@ class TransactionalDataPurgeService
         'admin_transactions',
         'vender_wallet_deposits',
         'parcels',
+        'special_hire_payment_intents',
+        'special_hire_orders',
+        'special_hire_withdrawal_requests',
         'bookings',
     ];
 
