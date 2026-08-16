@@ -32,7 +32,7 @@ return [
     'weight_verdict_overestimated' => 'Umezidiwa (zaidi ya uzito halisi)',
     'weight_verdict_correct' => 'Sahihi (kama ulivyokadiriwa)',
     'weight_verdict_hint' => 'Huwekwa kiotomatiki kutoka uzito halisi dhidi ya makadirio. Umepunguzwa = malipo ya ziada. Umezidiwa = marejesho. Sahihi = inalingana na makadirio.',
-    'receipt_underestimated_amount' => 'Kiasi kilichopunguzwa',
+    'receipt_underestimated_amount' => 'Kiasi kilichokosekana',
     'receipt_overestimated_amount' => 'Kiasi kilichozidiwa',
     'receipt_under_over_amount_fallback' => 'Kiasi kilichozidiwa/kilichopunguzwa',
     'receipt_refund' => 'Marejesho',

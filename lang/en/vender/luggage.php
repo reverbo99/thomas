@@ -32,7 +32,7 @@ return [
     'weight_verdict_overestimated' => 'Overestimated',
     'weight_verdict_correct' => 'Correct (as estimated)',
     'weight_verdict_hint' => 'Set automatically from actual vs estimated weight. Underestimated = extra payment. Overestimated = refund. Correct = matches estimate.',
-    'receipt_underestimated_amount' => 'Underestimated amount',
+    'receipt_underestimated_amount' => 'Missed amount',
     'receipt_overestimated_amount' => 'Overestimated amount',
     'receipt_under_over_amount_fallback' => 'Over estimated/Under estimated amount',
     'receipt_refund' => 'Refund',
