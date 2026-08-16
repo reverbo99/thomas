@@ -107,6 +107,7 @@ return [
     'luggage_levy' => 'Ushuru wa mizigo',
     'subtotal' => 'Jumla ndogo',
     'subtotal_fare_service' => 'Jumla ndogo (nauli + huduma)',
+    'subtotal_total_levy' => 'Jumla ndogo (ushuru jumla)',
     'paid_amount' => 'Kiasi Kilicholipwa',
     'bus_fee' => 'Nauli ya Basi',
     'vendor_involvement' => 'Muuzaji',

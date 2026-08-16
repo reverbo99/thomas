@@ -807,6 +807,20 @@ if (!function_exists('booking_total_government_levy')) {
     }
 }
 
+if (!function_exists('booking_row_total_government_levy')) {
+    /** Sum of all levy columns shown on the government levy booking row. */
+    function booking_row_total_government_levy($booking): float
+    {
+        return round(
+            booking_government_levy_on_commission($booking)
+            + booking_government_levy_on_fare($booking)
+            + booking_government_levy_on_service($booking)
+            + booking_government_levy_on_luggage($booking),
+            2
+        );
+    }
+}
+
 if (!function_exists('government_levy_on_amount')) {
     function government_levy_on_amount(float $baseAmount): float
     {

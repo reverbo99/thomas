@@ -191,6 +191,7 @@ return [
     'luggage_levy' => 'Luggage Levy',
     'subtotal' => 'Subtotal',
     'subtotal_fare_service' => 'Subtotal (fare + service)',
+    'subtotal_total_levy' => 'Subtotal (total levy)',
 
     // Special hire order passenger manifest
     'manage_passengers' => 'Manage Passengers',

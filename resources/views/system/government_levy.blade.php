@@ -146,7 +146,7 @@
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Gov Levy (Fare)</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Gov Levy (Service)</th>
                             <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.levy_cat_luggage') }}</th>
-                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Fare+Service</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">{{ __('system.pages.total_gov_levy') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -154,9 +154,9 @@
                             @php
                                 $govLevyOnFare = booking_government_levy_on_fare($booking);
                                 $govLevyOnService = booking_government_levy_on_service($booking);
-                                $totalGovLevy = booking_total_government_levy($booking);
                                 $commissionLevy = booking_government_levy_on_commission($booking);
                                 $luggageLevy = booking_government_levy_on_luggage($booking);
+                                $rowTotalLevy = booking_row_total_government_levy($booking);
                                 $paidAmount = (float) ($booking->customer_paid_total ?? $booking->amount ?? 0);
                                 $busFee = (float) ($booking->busFee ?? 0);
                             @endphp
@@ -179,7 +179,7 @@
                                 <td class="px-4 py-3 text-sm text-emerald-700 text-right font-medium">{{ $currency }} {{ convert_money($govLevyOnFare) }}</td>
                                 <td class="px-4 py-3 text-sm text-emerald-600 text-right font-medium">{{ $currency }} {{ convert_money($govLevyOnService) }}</td>
                                 <td class="px-4 py-3 text-sm text-cyan-700 text-right font-medium">{{ $currency }} {{ convert_money($luggageLevy) }}</td>
-                                <td class="px-4 py-3 text-sm text-emerald-800 text-right font-semibold">{{ $currency }} {{ convert_money($totalGovLevy) }}</td>
+                                <td class="px-4 py-3 text-sm text-emerald-800 text-right font-semibold">{{ $currency }} {{ convert_money($rowTotalLevy) }}</td>
                             </tr>
                         @empty
                             <tr>

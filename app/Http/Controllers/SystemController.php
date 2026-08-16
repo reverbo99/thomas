@@ -1802,6 +1802,7 @@ class SystemController extends Controller
             $levyCommission + $levyService + $levyLuggage + $levyCancellation + $levyParcel + $levySpecialHire,
             2
         );
+        $totalBookingRowLevy = round($levyCommission + $levyFare + $levyService + $levyLuggage, 2);
 
         return [
             'totalPaidAmount' => (float) $bookings->sum(fn ($b) => (float) ($b->customer_paid_total ?? $b->amount ?? 0)),
@@ -1822,6 +1823,7 @@ class SystemController extends Controller
             'parcelCount' => $parcels->count(),
             'luggageBookingCount' => $bookings->filter(fn ($b) => booking_luggage_fee($b) > 0)->count(),
             'totalGovernmentLevy' => $totalGovernmentLevy,
+            'totalBookingRowLevy' => $totalBookingRowLevy,
             'levyPercent' => government_levy_percent(),
         ];
     }
@@ -1908,7 +1910,7 @@ class SystemController extends Controller
                     . '; commission=' . number_format(booking_government_levy_on_commission($booking), 2)
                     . '; luggage=' . number_format(booking_government_levy_on_luggage($booking), 2),
                 'fee_base' => number_format(booking_gross_service_fee($booking), 2),
-                'gov_levy' => number_format(booking_total_government_levy($booking), 2),
+                'gov_levy' => number_format(booking_row_total_government_levy($booking), 2),
             ];
         });
 
@@ -1990,7 +1992,7 @@ class SystemController extends Controller
     {
         $govLevyOnFare = booking_government_levy_on_fare($booking);
         $govLevyOnService = booking_government_levy_on_service($booking);
-        $totalGovLevy = booking_total_government_levy($booking);
+        $rowTotalLevy = booking_row_total_government_levy($booking);
         $commissionLevy = booking_government_levy_on_commission($booking);
         $luggageLevy = booking_government_levy_on_luggage($booking);
         $paidAmount = (float) ($booking->customer_paid_total ?? $booking->amount ?? 0);
@@ -2007,9 +2009,9 @@ class SystemController extends Controller
             'gov_levy_service' => number_format($govLevyOnService, 2),
             'gov_levy_commission' => number_format($commissionLevy, 2),
             'gov_levy_luggage' => number_format($luggageLevy, 2),
-            'total_gov_levy' => number_format($totalGovLevy, 2),
+            'total_gov_levy' => number_format($rowTotalLevy, 2),
             'fee_base' => number_format(booking_gross_service_fee($booking), 2),
-            'gov_levy' => number_format($totalGovLevy, 2),
+            'gov_levy' => number_format($rowTotalLevy, 2),
         ];
     }
 

@@ -82,7 +82,7 @@
                 <th class="text-right">{{ __('system.pages.gov_levy_fare') }}</th>
                 <th class="text-right">{{ __('system.pages.gov_levy_service') }}</th>
                 <th class="text-right">{{ __('system.pages.luggage_levy') }}</th>
-                <th class="text-right">{{ __('system.pages.levy_fare_plus_service') }}</th>
+                <th class="text-right">{{ __('system.pages.total_gov_levy') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -104,13 +104,13 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="5" class="text-right">{{ __('system.pages.subtotal_fare_service') }}</td>
+                <td colspan="5" class="text-right">{{ __('system.pages.subtotal_total_levy') }}</td>
                 <td class="text-right">{{ number_format($totals['totalBusFee'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['levyCommission'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['totalGovLevyOnFare'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['totalGovLevyOnService'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['levyLuggage'] ?? 0, 2) }}</td>
-                <td class="text-right">{{ number_format($totals['farePlusServiceLevy'] ?? 0, 2) }}</td>
+                <td class="text-right">{{ number_format($totals['totalBookingRowLevy'] ?? 0, 2) }}</td>
             </tr>
         </tfoot>
     </table>
