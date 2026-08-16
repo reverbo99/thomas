@@ -422,7 +422,7 @@ return [
     'confirmation_email_sent' => 'A confirmation email has been sent to',
     'service_and_charges' => 'Service & charges',
     'tra_receipt' => 'TRA Receipt Verification',
-    'tra_amount' => 'TRA Amount',
+    'government_levy_with_percent' => 'Government Levy (:percent%)',
     'verification' => 'Verification',
     'return' => 'Return',
     'round_trip_booking_confirmed' => 'Your round trip booking has been confirmed.',

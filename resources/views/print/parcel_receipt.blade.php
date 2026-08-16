@@ -101,6 +101,8 @@
             ?? optional(optional($parcel->bus)->schedule)->from;
         $receiptTo = optional(optional($parcel->bus)->route)->to
             ?? optional(optional($parcel->bus)->schedule)->to;
+        $govLevyPercentLabel = rtrim(rtrim(number_format(government_levy_percent(), 2, '.', ''), '0'), '.');
+        $receiptGovLevy = government_levy_on_amount((float) ($parcel->amount_paid ?? 0));
     @endphp
 
     <div class="receipt-container">
@@ -247,8 +249,8 @@
                         <td>{{ $parcel->tra_z_num ?? 'N/A' }}</td>
                     </tr>
                     <tr>
-                        <td>TRA Amount:</td>
-                        <td>{{ number_format((float) ($parcel->amount_paid ?? 0), 2) }} TZS</td>
+                        <td>Government Levy ({{ $govLevyPercentLabel }}%):</td>
+                        <td>{{ number_format((float) $receiptGovLevy, 2) }} TZS</td>
                     </tr>
                 </table>
             </div>

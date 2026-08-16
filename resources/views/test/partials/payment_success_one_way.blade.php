@@ -115,7 +115,11 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-600">{{ __('all.verification') ?? 'Verification' }}: <strong class="font-mono">{{ $data->tra_vnum }}</strong></p>
-                <p class="text-sm text-gray-600">{{ __('all.tra_amount') ?? 'TRA Amount' }}: <strong>{{ number_format((float) ($data->amount ?? 0), 2) }} TZS</strong></p>
+                @php
+                    $govLevyPercentLabel = rtrim(rtrim(number_format(government_levy_percent(), 2, '.', ''), '0'), '.');
+                    $receiptGovLevy = booking_row_total_government_levy($data);
+                @endphp
+                <p class="text-sm text-gray-600">{{ __('all.government_levy_with_percent', ['percent' => $govLevyPercentLabel]) ?? 'Government Levy (' . $govLevyPercentLabel . '%)' }}: <strong>{{ number_format((float) $receiptGovLevy, 2) }} TZS</strong></p>
             </div>
         @endif
 

@@ -115,6 +115,8 @@
         $refundAbsFormatted = $refundRaw !== null
             ? number_format(abs((float) $refundRaw), 2)
             : null;
+        $govLevyPercentLabel = rtrim(rtrim(number_format(government_levy_percent(), 2, '.', ''), '0'), '.');
+        $receiptGovLevy = booking_government_levy_on_luggage($booking);
 
         if ($verdict === 'underestimated') {
             $varianceLabel = __('vender/luggage.receipt_underestimated_amount') . ':';
@@ -278,8 +280,8 @@
                         <td>{{ $booking->tra_z_num ?? 'N/A' }}</td>
                     </tr>
                     <tr>
-                        <td>TRA Amount:</td>
-                        <td>{{ number_format((float) ($booking->amount ?? 0), 2) }} TZS</td>
+                        <td>Government Levy ({{ $govLevyPercentLabel }}%):</td>
+                        <td>{{ number_format((float) $receiptGovLevy, 2) }} TZS</td>
                     </tr>
                 </table>
             </div>

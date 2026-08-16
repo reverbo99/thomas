@@ -422,7 +422,7 @@ return [
     'confirmation_email_sent' => 'Barua pepe ya uthibitisho imetumwa kwa',
     'service_and_charges' => 'Huduma na makato',
     'tra_receipt' => 'Uthibitishaji wa Risiti ya TRA',
-    'tra_amount' => 'Kiasi cha TRA',
+    'government_levy_with_percent' => 'Ushuru wa Serikali (:percent%)',
     'verification' => 'Uthibitishaji',
     'return' => 'Kurudi',
     'round_trip_booking_confirmed' => 'Uhifadhi wako wa safari ya kwenda na kurudi umethibitishwa.',

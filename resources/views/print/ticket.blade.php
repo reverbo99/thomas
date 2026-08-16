@@ -191,6 +191,8 @@
         @foreach ($seatList as $seatIndex => $printSeat)
         @php
             extract(booking_per_seat_payment_amounts($data, $seatIndex, $seatCount));
+            $receiptGovLevy = split_amount_across_seats(booking_row_total_government_levy($data), $seatCount, $seatIndex);
+            $govLevyPercentLabel = rtrim(rtrim(number_format(government_levy_percent(), 2, '.', ''), '0'), '.');
             $printPassengerName = booking_passenger_name_for_seat($data, $seatIndex, $printSeat);
             $printPassengerPhone = booking_passenger_phone_for_seat($data, $seatIndex, $printSeat);
             $seatQrPayload = trim(($data->booking_code ?? 'N/A') . '|' . $printSeat, '|');
@@ -411,8 +413,8 @@
                             <td>{{ $data->tra_z_num ?? 'N/A' }}</td>
                         </tr>
                         <tr>
-                            <td>TRA Amount:</td>
-                            <td>{{ number_format((float) ($data->amount ?? 0), 2) }} TZS</td>
+                            <td>Government Levy ({{ $govLevyPercentLabel }}%):</td>
+                            <td>{{ number_format((float) $receiptGovLevy, 2) }} TZS</td>
                         </tr>
                     </table>
                 </div>
