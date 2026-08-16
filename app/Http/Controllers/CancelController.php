@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\ConstData;
 use App\Models\AdminWallet;
 use App\Models\Booking;
+use App\Models\Campany;
 use App\Models\CancelledBookings;
 use App\Models\Schedule;
 use App\Models\TempWallet;
+use App\Services\ExcessLuggageService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CancelController extends Controller
 {
@@ -48,24 +51,25 @@ class CancelController extends Controller
         $amount = (new ConstData())->cancel_logic($booking->id);
         $cancel = max(0, (float) $booking->amount - $amount);
 
-        ////////////////cancel percent//////////////
+        DB::transaction(function () use ($booking, $request, $amount, $cancel) {
+            CancelledBookings::create([
+                'booking_id' => $request->booking_id,
+                'amount' => $cancel,
+                'campany_id' => $booking->campany_id,
+            ]);
 
-        CancelledBookings::create([
-            'booking_id' => $request->booking_id,
-            'amount' => $cancel,
-            'campany_id' => $booking->campany_id,
-        ]);
+            $adminWallet = AdminWallet::first();
+            if ($adminWallet) {
+                $adminWallet->balance += $cancel;
+                $adminWallet->save();
+            }
 
-        // Also increase $cancel to adminwallet
-        $adminWallet = AdminWallet::first();
-        if ($adminWallet) {
-            $adminWallet->balance += $cancel;
-            $adminWallet->save();
-        }
+            if ($booking->payment_status === 'Paid') {
+                $this->debitOwnerWalletOnCancel($booking);
+            }
 
-        
-
-        $booking->update(['payment_status' => 'Cancel']);
+            $booking->update(['payment_status' => 'Cancel']);
+        });
 
         if (auth()->check()) {
             $wallet = TempWallet::firstOrNew(['user_id' => auth()->id()]);
@@ -84,6 +88,40 @@ class CancelController extends Controller
         }
 
         return redirect()->back()->with('success', __('all.cancel_completed_success'));
+    }
+
+    /**
+     * Return credited bus-owner fare share and any luggage owner share to the ledger
+     * so balances.amount reflects the cancellation.
+     */
+    private function debitOwnerWalletOnCancel(Booking $booking): void
+    {
+        $campany = Campany::with('balance')->find($booking->campany_id);
+        if (!$campany?->balance) {
+            return;
+        }
+
+        $debit = (float) ($booking->amount ?? 0);
+
+        $luggageService = app(ExcessLuggageService::class);
+        $escrow = $luggageService->escrowFor($booking);
+        if ($escrow) {
+            $debit += (float) ($escrow->owner_share ?? 0);
+            if (!in_array($escrow->status, [
+                ExcessLuggageService::ESCROW_RELEASED,
+                ExcessLuggageService::ESCROW_REFUNDED,
+                ExcessLuggageService::ESCROW_CANCELLED,
+            ], true)) {
+                $escrow->update(['status' => ExcessLuggageService::ESCROW_CANCELLED]);
+            }
+        }
+
+        if ($debit <= 0) {
+            return;
+        }
+
+        $current = (float) $campany->balance->amount;
+        $campany->balance->decrement('amount', min($debit, $current));
     }
 
     public function generateRandomString()

@@ -129,10 +129,7 @@
                                                onchange="toggleExcessLuggageDescription()">
                                         <label for="excess_luggage_root_payment" class="ml-2 block text-sm font-medium text-gray-700">
                                             @php
-                                                $luggageFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
-                                                if ($luggageFeePerKg <= 0) {
-                                                    $luggageFeePerKg = 2500;
-                                                }
+                                                $luggageFeePerKg = excess_luggage_fee_per_kg();
                                             @endphp
                                             {{ __('customer/busroot.excess_luggage', ['dimensions' => '60X45X50', 'weight' => '20kg', 'fee' => ($currency . ' ' . convert_money($luggageFeePerKg) . '/kg')]) }}
                                         </label>

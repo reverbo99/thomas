@@ -144,6 +144,9 @@
                     </div>
                 </div>
                 <p class="text-xs text-cyan-500 mt-2">{{ __('system.dashboard.total_luggage_amount') }}</p>
+                @isset($escrowBalance)
+                    <p class="text-xs text-indigo-600 dark:text-indigo-300 mt-1">{{ __('vender/luggage.escrow_balance_total') }}: {{ $currency }} {{ convert_money($escrowBalance) }}</p>
+                @endisset
             </div>
 
             <a href="{{ route('system.payments') }}#income-parcel" class="no-underline">

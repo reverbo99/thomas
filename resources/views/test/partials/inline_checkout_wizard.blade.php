@@ -21,10 +21,7 @@
         'travel_date' => $info['travel_date'] ?? session('booking_form.travel_date'),
     ]);
     $insuranceEligible = booking_insurance_eligible($insuranceForm);
-    $luggageFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
-    if ($luggageFeePerKg <= 0) {
-        $luggageFeePerKg = 2500;
-    }
+    $luggageFeePerKg = excess_luggage_fee_per_kg();
 @endphp
 
 <div class="inline-wizard" data-inline-wizard data-inline-uid="{{ $inlineUid }}">

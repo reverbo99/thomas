@@ -782,28 +782,31 @@ class ParcelController extends Controller
     private function assertParcelSchemaReady(): void
     {
         $needed = [
-            'payment_status',
-            'created_by',
-            'discount_code',
-            'discount_amount',
-            'amount_before_discount',
-            'receiving_agent_name',
-            'receiving_agent_phone',
-            'delivery_rider_name',
-            'delivery_rider_phone',
+            'payment_status' => '2026_08_04_200000_add_parcel_flow_fields.php',
+            'created_by' => '2026_08_04_200000_add_parcel_flow_fields.php',
+            'receiving_agent_name' => '2026_08_04_200000_add_parcel_flow_fields.php',
+            'receiving_agent_phone' => '2026_08_04_200000_add_parcel_flow_fields.php',
+            'delivery_rider_name' => '2026_08_04_200000_add_parcel_flow_fields.php',
+            'delivery_rider_phone' => '2026_08_04_200000_add_parcel_flow_fields.php',
+            'discount_code' => '2026_08_08_000001_extend_discounts_for_multi_product.php',
+            'discount_amount' => '2026_08_08_000001_extend_discounts_for_multi_product.php',
+            'amount_before_discount' => '2026_08_08_000001_extend_discounts_for_multi_product.php',
         ];
         $missing = [];
-        foreach ($needed as $col) {
+        foreach ($needed as $col => $migration) {
             if (!Schema::hasColumn('parcels', $col)) {
-                $missing[] = $col;
+                $missing[$col] = $migration;
             }
         }
 
         if ($missing !== []) {
             Log::error('Parcel schema missing columns required for register', [
-                'missing' => $missing,
+                'missing' => array_keys($missing),
             ]);
-            throw new \RuntimeException(__('vender/parcels.schema_outdated'));
+            throw new \RuntimeException(__('vender/parcels.schema_outdated', [
+                'columns' => implode(', ', array_keys($missing)),
+                'migrations' => implode(', ', array_values(array_unique($missing))),
+            ]));
         }
     }
 }

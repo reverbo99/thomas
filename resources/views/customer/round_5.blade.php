@@ -117,8 +117,7 @@
                                                 </div>
                                                 <!-- Excess Luggage Checkbox -->
                                                 @php
-                                                    $luggageFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
-                                                    if ($luggageFeePerKg <= 0) $luggageFeePerKg = 2500;
+                                                    $luggageFeePerKg = excess_luggage_fee_per_kg();
                                                 @endphp
                                                 <div class="flex items-center mt-4">
                                                     <input type="checkbox" id="excess_luggage_roundtrip" name="excess_luggage"

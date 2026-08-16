@@ -366,7 +366,7 @@
                     $ticketLuggageFee = (float) ($data->excess_luggage_fee ?? 0);
                     $ticketEstimatedWeight = $data->estimated_weight ?? null;
                     $ticketActualWeight = $data->actual_weight ?? null;
-                    $ticketFeePerKg = (float) (\App\Models\Setting::first()->excess_luggage_fee_per_kg ?? 0);
+                    $ticketFeePerKg = excess_luggage_fee_per_kg();
                 @endphp
                 <div class="divider"></div>
                 <div class="details">

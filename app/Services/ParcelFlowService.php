@@ -161,8 +161,17 @@ class ParcelFlowService
             }
 
             $parcel->loadMissing('bus.campany.balance');
-            if ($parcel->bus && $parcel->bus->campany && $parcel->bus->campany->balance && $ownerShare > 0) {
-                $parcel->bus->campany->balance->increment('amount', $ownerShare);
+            $campany = $parcel->bus?->campany;
+            if ($campany && !$campany->balance) {
+                $campany->balance()->create([
+                    'campany_id' => $campany->id,
+                    'amount' => 0,
+                    'fees' => 0,
+                ]);
+                $campany->load('balance');
+            }
+            if ($campany && $campany->balance && $ownerShare > 0) {
+                $campany->balance->increment('amount', $ownerShare);
             }
 
             if ($parcel->vender_id && $vendorShare > 0) {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\ExcessLuggageEscrow;
 use App\Models\bus;
 use App\Models\City;
 use App\Models\Point;
@@ -164,6 +165,78 @@ class AdminController extends Controller
             ->with('vender.VenderAccount')
             ->get(['id', 'amount', 'has_excess_luggage', 'excess_luggage_fee', 'vender_id'])
             ->sum(fn ($booking) => (float) ($booking->amount ?? 0) + bus_owner_luggage_fee($booking));
+    }
+
+    /**
+     * Bus owner ticket fare share only (bookings.amount after settlement).
+     */
+    private function sumBusOwnerTicketEarnings($query): float
+    {
+        return (float) $query->sum('amount');
+    }
+
+    /**
+     * Released excess luggage owner share credited to company wallet.
+     */
+    private function sumBusOwnerReleasedLuggageEarnings(int $companyId, Carbon $start, Carbon $end): float
+    {
+        return (float) ExcessLuggageEscrow::query()
+            ->whereIn('status', [
+                ExcessLuggageEscrow::STATUS_RELEASED,
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
+            ])
+            ->whereBetween('released_at', [$start, $end])
+            ->whereHas('booking.bus', fn ($q) => $q->where('campany_id', $companyId))
+            ->sum('owner_share');
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function parseEarningsPeriod(string $period, ?string $start_date = null, ?string $end_date = null): array
+    {
+        switch ($period) {
+            case 'today':
+                $start = Carbon::today();
+                $end = Carbon::today()->endOfDay();
+                break;
+            case 'week':
+                $start = Carbon::now()->startOfWeek();
+                $end = Carbon::now()->endOfWeek();
+                break;
+            case 'month':
+                $start = Carbon::now()->startOfMonth();
+                $end = Carbon::now()->endOfMonth();
+                break;
+            case 'year':
+                $start = Carbon::now()->startOfYear();
+                $end = Carbon::now()->endOfYear();
+                break;
+            case 'custom':
+                $start = $start_date ? Carbon::parse($start_date)->startOfDay() : Carbon::now()->startOfMonth();
+                $end = $end_date ? Carbon::parse($end_date)->endOfDay() : Carbon::now()->endOfMonth();
+                break;
+            default:
+                $start = Carbon::now()->startOfMonth();
+                $end = Carbon::now()->endOfMonth();
+        }
+
+        return [$start, $end];
+    }
+
+    /**
+     * @return array<int>|null
+     */
+    private function resolveCompanyBusIds(): ?array
+    {
+        $companyId = Auth::user()->campany?->id;
+        if (!$companyId) {
+            return null;
+        }
+
+        $bus_ids = Bus::where('campany_id', $companyId)->pluck('id')->toArray();
+
+        return empty($bus_ids) ? null : $bus_ids;
     }
 
     private function getFormattedEarnings(array $bus_ids, Carbon $date): string
@@ -736,7 +809,7 @@ $q->where('id', auth()->user()->campany->id);
 
         session()->put('export_data', $data);
 
-        return view('controller.erning', compact('data'));
+        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date'));
     }
 
     public function filterEarnings(Request $request)
@@ -765,53 +838,214 @@ $q->where('id', auth()->user()->campany->id);
     {
         $query = Transaction::with('campany')->where('campany_id', Auth::user()->campany->id);
 
-        // Apply time period filter
-        switch ($period) {
-            case 'today':
-                $start = Carbon::today();
-                $end = Carbon::today()->endOfDay();
-                break;
-            case 'week':
-                $start = Carbon::now()->startOfWeek();
-                $end = Carbon::now()->endOfWeek();
-                break;
-            case 'month':
-                $start = Carbon::now()->startOfMonth();
-                $end = Carbon::now()->endOfMonth();
-                break;
-            case 'year':
-                $start = Carbon::now()->startOfYear();
-                $end = Carbon::now()->endOfYear();
-                break;
-            case 'custom':
-                $start = $start_date ? Carbon::parse($start_date)->startOfDay() : Carbon::now()->startOfMonth();
-                $end = $end_date ? Carbon::parse($end_date)->endOfDay() : Carbon::now()->endOfMonth();
-                break;
-            default:
-                $start = Carbon::now()->startOfMonth();
-                $end = Carbon::now()->endOfMonth();
-        }
+        [$start, $end] = $this->parseEarningsPeriod($period, $start_date, $end_date);
 
         // Filter transactions by date range
         $transactions = $query->whereBetween('created_at', [$start, $end])->get();
 
+        $companyId = (int) Auth::user()->campany->id;
+
         return [
-            'earnings' => $this->getFormattedEarning($bus_ids, $start, $end),
+            'ticket_earnings' => $this->sumBusOwnerTicketEarnings(
+                Booking::whereIn('bus_id', $bus_ids)
+                    ->whereBetween('created_at', [$start, $end])
+                    ->where('payment_status', 'Paid')
+            ),
+            'luggage_earnings' => $this->sumBusOwnerReleasedLuggageEarnings($companyId, $start, $end),
             'request' => $transactions->sum('amount'),
             'success' => $transactions->where('status', 'Completed')->sum('amount'),
             'transactions' => $transactions,
+            'period_start' => $start->format('Y-m-d'),
+            'period_end' => $end->format('Y-m-d'),
         ];
     }
 
-    private function getFormattedEarning($bus_ids, $start, $end)
+    public function earningsTicketsData(Request $request)
     {
-        $earnings = $this->sumBusOwnerBookingEarnings(
-            Booking::whereIn('bus_id', $bus_ids)
-                ->whereBetween('created_at', [$start, $end])
-                ->where('payment_status', 'Paid')
+        $bus_ids = $this->resolveCompanyBusIds();
+        $draw = (int) $request->input('draw', 1);
+
+        if (!$bus_ids) {
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+            ]);
+        }
+
+        [$periodStart, $periodEnd] = $this->parseEarningsPeriod(
+            $request->input('period', 'month'),
+            $request->input('start_date'),
+            $request->input('end_date')
         );
 
-        return 'Tsh ' . number_format($earnings, 2, '.', ',');
+        $baseQuery = Booking::query()
+            ->with(['schedule'])
+            ->whereIn('bus_id', $bus_ids)
+            ->where('payment_status', 'Paid')
+            ->whereBetween('created_at', [$periodStart, $periodEnd]);
+
+        $recordsTotal = (clone $baseQuery)->count();
+
+        $filteredQuery = clone $baseQuery;
+        $search = trim((string) $request->input('search.value', ''));
+        if ($search !== '') {
+            $filteredQuery->where(function ($q) use ($search) {
+                $q->where('booking_code', 'like', "%{$search}%")
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhereHas('schedule', function ($sq) use ($search) {
+                        $sq->where('from', 'like', "%{$search}%")
+                            ->orWhere('to', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $recordsFiltered = (clone $filteredQuery)->count();
+
+        $orderMap = [
+            0 => 'booking_code',
+            1 => 'travel_date',
+            2 => 'travel_date',
+            3 => 'customer_name',
+            4 => 'amount',
+            5 => 'created_at',
+        ];
+        $orderCol = (int) $request->input('order.0.column', 5);
+        $orderDir = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $filteredQuery->orderBy($orderMap[$orderCol] ?? 'created_at', $orderDir);
+
+        $offset = (int) $request->input('start', 0);
+        $length = (int) $request->input('length', 10);
+        if ($length < 0) {
+            $length = 100000;
+        }
+
+        $bookings = $filteredQuery->skip($offset)->take($length)->get();
+        $currency = session('currency', 'Tzs');
+
+        $data = $bookings->map(function ($booking) use ($currency) {
+            $from = $booking->schedule->from ?? __('vender/earning.na');
+            $to = $booking->schedule->to ?? __('vender/earning.na');
+
+            return [
+                'booking_code' => e($booking->booking_code ?? __('vender/earning.na')),
+                'travel_date' => e($booking->travel_date ?? __('vender/earning.na')),
+                'route' => e("{$from} → {$to}"),
+                'customer_name' => e($booking->customer_name ?? __('vender/earning.na')),
+                'amount' => (float) ($booking->amount ?? 0),
+                'amount_display' => e($currency . ' ' . convert_money($booking->amount ?? 0)),
+                'paid_at' => e($booking->created_at?->format('Y-m-d H:i') ?? __('vender/earning.na')),
+            ];
+        })->values();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
+    }
+
+    public function earningsLuggageData(Request $request)
+    {
+        $bus_ids = $this->resolveCompanyBusIds();
+        $draw = (int) $request->input('draw', 1);
+        $companyId = Auth::user()->campany?->id;
+
+        if (!$bus_ids || !$companyId) {
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+            ]);
+        }
+
+        [$periodStart, $periodEnd] = $this->parseEarningsPeriod(
+            $request->input('period', 'month'),
+            $request->input('start_date'),
+            $request->input('end_date')
+        );
+
+        $baseQuery = ExcessLuggageEscrow::query()
+            ->with(['booking.schedule'])
+            ->whereIn('status', [
+                ExcessLuggageEscrow::STATUS_RELEASED,
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
+            ])
+            ->whereBetween('released_at', [$periodStart, $periodEnd])
+            ->whereHas('booking', fn ($q) => $q->whereIn('bus_id', $bus_ids));
+
+        $recordsTotal = (clone $baseQuery)->count();
+
+        $filteredQuery = clone $baseQuery;
+        $search = trim((string) $request->input('search.value', ''));
+        if ($search !== '') {
+            $filteredQuery->where(function ($q) use ($search) {
+                $q->where('booking_code', 'like', "%{$search}%")
+                    ->orWhereHas('booking.schedule', function ($sq) use ($search) {
+                        $sq->where('from', 'like', "%{$search}%")
+                            ->orWhere('to', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $recordsFiltered = (clone $filteredQuery)->count();
+
+        $orderMap = [
+            0 => 'booking_code',
+            1 => 'released_fee',
+            2 => 'owner_share',
+            3 => 'status',
+            4 => 'released_at',
+            5 => 'released_at',
+        ];
+        $orderCol = (int) $request->input('order.0.column', 4);
+        $orderDir = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $filteredQuery->orderBy($orderMap[$orderCol] ?? 'released_at', $orderDir);
+
+        $offset = (int) $request->input('start', 0);
+        $length = (int) $request->input('length', 10);
+        if ($length < 0) {
+            $length = 100000;
+        }
+
+        $escrows = $filteredQuery->skip($offset)->take($length)->get();
+        $currency = session('currency', 'Tzs');
+
+        $data = $escrows->map(function ($escrow) use ($currency) {
+            $from = $escrow->booking?->schedule?->from ?? __('vender/earning.na');
+            $to = $escrow->booking?->schedule?->to ?? __('vender/earning.na');
+            $statusKey = $escrow->status ?? '';
+            $statusLabel = match ($statusKey) {
+                ExcessLuggageEscrow::STATUS_RELEASED => __('vender/earning.luggage_status_released'),
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD => __('vender/earning.luggage_status_surplus_held'),
+                default => e($statusKey),
+            };
+            $statusClass = match ($statusKey) {
+                ExcessLuggageEscrow::STATUS_RELEASED => 'bg-green-100 text-green-800',
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD => 'bg-amber-100 text-amber-800',
+                default => 'bg-gray-100 text-gray-800',
+            };
+
+            return [
+                'booking_code' => e($escrow->booking_code ?? $escrow->booking?->booking_code ?? __('vender/earning.na')),
+                'released_fee_display' => e($currency . ' ' . convert_money($escrow->released_fee ?? 0)),
+                'owner_share' => (float) ($escrow->owner_share ?? 0),
+                'owner_share_display' => e($currency . ' ' . convert_money($escrow->owner_share ?? 0)),
+                'status_html' => '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ' . $statusClass . '">' . e($statusLabel) . '</span>',
+                'released_at' => e($escrow->released_at?->format('Y-m-d H:i') ?? __('vender/earning.na')),
+                'route' => e("{$from} → {$to}"),
+            ];
+        })->values();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
     }
 
     public function report()

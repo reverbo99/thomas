@@ -13,6 +13,8 @@ use App\Models\Setting;
 use App\Models\Campany;
 use App\Models\Discount;
 use App\Models\AdminWallet;
+use App\Models\ExcessLuggageEscrow;
+use App\Services\ExcessLuggageService;
 use App\Models\PaymentFees;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
@@ -178,9 +180,9 @@ class SystemController extends Controller
                 [$levyRate]
             )
             ->value('total');
-        // System income from luggage is only its percentage share of the bus owner's fee.
-        $luggageTotal = round((float) $this->paidLuggageBookingsQuery()
-            ->sum('excess_luggage_fee') * system_luggage_percent() / 100, 2);
+        // System income from luggage: admin share only after escrow release.
+        $luggageTotal = $this->sumReleasedLuggageAdminIncome();
+        $escrowBalance = app(ExcessLuggageService::class)->totalEscrowBalance();
         $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
         $parcelCommissionTotal = round(
             (float) $this->commissionableParcelsQuery()->sum('amount_paid') * $parcelCommissionPercent / 100,
@@ -193,7 +195,7 @@ class SystemController extends Controller
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
-            'service', 'fees', 'luggageTotal', 'parcelCommissionTotal', 'bima', 'balance',
+            'service', 'fees', 'luggageTotal', 'escrowBalance', 'parcelCommissionTotal', 'bima', 'balance',
             'cancelledAmount', 'specialHireCommissionTotal'
         ));
     }
@@ -1400,7 +1402,7 @@ class SystemController extends Controller
                 $index + 1,
                 $booking->campany->name ?? '—',
                 $booking->booking_code ?? 'N/A',
-                system_luggage_fee($booking),
+                booking_released_luggage_admin_fee($booking),
                 $booking->created_at
             );
         });
@@ -1443,7 +1445,7 @@ class SystemController extends Controller
 
         $commissionTotal = (float) $balances->sum('balance');
         $serviceFeeTotal = (float) $pays->sum(fn ($record) => $this->paymentFeeDisplayAmount($record, $bookingsByCode));
-        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => system_luggage_fee($booking));
+        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => booking_released_luggage_admin_fee($booking));
         $cancellationTotal = (float) $cancellations->sum('amount');
         $parcelTotal = (float) $parcels->sum(fn ($parcel) => round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2));
         $specialHireTotal = (float) $specialHireOrders->sum('platform_commission_amount');
@@ -1480,8 +1482,30 @@ class SystemController extends Controller
     private function paidLuggageBookingsQuery()
     {
         return Booking::query()
+            ->with(['campany', 'excessLuggageEscrow'])
             ->where('payment_status', 'Paid')
             ->where('excess_luggage_fee', '>', 0);
+    }
+
+    private function sumReleasedLuggageAdminIncome(): float
+    {
+        $fromEscrow = (float) ExcessLuggageEscrow::query()
+            ->whereIn('status', [
+                ExcessLuggageEscrow::STATUS_RELEASED,
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
+                ExcessLuggageEscrow::STATUS_REFUNDED,
+            ])
+            ->sum('admin_share');
+
+        $escrowBookingIds = ExcessLuggageEscrow::query()->pluck('booking_id');
+        $legacy = (float) Booking::query()
+            ->where('payment_status', 'Paid')
+            ->where('excess_luggage_fee', '>', 0)
+            ->when($escrowBookingIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $escrowBookingIds))
+            ->get()
+            ->sum(fn ($booking) => system_luggage_fee($booking));
+
+        return round($fromEscrow + $legacy, 2);
     }
 
     /**
@@ -2662,6 +2686,8 @@ class SystemController extends Controller
     public function setting_update(Request $request)
     {
         $request->validate([
+            'excess_luggage_fee_per_kg' => ['required', 'numeric', 'min:0'],
+            'parcel_fee_per_kg' => ['required', 'numeric', 'min:0'],
             'sms_driver' => ['nullable', Rule::in(SmsManager::DRIVERS)],
             // Alphanumeric sender ids are capped at 11 characters by the networks.
             'sms_sender_id' => ['nullable', 'string', 'max:11'],

@@ -264,11 +264,19 @@ class BookingSettlementService
         GovernmentLevy::create([
             'campany_id' => $bus->campany->id,
             'booking_id' => $booking->booking_code,
-            'amount' => $governmentLevyOnServiceFee + $governmentLuggageShare,
+            'amount' => $governmentLevyOnServiceFee,
         ]);
 
-        $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy + $systemLuggageShare);
-        $bus->campany->balance->increment('amount', (float) $result['bus_owner_share'] + $busOwnerLuggageShare);
+        $adminWallet->increment('balance', $systemBalanceAmount + $serviceFeeAfterLevy);
+        $bus->campany->balance->increment('amount', (float) $result['bus_owner_share']);
+
+        if ($luggageFee > 0) {
+            $luggageService = app(ExcessLuggageService::class);
+            $escrow = $luggageService->depositFromBooking($booking->fresh(), $luggageFee);
+            if ($escrow && $busOwnerLuggageShare > 0) {
+                $luggageService->creditOwnerShareAtDeposit($booking->fresh(), $escrow, $busOwnerLuggageShare);
+            }
+        }
 
         return [
             'booking' => $booking->fresh(),

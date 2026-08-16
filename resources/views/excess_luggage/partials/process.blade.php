@@ -15,6 +15,9 @@
         ? $grossLuggageFee
         : ($estimatedWeightJs !== null ? round($estimatedWeightJs * $feePerKg, 2) : $feePerKg);
     $luggageSplit = split_luggage_fee_amount($grossLuggageFee > 0 ? $grossLuggageFee : (float) $defaultFee);
+    $escrow = $booking->excessLuggageEscrow ?? $luggageService->escrowFor($booking);
+    $escrowStatus = $escrow->status ?? null;
+    $canAssign = $luggageService->canAssignLuggage($booking);
 @endphp
 
 @if (session('success'))
@@ -90,6 +93,17 @@
             </span>
         </p>
         <p class="mt-2 text-sm text-gray-600">{{ __('vender/luggage.fee') }}: {{ $currency }} {{ convert_money($booking->excess_luggage_fee ?? 0) }}</p>
+        @if($escrow)
+            <p class="mt-1 text-sm text-indigo-700 dark:text-indigo-300">
+                {{ __('vender/luggage.escrow_held') }}: {{ $currency }} {{ convert_money($escrow->held_amount ?? 0) }}
+                @if((float)($escrow->surplus_amount ?? 0) > 0)
+                    · {{ __('vender/luggage.escrow_surplus') }}: {{ $currency }} {{ convert_money($escrow->surplus_amount) }}
+                @endif
+            </p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ __('vender/luggage.escrow_status') }}: {{ $luggageService->escrowStatusLabel($escrowStatus) }}
+            </p>
+        @endif
         <p class="mt-1 text-sm font-semibold text-teal-700">{{ __('vender/luggage.fee_net_to_owner') }}: {{ $currency }} {{ convert_money($luggageSplit['owner']) }}</p>
         @if($amountDue > 0)
             <p class="mt-1 text-sm font-semibold text-red-600">{{ __('vender/luggage.amount_due') }}: {{ $currency }} {{ convert_money($amountDue) }}</p>
@@ -393,13 +407,18 @@
         </div>
 
         {{-- Assign --}}
-        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 class="mb-2 text-lg font-semibold text-gray-800">{{ __('vender/luggage.step_assign') }}</h2>
-            <p class="mb-3 text-sm text-gray-600">{{ __('vender/luggage.assign_hint', ['bus' => $booking->bus->bus_number ?? '—']) }}</p>
+        <div class="rounded-xl border border-gray-100 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-2 text-lg font-semibold text-gray-800 dark:text-gray-100">{{ __('vender/luggage.step_assign') }}</h2>
+            @if(!$canAssign)
+                <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100">
+                    {{ __('vender/luggage.assign_escrow_blocked') }}
+                </div>
+            @endif
+            <p class="mb-3 text-sm text-gray-600 dark:text-gray-300">{{ __('vender/luggage.assign_hint', ['bus' => $booking->bus->bus_number ?? '—']) }}</p>
             <form method="POST" action="{{ route($ctx['assign_route'], $booking->id) }}">
                 @csrf
-                <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
-                    @if($amountDue > 0 || !in_array($status, ['ready', 'weighed'], true)) disabled @endif>
+                <button type="submit" class="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 dark:bg-teal-500 dark:hover:bg-teal-400"
+                    @if(!$canAssign || !in_array($status, ['ready', 'weighed'], true)) disabled @endif>
                     {{ __('vender/luggage.assign_to_bus') }}
                 </button>
             </form>

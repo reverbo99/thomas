@@ -131,6 +131,11 @@ class Booking extends Model
         return $this->hasOne(User::class, 'id', 'vender_id');
     }
 
+    public function excessLuggageEscrow()
+    {
+        return $this->hasOne(ExcessLuggageEscrow::class, 'booking_id');
+    }
+
     public function discounta()
     {
         return $this->hasOne(Discount::class, 'code', 'discount');

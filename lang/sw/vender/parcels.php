@@ -59,7 +59,7 @@ return [
     'contact_phone_placeholder' => '07XXXXXXXX',
     'contact_must_be_phone' => 'Weka namba ya simu (mf. 07XXXXXXXX), si jina.',
     'contact_placeholder_not_allowed' => 'Badilisha placeholder 07XXXXXXXX na namba halisi ya simu.',
-    'schema_outdated' => 'Jedwali la mizigo limepitwa na wakati. Ombwa msaada utelezeshe migration zinazosubiri (parcel flow + punguzo).',
+    'schema_outdated' => 'Jedwali la mizigo limepitwa na wakati. Safu zinazokosekana: :columns. Endesha migrations: :migrations',
 
     'receiver_delivery_address' => 'Anwani ya kupelekea mpokeaji',
     'receiver_collection_address' => 'Anwani ya kuchukulia mpokeaji',

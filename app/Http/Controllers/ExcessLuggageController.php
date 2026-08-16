@@ -23,7 +23,7 @@ class ExcessLuggageController extends Controller
     {
         $ctx = $this->resolveContext();
         $query = $this->baseQuery($ctx)
-            ->with(['bus.campany', 'bus.route', 'schedule', 'route'])
+            ->with(['bus.campany', 'bus.route', 'schedule', 'route', 'excessLuggageEscrow'])
             ->where(function ($q) {
                 $q->where('has_excess_luggage', 1)
                     ->orWhere('excess_luggage_fee', '>', 0)
@@ -429,7 +429,7 @@ class ExcessLuggageController extends Controller
         ), 403);
 
         $query = Booking::query()
-            ->with(['bus.campany', 'bus.route', 'campany', 'route'])
+            ->with(['bus.campany', 'bus.route', 'campany', 'route', 'excessLuggageEscrow'])
             ->where(function ($q) {
                 $q->where('has_excess_luggage', 1)
                     ->orWhere('excess_luggage_fee', '>', 0)
@@ -461,6 +461,7 @@ class ExcessLuggageController extends Controller
             'filters' => ['status' => $status, 'q' => $search],
             'luggageService' => $this->luggage,
             'isAdmin' => true,
+            'escrowBalance' => $this->luggage->totalEscrowBalance(),
         ]);
     }
 
@@ -575,7 +576,7 @@ class ExcessLuggageController extends Controller
     {
         $query = $this->baseQuery($ctx);
         if ($withRelations) {
-            $query->with(['bus.campany.busOwnerAccount', 'campany.busOwnerAccount', 'schedule', 'route', 'bus.route']);
+            $query->with(['bus.campany.busOwnerAccount', 'campany.busOwnerAccount', 'schedule', 'route', 'bus.route', 'excessLuggageEscrow']);
         }
 
         $booking = $query->find($bookingId);

@@ -828,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function () {
         function extrasAddonsTotal() {
             let addons = 0;
             if (luggageToggle?.checked) {
-                const feePerKg = Number(config.excessLuggageFeePerKg ?? config.excessLuggageFee ?? 2500);
+                const feePerKg = Number(config.excessLuggageFeePerKg ?? config.excessLuggageFee ?? 0);
                 const weight = parseFloat(luggageWeight?.value) || 0;
                 addons += weight * feePerKg;
             }

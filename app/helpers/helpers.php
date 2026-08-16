@@ -32,6 +32,17 @@ if (!function_exists('convert_to_tzs')) {
     }
 }
 
+if (!function_exists('excess_luggage_fee_per_kg')) {
+    /**
+     * Platform excess luggage rate (TZS/kg) from admin settings.
+     * Falls back to ExcessLuggageService::DEFAULT_FEE_PER_KG when unset or 0.
+     */
+    function excess_luggage_fee_per_kg(?\App\Models\Setting $settings = null): float
+    {
+        return app(\App\Services\ExcessLuggageService::class)->feePerKg($settings);
+    }
+}
+
 if (!function_exists('is_cancel_allowed')) {
     function is_cancel_allowed($booking): bool
     {
@@ -655,6 +666,29 @@ if (!function_exists('system_luggage_fee')) {
     function system_luggage_fee($booking): float
     {
         return split_luggage_fee_amount(booking_luggage_fee($booking), null)['system'];
+    }
+}
+
+if (!function_exists('booking_released_luggage_admin_fee')) {
+    /**
+     * Admin luggage income credited after escrow release (or legacy immediate settlement).
+     */
+    function booking_released_luggage_admin_fee($booking): float
+    {
+        $escrow = $booking->excessLuggageEscrow ?? null;
+        if ($escrow && in_array($escrow->status, [
+            \App\Models\ExcessLuggageEscrow::STATUS_RELEASED,
+            \App\Models\ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
+            \App\Models\ExcessLuggageEscrow::STATUS_REFUNDED,
+        ], true)) {
+            return (float) ($escrow->admin_share ?? 0);
+        }
+
+        if ($escrow) {
+            return 0.0;
+        }
+
+        return system_luggage_fee($booking);
     }
 }
 

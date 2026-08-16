@@ -400,6 +400,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/manifest', [AdminController::class, 'manifest'])->name('admin.print.manifest');
 
         Route::post('/earnings/filter', [AdminController::class, 'filterEarnings'])->name('earnings.filter');
+        Route::get('/earnings/tickets-data', [AdminController::class, 'earningsTicketsData'])->name('earnings.tickets.data');
+        Route::get('/earnings/luggage-data', [AdminController::class, 'earningsLuggageData'])->name('earnings.luggage.data');
         Route::get('/earnings', [AdminController::class, 'erning'])->name('erning');
 
         Route::post('/export', [AdminController::class, 'export'])->name('export');

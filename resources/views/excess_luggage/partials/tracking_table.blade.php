@@ -27,9 +27,11 @@
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.passenger') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.route') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.bus') }}</th>
-                <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.fee') }}</th>
-                <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.refund_owed') }}</th>
-                <th class="px-4 py-3 text-left font-medium text-gray-500">{{ __('vender/luggage.status') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ __('vender/luggage.fee') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ __('vender/luggage.escrow_held') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ __('vender/luggage.refund_owed') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ __('vender/luggage.status') }}</th>
+                <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ __('vender/luggage.escrow_status') }}</th>
                 <th class="px-4 py-3 text-left font-medium text-gray-500"></th>
             </tr>
         </thead>
@@ -42,13 +44,26 @@
                     $delta = (float) ($b->luggage_refund_amount ?? 0);
                     $refundDisp = $delta < 0 ? abs($delta) : 0;
                     $paySt = $b->luggage_payment_status ?? null;
+                    $escrow = $b->excessLuggageEscrow ?? null;
                 @endphp
-                <tr>
-                    <td class="px-4 py-3 font-medium text-gray-900">{{ $b->booking_code }}</td>
-                    <td class="px-4 py-3 text-gray-600">{{ $b->customer_name }}</td>
-                    <td class="px-4 py-3 text-gray-600">{{ $from ?: '—' }} → {{ $to ?: '—' }}</td>
-                    <td class="px-4 py-3 text-gray-600">{{ $b->bus->bus_number ?? '—' }}</td>
-                    <td class="px-4 py-3 text-gray-900">{{ $currency }} {{ convert_money($b->excess_luggage_fee ?? 0) }}</td>
+                <tr class="dark:border-slate-700">
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{{ $b->booking_code }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $b->customer_name }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $from ?: '—' }} → {{ $to ?: '—' }}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $b->bus->bus_number ?? '—' }}</td>
+                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($b->excess_luggage_fee ?? 0) }}</td>
+                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
+                        @if($escrow)
+                            {{ $currency }} {{ convert_money($escrow->held_amount ?? 0) }}
+                            @if((float)($escrow->surplus_amount ?? 0) > 0)
+                                <span class="mt-0.5 block text-xs text-amber-700 dark:text-amber-300">
+                                    +{{ $currency }} {{ convert_money($escrow->surplus_amount) }} {{ __('vender/luggage.escrow_surplus_short') }}
+                                </span>
+                            @endif
+                        @else
+                            <span class="text-gray-400">—</span>
+                        @endif
+                    </td>
                     <td class="px-4 py-3">
                         @if($refundDisp > 0)
                             <span class="font-medium text-amber-800">{{ $currency }} {{ convert_money($refundDisp) }}</span>
@@ -60,7 +75,14 @@
                         @endif
                     </td>
                     <td class="px-4 py-3">
-                        <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{{ $luggageService->statusLabel($st) }}</span>
+                        <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">{{ $luggageService->statusLabel($st) }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+                        @if($escrow)
+                            {{ $luggageService->escrowStatusLabel($escrow->status) }}
+                        @else
+                            <span class="text-gray-400">—</span>
+                        @endif
                     </td>
                     <td class="px-4 py-3 text-right">
                         @if($isAdmin && $paySt === \App\Services\ExcessLuggageService::PAYMENT_REFUND_PENDING)
@@ -89,7 +111,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">{{ __('vender/luggage.none_found') }}</td>
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">{{ __('vender/luggage.none_found') }}</td>
                 </tr>
             @endforelse
         </tbody>

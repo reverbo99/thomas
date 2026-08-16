@@ -548,7 +548,7 @@
             const excessLuggageSavedHelp = document.getElementById('excessLuggageSavedHelp');
             const excessLuggageUrlTemplate = '{{ route('booking.excess_luggage.update', ':id') }}';
             const excessLuggageReceiptUrlTemplate = '{{ route('excess_luggage.receipt.print', ':id') }}';
-            const luggageFeePerKg = {{ json_encode((float) app(\App\Services\ExcessLuggageService::class)->feePerKg()) }};
+            const luggageFeePerKg = {{ json_encode((float) excess_luggage_fee_per_kg()) }};
             const luggageVerdictLabels = {
                 underestimated: @json(__('vender/luggage.weight_verdict_underestimated')),
                 overestimated: @json(__('vender/luggage.weight_verdict_overestimated')),
@@ -635,7 +635,7 @@
 
                 excessLuggageForm.setAttribute('action', excessLuggageUrlTemplate.replace(':id', bookingId));
                 excessLuggageActionInput.value = 'set';
-                excessLuggageFeeInput.value = hasLuggage ? currentFee : 2500;
+                excessLuggageFeeInput.value = hasLuggage ? currentFee : luggageFeePerKg;
                 excessLuggageDescInput.value = currentDesc;
                 excessLuggageEstimatedWeightDisplay.textContent = estimatedWeight !== '' ? (estimatedWeight + ' kg') : '{{ __('vender/luggage.not_declared') }}';
                 excessLuggageActualWeightInput.value = actualWeight;

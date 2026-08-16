@@ -59,7 +59,7 @@ return [
     'contact_phone_placeholder' => '07XXXXXXXX',
     'contact_must_be_phone' => 'Enter a phone number (e.g. 07XXXXXXXX), not a name.',
     'contact_placeholder_not_allowed' => 'Replace the 07XXXXXXXX placeholder with a real phone number.',
-    'schema_outdated' => 'Parcel database is outdated. Ask support to run pending migrations (parcel flow + discounts).',
+    'schema_outdated' => 'Parcel database is outdated. Missing columns: :columns. Run migrations: :migrations',
 
     'receiver_delivery_address' => 'Receiver delivery address',
     'receiver_collection_address' => 'Receiver collection address',
