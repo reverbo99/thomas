@@ -83,13 +83,14 @@
                                                 <div x-show="openCancelModal" x-cloak class="fixed inset-0 overflow-y-auto z-50" role="dialog" aria-modal="true">
                                                     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                                                         <div class="fixed inset-0 bg-gray-900/60" @click="openCancelModal = false"></div>
-                                                        <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                                                        <div class="inline-block align-bottom bg-white dark:bg-slate-800 rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                                                             <div class="p-6">
-                                                                <h3 class="text-lg font-bold text-gray-900 mb-2">{{ __('all.cancel_button') }}</h3>
-                                                                <p class="text-sm text-gray-600 mb-4">{{ __('all.cancel_booking_confirmation') }}</p>
+                                                                <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">{{ __('all.cancel_button') }}</h3>
+                                                                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">{{ __('all.cancel_booking_confirmation') }}</p>
                                                                 <form action="{{ route('cancel') }}" method="post">
                                                                     @csrf
                                                                     <input type="hidden" name="booking_id" value="{{ $book->id }}">
+                                                                    <input type="hidden" name="actor" value="guest">
                                                                     <input type="text" name="key" class="page-input mb-4" placeholder="{{ __('all.enter_your_key') }}" required>
                                                                     <button type="submit" class="page-btn w-full" style="background:#dc2626">{{ __('all.cancel_booking_action') }}</button>
                                                                 </form>
@@ -104,6 +105,23 @@
                                                 <i class="fas fa-clock"></i>
                                             </span>
                                         @endif
+
+                                        <form action="{{ route('guest.rebook') }}" method="get"
+                                            onsubmit="return confirm(@json(__('all.confirm_rebook_ticket')))">
+                                            @csrf
+                                            <input type="hidden" name="order_id" value="{{ $book->id }}">
+                                            <input type="hidden" name="actor" value="guest">
+                                            <button type="submit" class="page-btn text-xs py-2 px-3" style="background:#2563eb" title="{{ __('all.rebook_title') }}">
+                                                <i class="fas fa-rotate-right"></i>
+                                            </button>
+                                        </form>
+
+                                        <a href="{{ route('guest.booking.transfer.form', ['booking_id' => $book->id]) }}"
+                                            class="page-btn text-xs py-2 px-3" style="background:#0d9488"
+                                            title="{{ __('all.transfer_title') }}"
+                                            onclick="return confirm(@json(__('all.confirm_transfer_ticket')))">
+                                            <i class="fas fa-right-left"></i>
+                                        </a>
 
                                         <form action="{{ route('booking.edit', ['id' => $book->id]) }}" method="get">
                                             @csrf
@@ -120,6 +138,12 @@
                                                 <i class="fas fa-print"></i>
                                             </button>
                                         </form>
+
+                                        <button type="button" class="page-btn text-xs py-2 px-3 refund-trigger" style="background:#7c3aed"
+                                            data-refund-modal="refundModal{{ $book->id }}"
+                                            title="{{ __('all.refund_title') }}">
+                                            <i class="fas fa-rotate-left"></i>
+                                        </button>
                                     @elseif ($book->payment_status == 'resaved')
                                         <a href="{{ route('guest.pay.resaved', ['id' => $book->id]) }}" class="page-btn text-xs py-2 px-3">
                                             <i class="fas fa-credit-card" aria-hidden="true"></i>
@@ -146,6 +170,16 @@
         </div>
     </div>
 </section>
+
+@foreach ($bookings as $book)
+    @if (in_array($book->payment_status, ['Paid', 'Refund Rejected']))
+        @include('customer.partials.refund_modal', [
+            'book' => $book,
+            'refundRoute' => 'customer.refund',
+            'refundActor' => 'guest',
+        ])
+    @endif
+@endforeach
 @endsection
 
 @push('styles')
@@ -170,6 +204,58 @@
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.refund-trigger').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var id = this.getAttribute('data-refund-modal');
+            var modal = id ? document.getElementById(id) : null;
+            if (modal) modal.classList.remove('hidden');
+        });
+    });
+
+    function closeRefundModal(id) {
+        var modal = id ? document.getElementById(id) : null;
+        if (modal) modal.classList.add('hidden');
+    }
+
+    document.querySelectorAll('[data-close-refund-modal]').forEach(function(el) {
+        el.addEventListener('click', function() {
+            closeRefundModal(this.getAttribute('data-close-refund-modal'));
+        });
+    });
+
+    document.querySelectorAll('.refund-form').forEach(function(form) {
+        form.addEventListener('submit', function(event) {
+            var mobile = (form.querySelector('input[name="mobile_number"]') || {}).value || '';
+            var bank = (form.querySelector('input[name="bank_number"]') || {}).value || '';
+            var errEl = form.querySelector('[id^="refundFormError"]');
+            if (!mobile.trim() && !bank.trim()) {
+                event.preventDefault();
+                if (errEl) {
+                    errEl.textContent = @json(__('all.please_enter_mobile_or_bank'));
+                    errEl.classList.remove('hidden');
+                }
+                return false;
+            }
+            if (errEl) {
+                errEl.classList.add('hidden');
+                errEl.textContent = '';
+            }
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        }, false);
+    });
+
+    var refundBookingId = @json(old('booking_id'));
+    if (refundBookingId) {
+        var modalEl = document.getElementById('refundModal' + refundBookingId);
+        if (modalEl) modalEl.classList.remove('hidden');
+    }
+});
+
 $(document).ready(function () {
     var $firstRow = $('#guestBookingsTable tbody tr:first');
     if ($firstRow.length && $firstRow.find('td').length === 8) {

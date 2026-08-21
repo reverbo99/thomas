@@ -20,12 +20,14 @@
 <section class="page-section page-section--alt">
     <div class="container mx-auto px-4">
         <div class="customer-panel fade-in">
-            <div class="customer-panel__header flex flex-col gap-3">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <h3 class="text-base sm:text-lg">{{ __('customer/myticket.my_ticket') }}</h3>
-                    <span class="text-sm opacity-90">{{ count($ticketRows ?? []) }} {{ __('customer/myticket.my_ticket') }}</span>
-                </div>
-                @if (!empty($ticketRows))
+            <div class="customer-panel__header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 class="text-base sm:text-lg">{{ __('customer/myticket.my_ticket') }}</h3>
+                <span class="text-sm opacity-90">{{ count($ticketRows ?? []) }} {{ __('customer/myticket.my_ticket') }}</span>
+            </div>
+
+            @if (!empty($ticketRows))
+                <div class="px-4 py-4 sm:px-6 bg-gray-50 dark:bg-slate-900/40 border-b border-gray-200 dark:border-slate-700">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-3">{{ __('system.pages.select_date_range') }}</p>
                     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                         @include('partials.booking_history_period_filter', [
                             'formAction' => route('customer.mybooking'),
@@ -33,6 +35,7 @@
                             'period' => $period,
                             'startDate' => $startDate,
                             'endDate' => $endDate,
+                            'variant' => 'vendor',
                         ])
                         <form action="{{ route('customer.print.report') }}" method="POST" id="customerTicketReportForm" class="flex-shrink-0">
                             @csrf
@@ -42,8 +45,8 @@
                             </button>
                         </form>
                     </div>
-                @endif
-            </div>
+                </div>
+            @endif
 
             <div class="customer-panel__body">
                 @if (session('success'))

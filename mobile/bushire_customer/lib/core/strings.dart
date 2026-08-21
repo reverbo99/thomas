@@ -268,4 +268,23 @@ abstract final class AppStrings {
   static String seatNumberLabel(int n) => 'Seat $n';
   static const String passengersCountMissing =
       'Passenger count missing — reopen from trip details after refresh.';
+
+  static const String reorder = 'Book again';
+  static const String transferOrder = 'Transfer coaster';
+  static const String refundRequest = 'Request refund';
+  static const String downloadReceipt = 'Download receipt';
+  static const String printReceipt = 'Print receipt';
+  static const String selectCoaster = 'Select coaster';
+  static const String refundReason = 'Reason (optional)';
+  static const String refundPhone = 'Refund phone (optional)';
+  static const String refundBank = 'Bank name (optional)';
+  static const String refundBankAccount = 'Bank account (optional)';
+  static const String submitRefund = 'Submit refund request';
+  static const String confirmTransfer = 'Transfer';
+  static const String noOtherCoasters = 'No other coasters available';
+  static const String reorderPrefillApplied = 'Trip details loaded — review and continue';
+  static const String transferSuccess = 'Booking transferred';
+  static const String refundSuccess = 'Refund request submitted';
+  static const String receiptOpened = 'Receipt opened';
+  static const String receiptFailed = 'Could not open receipt';
 }

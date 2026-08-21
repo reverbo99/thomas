@@ -4,6 +4,7 @@
         ['route' => 'customer.index', 'label' => __('customer_sidebar.Dashboard'), 'icon' => 'fa-gauge-high', 'active' => request()->routeIs('customer.index', 'customer.dashboard')],
         ['route' => 'customer.mybooking', 'label' => __('customer_sidebar.My Tickets'), 'icon' => 'fa-ticket', 'active' => request()->routeIs('customer.mybooking', 'customer.pay.resaved', 'customer.cancel.resaved')],
         ['route' => 'customer.mybooking.search', 'label' => __('customer_sidebar.Bus Route'), 'icon' => 'fa-route', 'active' => request()->routeIs('customer.mybooking.search', 'customer.mybooking.search.form', 'customer.by_route', 'customer.booking_form', 'customer.get_form', 'customer.seats', 'customer.get_seats', 'customer.pay', 'customer.payment_store', 'customer.verify', 'customer.booking.inline.form', 'customer.booking.inline.prepare', 'customer.booking.inline.wallet', 'customer.busname', 'customer.round.trip*')],
+        ['route' => 'customer.special_hire.index', 'label' => __('customer_sidebar.Special Hire'), 'icon' => 'fa-van-shuttle', 'active' => request()->routeIs('customer.special_hire.*')],
         ['route' => 'customer.profile', 'label' => __('customer_sidebar.Profile'), 'icon' => 'fa-user', 'active' => request()->routeIs('customer.profile', 'customer.profile.update', 'customer.edit', 'customer.update')],
     ];
 @endphp

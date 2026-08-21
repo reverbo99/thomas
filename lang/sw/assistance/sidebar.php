@@ -9,6 +9,7 @@ return [
     'booking_history' => 'Historia ya Uhifadhi',
     'booking_history_menu' => 'Menyu ya Historia ya Uhifadhi',
     'reserved_tickets' => 'Tiketi Zilizohifadhiwa',
+    'transfer_booking' => 'Hamisha Uhifadhi',
     'today' => 'Leo',
     'week' => 'Wiki',
     'month' => 'Mwezi',

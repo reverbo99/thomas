@@ -677,12 +677,99 @@ POST /api/special-hire/customer/bookings/{id}/cancel
 }
 ```
 
-**Note:** Only bookings with status `pending`, `confirmed`, or `in_progress` can be cancelled.
+**Note:** Only bookings with status `pending`, `confirmed`, or `in_progress` can be cancelled. Full payment (`balance_paid_at`) blocks cancel.
 
 **UI tips (Bookings):**
 - When showing a booking card, include `order_status`, `payment_status`, and `total_amount` together to reduce confusion.
 - Gate the “Cancel” button to statuses `pending|confirmed|in_progress`; hide/disable otherwise.
 - If coordinates are present, render pickup/drop-off pins and draw a line between them for quick visual context.
+
+---
+
+### Reorder (prefill)
+
+Return fields to start a **new** booking from an existing one. Does **not** create a payment or a new order.
+
+```http
+POST /api/special-hire/customer/bookings/{id}/reorder
+```
+
+**Response (200):**
+```json
+{
+    "success": true,
+    "data": {
+        "source_order_id": 25,
+        "source_order_code": "SH-20241219-025",
+        "coaster_id": 1,
+        "pickup_location": "Dar es Salaam",
+        "dropoff_location": "Arusha",
+        "hire_date": "2024-12-20",
+        "hire_time": "08:00",
+        "passengers_count": 20,
+        "notes": null,
+        "...": "coords, purpose, distance_km, customer contact"
+    }
+}
+```
+
+---
+
+### Transfer booking
+
+Reassign the hire to another **available** coaster. Pricing and payment records are unchanged; `coaster_id` and operator `user_id` update. Blocked when `order_status` is `completed` or `cancelled`.
+
+```http
+POST /api/special-hire/customer/bookings/{id}/transfer
+```
+
+**Request Body:**
+```json
+{
+    "coaster_id": 4
+}
+```
+
+**Response (200):** updated booking payload (same shape as get booking).
+
+---
+
+### Refund request
+
+For paid (or deposit-paid) orders that are not already `refunded` / `refund_pending`. Sets `payment_status` to `refund_pending` and appends reason/contact notes.
+
+```http
+POST /api/special-hire/customer/bookings/{id}/refund-request
+```
+
+**Request Body (all optional):**
+```json
+{
+    "reason": "Trip cancelled by customer",
+    "phone": "+2557...",
+    "bank": "CRDB 0123456789"
+}
+```
+
+**Response (200):** updated booking with `payment_status: "refund_pending"`.
+
+---
+
+### Receipt PDF
+
+Download or inline-print the customer hire receipt (same template as admin). Allowed when `payment_status` is `paid` / `refund_pending`, or deposit/balance has been paid.
+
+```http
+GET /api/special-hire/customer/bookings/{id}/receipt.pdf
+```
+
+Returns PDF attachment (`Content-Disposition: attachment`).
+
+```http
+GET /api/special-hire/customer/bookings/{id}/receipt?disposition=inline
+```
+
+Returns PDF for browser print (`disposition=attachment` forces download).
 
 ---
 

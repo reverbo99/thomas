@@ -25,6 +25,7 @@ use App\Models\TempWallet;
 use App\Models\User;
 use App\Models\VenderBalance;
 use App\Services\BookingSettlementService;
+use App\Services\BookingTransferService;
 use App\Services\DiscountService;
 use App\Services\ExcessLuggageService;
 use App\Services\FareFormulaService;
@@ -677,6 +678,18 @@ class BookingController extends Controller
                 'step' => 3,
                 'redirect' => booking_route('pay'),
             ]);
+        }
+
+        if (session('rebook') !== null) {
+            $rebook = Booking::find(session('rebook')->id);
+            if ($rebook && $rebook->busFee < $price) {
+                return redirect()->to(booking_route('seats'))->with('error', __('all.rebooking_amount_for_seat', [
+                    'amount' => convert_money($rebook->busFee),
+                    'currency' => app('currency'),
+                ]));
+            }
+
+            return (new RebookController)->rebook_data(session()->get('booking_form'));
         }
 
         return redirect()->to(booking_route('pay'));
@@ -1814,156 +1827,99 @@ class BookingController extends Controller
 
     public function transferBooking(Request $request)
     {
+        $emergency = $request->input('transfer_mode') === 'emergency' || $request->boolean('emergency');
+
         $request->validate([
-            'booking_id' => 'required|exists:bookings,id',
+            'booking_id' => 'nullable|exists:bookings,id',
+            'booking_ids' => 'nullable|array|min:1',
+            'booking_ids.*' => 'integer|exists:bookings,id',
             'new_bus_id' => 'required|exists:buses,id',
-            'new_schedule_id' => 'required|exists:schedules,id',
+            'new_schedule_id' => $emergency ? 'nullable|exists:schedules,id' : 'required|exists:schedules,id',
             'new_travel_date' => 'required|date',
             'new_pickup_point' => 'required|string',
             'new_dropping_point' => 'required|string',
+            'transfer_mode' => 'nullable|in:scheduled,emergency',
+            'companion_ids' => 'nullable|array',
+            'companion_ids.*' => 'integer|exists:bookings,id',
+            'seat_map' => 'nullable|array',
+            'seat_map.*' => 'string',
+            'passengers' => 'nullable|array',
+            'passengers.*.customer_name' => 'nullable|string|max:255',
+            'passengers.*.customer_phone' => 'nullable|string|max:50',
+            'passengers.*.customer_email' => 'nullable|string|max:255',
+            'passengers.*.gender' => 'nullable|string|max:50',
+            'emergency_agreement' => $emergency ? 'accepted' : 'nullable',
+            'emergency_start' => 'nullable|string',
+            'emergency_end' => 'nullable|string',
         ]);
 
+        $bookingIds = collect($request->input('booking_ids', []))
+            ->when($request->filled('booking_id'), fn ($c) => $c->prepend($request->booking_id))
+            ->merge($request->input('companion_ids', []))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($bookingIds->isEmpty()) {
+            return back()->with('error', __('vender/transfer.booking_not_found'));
+        }
+
+        if (empty($request->input('seat_map'))) {
+            return back()->with('error', __('vender/transfer.seat_map_required'));
+        }
+
         try {
-            DB::beginTransaction();
-
-            $booking = Booking::whereKey($request->booking_id)->lockForUpdate()->first();
-            if (!$booking) {
-                return back()->with('error', __('vender/transfer.booking_not_found'));
-            }
-
             $user = Auth::user();
             $companyId = $user->campany->id ?? null;
             if (!$companyId) {
                 return back()->with('error', __('vender/earning.no_company_account'));
             }
-            if ((int) $booking->campany_id !== (int) $companyId) {
-                return back()->with('error', __('vender/transfer.booking_company_mismatch'));
+
+            $sourceBooking = Booking::find($bookingIds->first());
+            if (!$sourceBooking) {
+                return back()->with('error', __('vender/transfer.booking_not_found'));
             }
 
-            if (!in_array($booking->payment_status, ['Paid', 'Reserved', 'resaved'], true)) {
-                return back()->with('error', __('vender/transfer.booking_not_transferable'));
-            }
+            $companions = $bookingIds->slice(1)->values()->all();
 
-            $originalPaymentStatus = $booking->payment_status;
-            $newBus = Bus::with(['route', 'campany'])->whereKey($request->new_bus_id)->lockForUpdate()->first();
-            $newSchedule = Schedule::whereKey($request->new_schedule_id)->lockForUpdate()->first();
-            if (!$newBus || !$newSchedule || !$newBus->route || !$newBus->campany) {
-                return back()->with('error', __('vender/transfer.new_bus_not_found'));
-            }
-            if ((int) $newBus->campany_id !== (int) $companyId) {
-                return back()->with('error', __('vender/transfer.new_bus_company_mismatch'));
-            }
-            if ((int) $newSchedule->bus_id !== (int) $newBus->id || (string) $newSchedule->schedule_date !== (string) $request->new_travel_date) {
-                return back()->with('error', __('vender/transfer.invalid_schedule_for_bus_date'));
-            }
-
-            $targetSeats = array_values(array_filter(array_map('trim', explode(',', (string) $booking->seat))));
-            $occupiedSeats = Booking::query()
-                ->where('id', '!=', $booking->id)
-                ->where('bus_id', $newBus->id)
-                ->where('travel_date', $request->new_travel_date)
-                ->whereIn('payment_status', ['Paid', 'Reserved', 'resaved'])
-                ->lockForUpdate()
-                ->pluck('seat')
-                ->flatMap(fn($seats) => explode(',', (string) $seats))
-                ->map(fn($seat) => trim($seat))
-                ->filter()
-                ->unique()
-                ->values()
-                ->toArray();
-
-            if (!empty(array_intersect($targetSeats, $occupiedSeats))) {
-                return back()->with('error', __('vender/transfer.target_seats_unavailable'));
-            }
-
-            $pricing = $this->buildTransferPricing(
-                $booking,
-                $newBus,
-                (string) $request->new_pickup_point,
-                (string) $request->new_dropping_point
+            $result = app(BookingTransferService::class)->transfer(
+                $sourceBooking,
+                [
+                    'bus_id' => (int) $request->new_bus_id,
+                    'schedule_id' => $request->filled('new_schedule_id') ? (int) $request->new_schedule_id : null,
+                    'travel_date' => (string) $request->new_travel_date,
+                    'pickup_point' => (string) $request->new_pickup_point,
+                    'dropping_point' => (string) $request->new_dropping_point,
+                    'transfer_mode' => $emergency
+                        ? BookingTransferService::MODE_EMERGENCY
+                        : BookingTransferService::MODE_SCHEDULED,
+                    'emergency_start' => $request->input('emergency_start'),
+                    'emergency_end' => $request->input('emergency_end'),
+                ],
+                $companions,
+                [
+                    'allow_emergency' => true,
+                    'company_id' => (int) $companyId,
+                    'actor' => BookingTransferService::ACTOR_BUS_OWNER,
+                    'seat_map' => $request->input('seat_map', []),
+                    'passengers' => $request->input('passengers', []),
+                ]
             );
 
-            // Generate a new booking code
-            $newBookingCode = $this->generateRandomCode();
+            $transferred = (int) ($result['transferred'] ?? 0);
 
-            $booking->update([
-                'bus_id' => $request->new_bus_id,
-                'schedule_id' => $request->new_schedule_id,
-                'route_id' => $newBus->route->id,
-                'campany_id' => $newBus->campany->id,
-                'travel_date' => $request->new_travel_date,
-                'pickup_point' => $request->new_pickup_point,
-                'dropping_point' => $request->new_dropping_point,
-                'amount' => $pricing['amount'],
-                'busFee' => $pricing['busFee'],
-                'discount_amount' => $pricing['discount_amount'],
-                'distance' => $pricing['distance'],
-                'bima_amount' => $pricing['bima_amount'],
-                'vat' => $pricing['vat'],
-                'fee' => $pricing['fee'],
-                'service' => $pricing['service'],
-                'vender_fee' => $pricing['vender_fee'],
-                'vender_service' => $pricing['vender_service'],
-                'payment_status' => $originalPaymentStatus,
-                'booking_code' => $newBookingCode,
-                // Retain passenger details from original booking
-                'gender' => $booking->gender,
-                'age' => $booking->age,
-                'infant_child' => $booking->infant_child,
-                'age_group' => $booking->age_group,
-                'customer_phone' => $booking->customer_phone,
-                'customer_name' => $booking->customer_name,
-                'customer_email' => $booking->customer_email,
-                'user_id' => $booking->user_id,
-                'vender_id' => $booking->vender_id,
-                'bima' => $booking->bima,
-                ////'bima_amount' => $booking->bima_amount,
-                'insuranceDate' => $booking->insuranceDate,
-                'discount' => $booking->discount,
-                //'discount_amount' => $booking->discount_amount,
-                'cancel_amount' => $booking->cancel_amount,
-                'cancel_key' => $booking->cancel_key,
-            ]);
-
-            DB::commit();
-            return redirect()->back()->with('success', __('vender/transfer.transfer_success'));
+            return redirect()->route('booking.transfer.form')->with(
+                'success',
+                $transferred > 1
+                    ? __('vender/transfer.transfer_success_bulk', ['count' => $transferred])
+                    : __('vender/transfer.transfer_success')
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('Booking transfer failed: ' . $e->getMessage());
             return back()->with('error', __('vender/transfer.transfer_failed', ['error' => $e->getMessage()]));
         }
-    }
-
-    private function buildTransferPricing(Booking $booking, Bus $newBus, string $pickupPoint, string $droppingPoint): array
-    {
-        $formulaService = app(FareFormulaService::class);
-        $seatCount = $formulaService->seatCountFromSeatString($booking->seat);
-
-        $baseFare = max(0, (float) ($newBus->route->price ?? 0) * $seatCount);
-        $discountAmount = max(0, (float) ($booking->discount_amount ?? 0));
-        $discountAmount = min($discountAmount, $baseFare);
-
-        $discountedFare = max(0, $baseFare - $discountAmount);
-        $setting = Setting::first();
-        $fee = $formulaService->calculateTravellerServiceFee($discountedFare, $setting, $seatCount);
-        $distance = RouteDistanceService::resolveForBooking(
-            null,
-            $pickupPoint,
-            $droppingPoint,
-            (float) ($newBus->route->distance ?? 0)
-        );
-
-        return [
-            'amount' => round($baseFare, 2),
-            'busFee' => round($baseFare, 2),
-            'discount_amount' => round($discountAmount, 2),
-            'distance' => round($distance, 2),
-            'bima_amount' => round((float) ($booking->bima_amount ?? 0), 2),
-            'vat' => round($baseFare * 0.005, 2),
-            'fee' => round($fee, 2),
-            'service' => round((float) ($booking->service ?? 0), 2),
-            'vender_fee' => round((float) ($booking->vender_fee ?? 0), 2),
-            'vender_service' => round((float) ($booking->vender_service ?? 0), 2),
-        ];
     }
 }

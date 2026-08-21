@@ -1509,16 +1509,20 @@ if (!function_exists('apply_booking_history_column_filters')) {
         if ($request->filled('driver')) {
             $driver = $request->driver;
             $query->whereHas('bus', function ($q) use ($driver) {
-                $q->where('driver_name', 'like', "%{$driver}%")
-                    ->orWhere('driver_name_2', 'like', "%{$driver}%");
+                $q->where(function ($inner) use ($driver) {
+                    $inner->where('driver_name', 'like', "%{$driver}%")
+                        ->orWhere('driver_name_2', 'like', "%{$driver}%");
+                });
             });
         }
 
         if ($request->filled('conductor')) {
             $conductor = $request->conductor;
             $query->whereHas('bus', function ($q) use ($conductor) {
-                $q->where('conductor_name', 'like', "%{$conductor}%")
-                    ->orWhere('conductor', 'like', "%{$conductor}%");
+                $q->where(function ($inner) use ($conductor) {
+                    $inner->where('conductor_name', 'like', "%{$conductor}%")
+                        ->orWhere('conductor', 'like', "%{$conductor}%");
+                });
             });
         }
 
@@ -1534,6 +1538,81 @@ if (!function_exists('apply_booking_history_column_filters')) {
             $query->whereHas('schedule', function ($q) use ($departureTime) {
                 $q->where('start', 'like', "%{$departureTime}%");
             });
+        }
+
+        if ($request->filled('arrival_date')) {
+            $arrivalDate = $request->arrival_date;
+            $overnightOrigin = \Carbon\Carbon::parse($arrivalDate)->subDay()->toDateString();
+            $query->whereHas('schedule', function ($q) use ($arrivalDate, $overnightOrigin) {
+                $q->where(function ($inner) use ($arrivalDate, $overnightOrigin) {
+                    $inner->where(function ($sameDay) use ($arrivalDate) {
+                        $sameDay->whereDate('schedule_date', $arrivalDate)
+                            ->whereRaw('TIME(`end`) >= TIME(`start`)');
+                    })->orWhere(function ($overnight) use ($overnightOrigin) {
+                        $overnight->whereDate('schedule_date', $overnightOrigin)
+                            ->whereRaw('TIME(`end`) < TIME(`start`)');
+                    });
+                });
+            });
+        }
+
+        if ($request->filled('arrival_time')) {
+            $arrivalTime = $request->arrival_time;
+            $query->whereHas('schedule', function ($q) use ($arrivalTime) {
+                $q->where('end', 'like', "%{$arrivalTime}%");
+            });
+        }
+    }
+}
+
+if (!function_exists('apply_bus_relation_column_filters')) {
+    /**
+     * Filter models that belong to a bus (e.g. parcels) by plate and crew.
+     * Departure/arrival use departed_at / arrived_at when those columns exist.
+     */
+    function apply_bus_relation_column_filters($query, $request, string $busRelation = 'bus'): void
+    {
+        if ($request->filled('bus_number')) {
+            $busNumber = $request->bus_number;
+            $query->whereHas($busRelation, function ($q) use ($busNumber) {
+                $q->where('bus_number', 'like', "%{$busNumber}%");
+            });
+        }
+
+        if ($request->filled('driver')) {
+            $driver = $request->driver;
+            $query->whereHas($busRelation, function ($q) use ($driver) {
+                $q->where(function ($inner) use ($driver) {
+                    $inner->where('driver_name', 'like', "%{$driver}%")
+                        ->orWhere('driver_name_2', 'like', "%{$driver}%");
+                });
+            });
+        }
+
+        if ($request->filled('conductor')) {
+            $conductor = $request->conductor;
+            $query->whereHas($busRelation, function ($q) use ($conductor) {
+                $q->where(function ($inner) use ($conductor) {
+                    $inner->where('conductor_name', 'like', "%{$conductor}%")
+                        ->orWhere('conductor', 'like', "%{$conductor}%");
+                });
+            });
+        }
+
+        if ($request->filled('departure_date')) {
+            $query->whereDate('departed_at', $request->departure_date);
+        }
+
+        if ($request->filled('departure_time')) {
+            $query->whereTime('departed_at', $request->departure_time);
+        }
+
+        if ($request->filled('arrival_date')) {
+            $query->whereDate('arrived_at', $request->arrival_date);
+        }
+
+        if ($request->filled('arrival_time')) {
+            $query->whereTime('arrived_at', $request->arrival_time);
         }
     }
 }

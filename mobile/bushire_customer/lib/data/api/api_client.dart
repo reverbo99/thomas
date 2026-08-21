@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -90,6 +91,81 @@ class ApiClient {
         body: body == null ? null : jsonEncode(body),
       );
     });
+  }
+
+  /// GET binary (e.g. PDF). Does not [jsonDecode] successful bodies.
+  Future<Uint8List> getBytes(
+    String path, {
+    Map<String, String>? query,
+    bool auth = true,
+  }) async {
+    late http.Response response;
+    try {
+      final headers = await _headers(auth: auth);
+      headers['Accept'] = 'application/pdf, application/octet-stream, */*';
+      response = await _http.get(
+        _uri(path, query),
+        headers: headers,
+      );
+    } on TimeoutException catch (e, st) {
+      developer.log(
+        'API bytes request timed out: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: AppStrings.requestTimedOut);
+    } on SocketException catch (e, st) {
+      developer.log(
+        'API bytes socket failure: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: _networkFailureMessage(e));
+    } on http.ClientException catch (e, st) {
+      developer.log(
+        'API bytes client failure: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: _networkFailureMessage(e));
+    } catch (e, st) {
+      developer.log(
+        'API bytes network failure: $e',
+        name: 'ApiClient',
+        error: e,
+        stackTrace: st,
+      );
+      throw ApiException(message: _networkFailureMessage(e));
+    }
+
+    final status = response.statusCode;
+    final contentType = response.headers['content-type'] ?? '';
+    final looksJson = contentType.contains('application/json') ||
+        (response.bodyBytes.isNotEmpty &&
+            response.body.trimLeft().startsWith('{'));
+
+    if (status == 401) {
+      await onUnauthorized?.call();
+      if (looksJson) {
+        await _parseResponse(response);
+      }
+      throw ApiException(message: 'Unauthorized', statusCode: status);
+    }
+
+    final okHttp = status >= 200 && status < 300;
+    if (!okHttp || looksJson) {
+      // Error envelopes are JSON even on PDF routes.
+      await _parseResponse(response);
+      throw ApiException(
+        message: 'Request failed',
+        statusCode: status,
+      );
+    }
+
+    return response.bodyBytes;
   }
 
   Future<dynamic> _send(Future<http.Response> Function() request) async {

@@ -215,6 +215,7 @@ class SpecialHireOrder extends Model
         return match($this->payment_status) {
             'pending' => 'yellow',
             'paid' => 'green',
+            'refund_pending' => 'orange',
             'refunded' => 'red',
             default => 'gray',
         };

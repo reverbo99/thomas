@@ -164,6 +164,8 @@ return [
     'filter_departure_time' => 'Departure time',
     'filter_driver' => 'Driver name',
     'filter_conductor' => 'Conductor name',
+    'filter_arrival_date' => 'Arrival date',
+    'filter_arrival_time' => 'Arrival time',
 
     // Special hire overview
     'total_amount_paid' => 'Total amount paid',

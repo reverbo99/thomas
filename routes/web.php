@@ -9,6 +9,7 @@ use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CancelController;
 use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CustomerSpecialHireController;
 use App\Http\Controllers\OnePageBookingController;
 use App\Http\Controllers\OtherController;
 use App\Http\Controllers\PDOController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\ExcessLuggageController;
 use App\Http\Controllers\SpecialHireController;
 use App\Http\Controllers\ParcelController;
 use App\Http\Controllers\TigosecureController;
+use App\Http\Controllers\TransferFormController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
@@ -281,6 +283,12 @@ Route::get('/schedules/today', function () {
 
 // Traveler Routes (Accessible to travelers)
 Route::post('/booking/cancel', [CancelController::class, 'cancel'])->name('cancel');
+Route::get('/booking/rebook', [RebookController::class, 'rebook'])->name('guest.rebook');
+Route::get('/guest/booking/transfer/{booking_id?}', [TransferFormController::class, 'show'])->name('guest.booking.transfer.form')->defaults('transfer_actor', 'guest');
+Route::post('/guest/booking/transfer', [TransferFormController::class, 'store'])->name('guest.booking.transfer')->defaults('transfer_actor', 'guest');
+Route::get('/guest/get-transfer-buses', [TransferFormController::class, 'getTransferBuses'])->name('guest.get.transfer.buses')->defaults('transfer_actor', 'guest');
+Route::get('/guest/get-filtered-schedules', [TransferFormController::class, 'getFilteredSchedules'])->name('guest.get.filtered.schedules')->defaults('transfer_actor', 'guest');
+Route::get('/guest/calculate-transfer-amounts', [TransferFormController::class, 'calculateTransferAmounts'])->name('guest.calculate.transfer.amounts')->defaults('transfer_actor', 'guest');
 Route::post('/booking_info', [BookingController::class, 'booking_info'])->name('booking_info');
 Route::get('/booking_info', [BookingController::class, 'form'])->name('info');
 Route::get('/booking/choose', [BookingController::class, 'choose'])->name('choose');
@@ -402,6 +410,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/earnings/filter', [AdminController::class, 'filterEarnings'])->name('earnings.filter');
         Route::get('/earnings/tickets-data', [AdminController::class, 'earningsTicketsData'])->name('earnings.tickets.data');
         Route::get('/earnings/luggage-data', [AdminController::class, 'earningsLuggageData'])->name('earnings.luggage.data');
+        Route::get('/earnings/parcels-data', [AdminController::class, 'earningsParcelsData'])->name('earnings.parcels.data');
         Route::get('/earnings', [AdminController::class, 'erning'])->name('erning');
 
         Route::post('/export', [AdminController::class, 'export'])->name('export');
@@ -436,6 +445,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/resaved-tickets', [AdminController::class, 'resavedTickets'])->name('resaved.tickets');
         Route::get('/buses/print/pdf', [AdminController::class, 'printBusesPdf'])->name('bus.print.pdf');
         Route::get('/get-filtered-schedules', [AdminController::class, 'getFilteredSchedules'])->name('get.filtered.schedules');
+        Route::get('/get-transfer-buses', [AdminController::class, 'getTransferBuses'])->name('get.transfer.buses');
+        Route::get('/get-transfer-source-buses', [AdminController::class, 'getTransferSourceBuses'])->name('get.transfer.source.buses');
+        Route::get('/get-transfer-source-seats', [AdminController::class, 'getTransferSourceSeats'])->name('get.transfer.source.seats');
+        Route::get('/get-transfer-destination-seats', [AdminController::class, 'getTransferDestinationSeats'])->name('get.transfer.destination.seats');
         Route::get('/calculate-transfer-amounts', [AdminController::class, 'calculateTransferAmounts'])->name('calculate.transfer.amounts');
         Route::post('/booking/excess-luggage/{booking}', [AdminController::class, 'updateExcessLuggage'])->name('booking.excess_luggage.update');
         Route::get('/booking/excess-luggage/{booking}/receipt', [AdminController::class, 'printExcessLuggageReceipt'])->name('excess_luggage.receipt.print');
@@ -640,6 +653,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/history', [VenderController::class, 'history'])->name('vender.history');
         Route::get('/history/export/pdf', [VenderController::class, 'historyExportPdf'])->name('vender.history.export.pdf');
         Route::get('/history/export/csv', [VenderController::class, 'historyExportCsv'])->name('vender.history.export.csv');
+        Route::get('/rebook', [RebookController::class, 'rebook'])->name('vender.rebook');
+        Route::match(['get', 'post'], '/cancel', [CancelController::class, 'cancel'])->name('vender.cancel');
+        Route::get('/booking/transfer/{booking_id?}', [TransferFormController::class, 'show'])->name('vender.booking.transfer.form')->defaults('transfer_actor', 'vender');
+        Route::post('/booking/transfer', [TransferFormController::class, 'store'])->name('vender.booking.transfer')->defaults('transfer_actor', 'vender');
+        Route::get('/get-transfer-buses', [TransferFormController::class, 'getTransferBuses'])->name('vender.get.transfer.buses')->defaults('transfer_actor', 'vender');
+        Route::get('/get-filtered-schedules', [TransferFormController::class, 'getFilteredSchedules'])->name('vender.get.filtered.schedules')->defaults('transfer_actor', 'vender');
+        Route::get('/calculate-transfer-amounts', [TransferFormController::class, 'calculateTransferAmounts'])->name('vender.calculate.transfer.amounts')->defaults('transfer_actor', 'vender');
+        Route::post('/refund', [RefundController::class, 'get_booking'])->name('vender.refund');
         Route::get('/resaved-tickets', [VenderController::class, 'resavedTickets'])->name('vender.resaved.tickets');
         Route::post('/cancel-resaved/{id}', [VenderController::class, 'cancelResavedTicket'])->name('vender.cancel.resaved');
         Route::get('/pay-resaved/{id}', [VenderController::class, 'payResavedTicket'])->name('vender.pay.resaved');
@@ -724,11 +745,30 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/rebook', [RebookController::class, 'rebook'])->name('customer.rebook');
         Route::get('/cancel', [CancelController::class, 'cancel'])->name('customer.cancel');
+        Route::get('/booking/transfer/{booking_id?}', [TransferFormController::class, 'show'])->name('customer.booking.transfer.form')->defaults('transfer_actor', 'customer');
+        Route::post('/booking/transfer', [TransferFormController::class, 'store'])->name('customer.booking.transfer')->defaults('transfer_actor', 'customer');
+        Route::get('/get-transfer-buses', [TransferFormController::class, 'getTransferBuses'])->name('customer.get.transfer.buses')->defaults('transfer_actor', 'customer');
+        Route::get('/get-filtered-schedules', [TransferFormController::class, 'getFilteredSchedules'])->name('customer.get.filtered.schedules')->defaults('transfer_actor', 'customer');
+        Route::get('/calculate-transfer-amounts', [TransferFormController::class, 'calculateTransferAmounts'])->name('customer.calculate.transfer.amounts')->defaults('transfer_actor', 'customer');
         Route::post('/cancel-resaved/{id}', [CustomerController::class, 'cancelResavedTicket'])->name('customer.cancel.resaved');
         Route::get('/pay-resaved/{id}', [CustomerController::class, 'payResavedTicket'])->name('customer.pay.resaved');
 
         Route::get('/edit/{id}', [CustomerController::class, 'edit'])->name('customer.edit');
         Route::post('/edit', [CustomerController::class, 'update'])->name('customer.update');
+
+        Route::get('/special-hire', [CustomerSpecialHireController::class, 'index'])->name('customer.special_hire.index');
+        Route::get('/special-hire/{id}', [CustomerSpecialHireController::class, 'show'])->name('customer.special_hire.show')
+            ->whereNumber('id');
+        Route::post('/special-hire/{id}/reorder', [CustomerSpecialHireController::class, 'reorder'])->name('customer.special_hire.reorder')
+            ->whereNumber('id');
+        Route::post('/special-hire/{id}/transfer', [CustomerSpecialHireController::class, 'transfer'])->name('customer.special_hire.transfer')
+            ->whereNumber('id');
+        Route::post('/special-hire/{id}/refund-request', [CustomerSpecialHireController::class, 'refundRequest'])->name('customer.special_hire.refund')
+            ->whereNumber('id');
+        Route::get('/special-hire/{id}/receipt.pdf', [CustomerSpecialHireController::class, 'receiptPdf'])->name('customer.special_hire.receipt.pdf')
+            ->whereNumber('id');
+        Route::get('/special-hire/{id}/receipt', [CustomerSpecialHireController::class, 'receiptPrint'])->name('customer.special_hire.receipt.print')
+            ->whereNumber('id');
 
         Route::get('/round-trip', [RoundTripController::class, 'index'])->name('customer.round.trip');
         Route::get('/round-trip/by-routesearch', [RoundTripController::class, 'by_routesearch'])->name('customer.round.trip.by.routesearch');

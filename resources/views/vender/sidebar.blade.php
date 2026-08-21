@@ -70,6 +70,13 @@
             </div>
         </div>
 
+        <a href="{{ route('vender.booking.transfer.form') }}"
+           class="vendor-sidebar__link {{ request()->routeIs('vender.booking.transfer*') ? 'vendor-sidebar__link--active' : '' }}"
+           @if(request()->routeIs('vender.booking.transfer*')) aria-current="page" @endif>
+            <i class="fas fa-right-left" aria-hidden="true"></i>
+            <span>{{ __('assistance/sidebar.transfer_booking') }}</span>
+        </a>
+
         <a href="{{ route('vender.resaved.tickets') }}"
            class="vendor-sidebar__link {{ $resavedActive ? 'vendor-sidebar__link--active' : '' }}"
            @if($resavedActive) aria-current="page" @endif>

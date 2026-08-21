@@ -515,6 +515,18 @@ class VenderController extends Controller
 
         session()->put('booking_form', $bus_info);
 
+        if (session('rebook') !== null) {
+            $rebook = Booking::find(session('rebook')->id);
+            if ($rebook && $rebook->busFee < $price) {
+                return redirect()->route('seates.vender')->with('error', __('all.rebooking_amount_for_seat', [
+                    'amount' => convert_money($rebook->busFee),
+                    'currency' => app('currency'),
+                ]));
+            }
+
+            return (new RebookController)->rebook_data(session()->get('booking_form'));
+        }
+
         return redirect()->route('vender.pay');
     }
 

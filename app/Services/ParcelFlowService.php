@@ -36,6 +36,27 @@ class ParcelFlowService
     /** Vendor share of the non-system remainder when a vendor registered the parcel. */
     public const VENDOR_REMAINDER_PERCENT = 25.0;
 
+    /**
+     * Bus-owner wallet share of a paid parcel (same formula as confirmPayment).
+     */
+    public static function ownerShareAmount(float $amountPaid, $venderId = null, ?float $systemPct = null): float
+    {
+        if ($systemPct === null) {
+            $systemPct = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+        }
+
+        $systemShare = round($amountPaid * $systemPct / 100, 2);
+        $remainder = round($amountPaid - $systemShare, 2);
+
+        if ($venderId) {
+            $vendorShare = round($remainder * self::VENDOR_REMAINDER_PERCENT / 100, 2);
+
+            return round($remainder - $vendorShare, 2);
+        }
+
+        return $remainder;
+    }
+
     public function normalizeStatus(?Parcel $parcel): string
     {
         $status = $parcel->status ?? self::STATUS_PENDING;
@@ -138,15 +159,10 @@ class ParcelFlowService
             $settings = Setting::first();
             $systemPct = (float) ($settings->parcel_commission_percentage ?? 0);
             $systemShare = round($amount * $systemPct / 100, 2);
-            $remainder = round($amount - $systemShare, 2);
-
-            $vendorShare = 0.0;
-            $ownerShare = $remainder;
-
-            if ($parcel->vender_id) {
-                $vendorShare = round($remainder * self::VENDOR_REMAINDER_PERCENT / 100, 2);
-                $ownerShare = round($remainder - $vendorShare, 2);
-            }
+            $ownerShare = self::ownerShareAmount($amount, $parcel->vender_id, $systemPct);
+            $vendorShare = $parcel->vender_id
+                ? round(round($amount - $systemShare, 2) - $ownerShare, 2)
+                : 0.0;
 
             $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
             if (!$adminWallet) {

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../api/api_exception.dart';
@@ -295,6 +297,61 @@ class BookingRepository {
     );
     if (data is! Map) {
       throw ApiException(message: 'Unexpected passengers response');
+    }
+    return BookingModel.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  /// POST `/bookings/{id}/reorder` — prefill map for a new booking (no hire created).
+  Future<Map<String, dynamic>> reorderPrefill(int id) async {
+    final data = await _api.post(ApiEndpoints.reorderBooking(id));
+    if (data is! Map) {
+      throw ApiException(message: 'Unexpected reorder response');
+    }
+    return Map<String, dynamic>.from(data);
+  }
+
+  /// POST `/bookings/{id}/transfer` — body `{ coaster_id }`.
+  Future<BookingModel> transferBooking({
+    required int bookingId,
+    required int coasterId,
+  }) async {
+    final data = await _api.post(
+      ApiEndpoints.transferBooking(bookingId),
+      body: {'coaster_id': coasterId},
+    );
+    return _bookingFromData(data, 'Unexpected transfer response');
+  }
+
+  /// POST `/bookings/{id}/refund-request` — optional reason / contact / bank.
+  Future<BookingModel> requestRefund({
+    required int bookingId,
+    String? reason,
+    String? phone,
+    String? bank,
+    String? bankAccount,
+  }) async {
+    final body = <String, dynamic>{};
+    if (reason != null && reason.isNotEmpty) body['reason'] = reason;
+    if (phone != null && phone.isNotEmpty) body['phone'] = phone;
+    if (bank != null && bank.isNotEmpty) body['bank'] = bank;
+    if (bankAccount != null && bankAccount.isNotEmpty) {
+      body['bank_account'] = bankAccount;
+    }
+    final data = await _api.post(
+      ApiEndpoints.refundRequest(bookingId),
+      body: body.isEmpty ? null : body,
+    );
+    return _bookingFromData(data, 'Unexpected refund response');
+  }
+
+  /// GET `/bookings/{id}/receipt.pdf` — raw PDF bytes.
+  Future<Uint8List> downloadReceiptPdf(int id) {
+    return _api.getBytes(ApiEndpoints.receiptPdf(id));
+  }
+
+  BookingModel _bookingFromData(dynamic data, String unexpectedMessage) {
+    if (data is! Map) {
+      throw ApiException(message: unexpectedMessage);
     }
     return BookingModel.fromJson(Map<String, dynamic>.from(data));
   }

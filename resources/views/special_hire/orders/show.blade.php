@@ -255,7 +255,7 @@
 
                 @php
                     $canCancel = ! in_array($order->order_status, ['cancelled', 'completed'], true);
-                    $canRefund = $order->payment_status === 'paid';
+                    $canRefund = in_array($order->payment_status, ['paid', 'refund_pending'], true);
                 @endphp
 
                 <div class="space-y-3">

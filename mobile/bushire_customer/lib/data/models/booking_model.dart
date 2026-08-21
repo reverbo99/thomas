@@ -93,6 +93,28 @@ class BookingModel {
 
   bool get canTrack => orderStatus?.toLowerCase() == 'in_progress';
 
+  /// Any past / existing trip can be used as a reorder source.
+  bool get canReorder => id > 0;
+
+  bool get canTransfer {
+    final s = orderStatus?.toLowerCase();
+    if (s == null) return false;
+    return s != 'completed' && s != 'cancelled';
+  }
+
+  bool get canRequestRefund {
+    final pay = paymentStatus?.toLowerCase();
+    if (pay == 'refunded' || pay == 'refund_pending') return false;
+    if (pay == 'paid' || pay == 'deposit_paid') return true;
+    return depositPaidAt != null || balancePaidAt != null;
+  }
+
+  bool get canDownloadReceipt {
+    final pay = paymentStatus?.toLowerCase();
+    if (pay == 'paid' || pay == 'refund_pending') return true;
+    return depositPaidAt != null || balancePaidAt != null;
+  }
+
   bool get needsDeposit => hireNextStep == 'pay_deposit';
   bool get needsBalance => hireNextStep == 'pay_balance';
   bool get needsPassengers => hireNextStep == 'enter_passengers';

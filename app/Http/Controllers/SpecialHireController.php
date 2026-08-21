@@ -793,8 +793,8 @@ class SpecialHireController extends Controller
     {
         $order = SpecialHireOrder::byUser(Auth::id())->findOrFail($id);
 
-        if ($order->payment_status !== 'paid') {
-            return back()->with('error', 'Refund is only available when payment status is Paid.');
+        if (! in_array($order->payment_status, ['paid', 'refund_pending'], true)) {
+            return back()->with('error', 'Refund is only available when payment status is Paid or Refund pending.');
         }
 
         $order->update([

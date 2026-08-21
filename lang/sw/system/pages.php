@@ -163,6 +163,8 @@ return [
     'filter_departure_time' => 'Muda wa kuondoka',
     'filter_driver' => 'Jina la dereva',
     'filter_conductor' => 'Jina la kondakta',
+    'filter_arrival_date' => 'Tarehe ya kuwasili',
+    'filter_arrival_time' => 'Muda wa kuwasili',
     'total_amount_paid' => 'Jumla ya malipo',
     'commission_fees' => 'Ada za kamisheni',
     'cancellation_fees' => 'Ada za ughairi',

@@ -1,6 +1,6 @@
 @php
-    $refundRoute = $refundRoute ?? 'customer.refund';
-    $refundActor = $refundActor ?? null;
+    $refundRoute = $refundRoute ?? 'vender.refund';
+    $refundActor = $refundActor ?? 'vender';
 @endphp
 <div class="tickets-modal fixed inset-0 z-[100] hidden" id="refundModal{{ $book->id }}"
     aria-labelledby="refundModalLabel{{ $book->id }}" aria-modal="true" role="dialog">
@@ -20,9 +20,7 @@
                     data-book-id="{{ $book->id }}">
                     @csrf
                     <input type="hidden" name="booking_id" value="{{ $book->id }}">
-                    @if ($refundActor)
-                        <input type="hidden" name="actor" value="{{ $refundActor }}">
-                    @endif
+                    <input type="hidden" name="actor" value="{{ $refundActor }}">
                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('all.refund_mobile_or_bank_hint') }}</p>
 
                     <div>

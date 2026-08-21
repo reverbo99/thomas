@@ -28,12 +28,12 @@
                 </div>
             </div>
 
-            <div class="px-4 py-4 bg-gray-50 border-b border-gray-200">
-                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">{{ __('system.pages.select_date_range') }}</p>
+            <div class="px-4 py-4 bg-gray-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-3">{{ __('system.pages.select_date_range') }}</p>
                 <form method="GET" action="{{ route('system.history') }}" class="flex flex-wrap items-end gap-3" id="bookingHistoryPeriodForm">
                     <div class="flex flex-col gap-1">
-                        <label for="historyPeriodSelect" class="text-xs font-medium text-gray-600">{{ __('system.pages.period') }}</label>
-                        <select name="period" id="historyPeriodSelect" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm min-w-[160px]" onchange="window.toggleHistoryCustomDates && window.toggleHistoryCustomDates(this)">
+                        <label for="historyPeriodSelect" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.period') }}</label>
+                        <select name="period" id="historyPeriodSelect" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm min-w-[160px]" onchange="window.toggleHistoryCustomDates && window.toggleHistoryCustomDates(this)">
                             <option value="" @selected(empty($period))>{{ __('system.common.all_time') }}</option>
                             <option value="today" @selected(($period ?? request('period')) === 'today')>{{ __('system.sidebar.today') }}</option>
                             <option value="week" @selected(($period ?? request('period')) === 'week')>{{ __('system.common.this_week') }}</option>
@@ -43,16 +43,16 @@
                         </select>
                     </div>
                     <div class="flex flex-col gap-1 history-custom-dates {{ (($period ?? request('period')) === 'custom' || (($startDate ?? request('start_date')) && ($endDate ?? request('end_date')))) ? '' : 'hidden' }}">
-                        <label for="historyStartDate" class="text-xs font-medium text-gray-600">{{ __('system.common.start_date') }}</label>
-                        <input type="date" name="start_date" id="historyStartDate" value="{{ $startDate ?? request('start_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="historyStartDate" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.common.start_date') }}</label>
+                        <input type="date" name="start_date" id="historyStartDate" value="{{ $startDate ?? request('start_date') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
                     <div class="flex flex-col gap-1 history-custom-dates {{ (($period ?? request('period')) === 'custom' || (($startDate ?? request('start_date')) && ($endDate ?? request('end_date')))) ? '' : 'hidden' }}">
-                        <label for="historyEndDate" class="text-xs font-medium text-gray-600">{{ __('system.common.end_date') }}</label>
-                        <input type="date" name="end_date" id="historyEndDate" value="{{ $endDate ?? request('end_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="historyEndDate" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.common.end_date') }}</label>
+                        <input type="date" name="end_date" id="historyEndDate" value="{{ $endDate ?? request('end_date') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="historyChannelSelect" class="text-xs font-medium text-gray-600">{{ __('all.sales_channel_filter') }}</label>
-                        <select name="channel" id="historyChannelSelect" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm min-w-[160px]">
+                        <label for="historyChannelSelect" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('all.sales_channel_filter') }}</label>
+                        <select name="channel" id="historyChannelSelect" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm min-w-[160px]">
                             <option value="">{{ __('all.sales_channel_all') }}</option>
                             <option value="online" @selected(($channelFilter ?? '') === 'online')>{{ __('all.sales_channel_online') }}</option>
                             <option value="in_person" @selected(($channelFilter ?? '') === 'in_person')>{{ __('all.sales_channel_in_person') }}</option>
@@ -60,31 +60,31 @@
                         </select>
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="filterBusName" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_bus_name') }}</label>
-                        <input type="text" name="bus_name" id="filterBusName" value="{{ request('bus_name') }}" placeholder="{{ __('system.pages.filter_bus_name') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="filterBusName" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.filter_bus_name') }}</label>
+                        <input type="text" name="bus_name" id="filterBusName" value="{{ request('bus_name') }}" placeholder="{{ __('system.pages.filter_bus_name') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-400 text-sm">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="filterBusNumber" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_plate_number') }}</label>
-                        <input type="text" name="bus_number" id="filterBusNumber" value="{{ request('bus_number') }}" placeholder="{{ __('system.pages.filter_plate_number') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="filterBusNumber" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.filter_plate_number') }}</label>
+                        <input type="text" name="bus_number" id="filterBusNumber" value="{{ request('bus_number') }}" placeholder="{{ __('system.pages.filter_plate_number') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-400 text-sm">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="filterDepartureDate" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_departure_date') }}</label>
-                        <input type="date" name="departure_date" id="filterDepartureDate" value="{{ request('departure_date') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="filterDepartureDate" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.filter_departure_date') }}</label>
+                        <input type="date" name="departure_date" id="filterDepartureDate" value="{{ request('departure_date') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="filterDepartureTime" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_departure_time') }}</label>
-                        <input type="time" name="departure_time" id="filterDepartureTime" value="{{ request('departure_time') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="filterDepartureTime" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.filter_departure_time') }}</label>
+                        <input type="time" name="departure_time" id="filterDepartureTime" value="{{ request('departure_time') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="filterDriver" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_driver') }}</label>
-                        <input type="text" name="driver" id="filterDriver" value="{{ request('driver') }}" placeholder="{{ __('system.pages.filter_driver') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="filterDriver" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.filter_driver') }}</label>
+                        <input type="text" name="driver" id="filterDriver" value="{{ request('driver') }}" placeholder="{{ __('system.pages.filter_driver') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-400 text-sm">
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="filterConductor" class="text-xs font-medium text-gray-600">{{ __('system.pages.filter_conductor') }}</label>
-                        <input type="text" name="conductor" id="filterConductor" value="{{ request('conductor') }}" placeholder="{{ __('system.pages.filter_conductor') }}" class="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+                        <label for="filterConductor" class="text-xs font-medium text-gray-600 dark:text-gray-300">{{ __('system.pages.filter_conductor') }}</label>
+                        <input type="text" name="conductor" id="filterConductor" value="{{ request('conductor') }}" placeholder="{{ __('system.pages.filter_conductor') }}" class="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-400 text-sm">
                     </div>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">{{ __('system.pages.apply_filter') }}</button>
-                    <a href="{{ route('system.history') }}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">{{ __('system.pages.reset') }}</a>
+                    <a href="{{ route('system.history') }}" class="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition text-sm font-medium">{{ __('system.pages.reset') }}</a>
                 </form>
             </div>
 

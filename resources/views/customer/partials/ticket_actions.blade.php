@@ -24,6 +24,13 @@
             </button>
         </form>
 
+        <a href="{{ route('customer.booking.transfer.form', ['booking_id' => $book->id]) }}"
+            class="ticket-action-btn ticket-action-btn--success"
+            title="{{ __('all.transfer_title') }}"
+            onclick="return confirm(@json(__('all.confirm_transfer_ticket')))">
+            <i class="fas fa-right-left"></i>
+        </a>
+
         <form action="{{ route('customer.edit', ['id' => $book->id]) }}" method="get">
             @csrf
             <input type="hidden" name="booking_id" value="{{ $book->id }}">

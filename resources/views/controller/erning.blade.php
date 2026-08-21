@@ -4,6 +4,7 @@
     <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        html.dark { color-scheme: dark; }
         .earnings-tab {
             display: inline-flex;
             align-items: center;
@@ -24,13 +25,16 @@
             color: #0f766e;
             background: #fff;
         }
+        html.dark .earnings-tab { color: #94a3b8; }
+        html.dark .earnings-tab:hover { color: #e2e8f0; border-bottom-color: #475569; }
+        html.dark .earnings-tab.is-active { border-bottom-color: #2dd4bf; color: #5eead4; background: #1e293b; }
+
         .earnings-tab-panel { display: block; }
         .earnings-tab-panel.is-hidden { display: none !important; }
 
-        /* DataTables — light controls (no dark blocks) */
-        .earnings-tab-panel .dataTables_wrapper {
-            color: #374151;
-        }
+        .earnings-tab-panel .dataTables_wrapper { color: #374151; }
+        html.dark .earnings-tab-panel .dataTables_wrapper { color: #cbd5e1; }
+
         .earnings-tab-panel .dataTables_wrapper .dataTables_length,
         .earnings-tab-panel .dataTables_wrapper .dataTables_filter,
         .earnings-tab-panel .dataTables_wrapper .dataTables_info {
@@ -38,6 +42,10 @@
             font-size: 0.875rem;
             margin-bottom: 0.75rem;
         }
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_length,
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_filter,
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_info { color: #94a3b8; }
+
         .earnings-tab-panel .dataTables_wrapper .dataTables_length select,
         .earnings-tab-panel .dataTables_wrapper .dataTables_filter input {
             background: #fff !important;
@@ -47,6 +55,12 @@
             padding: 0.375rem 0.75rem;
             margin: 0 0.25rem;
             min-height: 2.25rem;
+        }
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_length select,
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_filter input {
+            background: #334155 !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #475569 !important;
         }
         .earnings-tab-panel .dataTables_wrapper .dataTables_filter input {
             min-width: 12rem;
@@ -62,16 +76,32 @@
             padding: 0.375rem 0.75rem !important;
             margin: 0 0.125rem !important;
         }
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button {
+            background: #334155 !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #475569 !important;
+        }
         .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.current,
         .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
             background: #0d9488 !important;
             color: #fff !important;
             border-color: #0d9488 !important;
         }
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+            background: #14b8a6 !important;
+            border-color: #14b8a6 !important;
+            color: #042f2e !important;
+        }
         .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
             background: #f3f4f6 !important;
             color: #111827 !important;
             border-color: #9ca3af !important;
+        }
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: #475569 !important;
+            color: #f8fafc !important;
+            border-color: #64748b !important;
         }
         .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
         .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {
@@ -79,32 +109,57 @@
             color: #9ca3af !important;
             border-color: #e5e7eb !important;
         }
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+        html.dark .earnings-tab-panel .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {
+            background: #1e293b !important;
+            color: #64748b !important;
+            border-color: #334155 !important;
+        }
         .earnings-tab-panel table.dataTable thead th {
             background: #f9fafb;
             color: #6b7280;
             border-bottom: 1px solid #e5e7eb;
         }
+        html.dark .earnings-tab-panel table.dataTable thead th {
+            background: #0f172a;
+            color: #94a3b8;
+            border-bottom-color: #334155;
+        }
         .earnings-tab-panel table.dataTable tbody td {
             color: #374151;
             border-bottom: 1px solid #f3f4f6;
         }
+        html.dark .earnings-tab-panel table.dataTable tbody td {
+            color: #cbd5e1;
+            border-bottom-color: #334155;
+        }
         .earnings-tab-panel table.dataTable.no-footer {
             border-bottom: 1px solid #e5e7eb;
         }
+        html.dark .earnings-tab-panel table.dataTable.no-footer { border-bottom-color: #334155; }
+        html.dark .earnings-tab-panel table.dataTable tbody tr,
+        html.dark .earnings-tab-panel table.dataTable tbody tr.odd { background: #1e293b; }
+        html.dark .earnings-tab-panel table.dataTable tbody tr.even { background: #0f172a; }
+        html.dark .earnings-tab-panel table.dataTable tbody tr:hover { background: #334155 !important; }
     </style>
 
     @php
         $currentPeriod = $period ?? 'month';
         $currentStart = $start_date ?? ($data['period_start'] ?? '');
         $currentEnd = $end_date ?? ($data['period_end'] ?? '');
+        $filters = $filters ?? [];
+        $currency = $currency ?? session('currency', 'Tzs');
+        $inputClass = 'w-full border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:border-teal-500 focus:ring-teal-500';
+        $labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
+        $cardClass = 'bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 border border-gray-100 dark:border-slate-700';
     @endphp
 
     <div class="container mx-auto px-4 py-6">
         <!-- Header -->
         <div class="mb-6">
-            <div class="bg-white rounded-lg shadow-md overflow-hidden border border-gray-100">
-                <div class="px-6 py-4 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
-                    <h4 class="text-xl font-semibold text-gray-800">{{ __('vender/earning.earnings_payments') }}</h4>
+            <div class="bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden border border-gray-100 dark:border-slate-700">
+                <div class="px-6 py-4 bg-gray-50 dark:bg-slate-900/60 flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <h4 class="text-xl font-semibold text-gray-800 dark:text-gray-100">{{ __('vender/earning.earnings_payments') }}</h4>
                     <div class="flex flex-wrap gap-2">
                         <button type="button"
                             class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
@@ -123,13 +178,14 @@
         </div>
 
         <!-- Period Filter -->
-        <div class="mb-6 bg-white rounded-lg shadow-md p-4 border border-gray-100">
-            <form action="{{ route('earnings.filter') }}" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end" id="earningsPeriodForm">
+        <div class="mb-6 bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 border border-gray-100 dark:border-slate-700">
+            <form action="{{ route('earnings.filter') }}" method="POST" class="space-y-4" id="earningsPeriodForm">
                 @csrf
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('vender/earning.earnings_period') }}</label>
+                    <label class="{{ $labelClass }}">{{ __('vender/earning.earnings_period') }}</label>
                     <select name="period" id="earningsPeriodSelect"
-                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                        class="{{ $inputClass }}">
                         <option value="today" @selected($currentPeriod === 'today')>{{ __('vender/earning.today') }}</option>
                         <option value="week" @selected($currentPeriod === 'week')>{{ __('vender/earning.this_week') }}</option>
                         <option value="month" @selected($currentPeriod === 'month')>{{ __('vender/earning.this_month') }}</option>
@@ -138,90 +194,133 @@
                     </select>
                 </div>
                 <div id="earningsCustomStart" class="{{ $currentPeriod === 'custom' ? '' : 'hidden' }}">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('vender/earning.date_range') }}</label>
+                    <label class="{{ $labelClass }}">{{ __('vender/earning.date_range') }}</label>
                     <input type="date" name="start_date" value="{{ $currentStart }}"
-                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                        class="{{ $inputClass }}">
                 </div>
                 <div id="earningsCustomEnd" class="{{ $currentPeriod === 'custom' ? '' : 'hidden' }}">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ __('vender/earning.to') }}</label>
+                    <label class="{{ $labelClass }}">{{ __('vender/earning.to') }}</label>
                     <input type="date" name="end_date" value="{{ $currentEnd }}"
-                        class="w-full border-gray-300 rounded-md shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                        class="{{ $inputClass }}">
                 </div>
                 <div>
-                    <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    <button type="submit" class="w-full bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400 text-white px-4 py-2 rounded-md text-sm font-medium">
                         {{ __('vender/earning.filter_by') }}
                     </button>
+                </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end pt-2 border-t border-gray-100 dark:border-slate-700">
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_bus_number') }}</label>
+                        <input type="text" name="bus_number" value="{{ $filters['bus_number'] ?? '' }}" class="{{ $inputClass }}" placeholder="{{ __('vender/earning.filter_bus_number') }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_departure_date') }}</label>
+                        <input type="date" name="departure_date" value="{{ $filters['departure_date'] ?? '' }}" class="{{ $inputClass }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_departure_time') }}</label>
+                        <input type="time" name="departure_time" value="{{ $filters['departure_time'] ?? '' }}" class="{{ $inputClass }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_arrival_date') }}</label>
+                        <input type="date" name="arrival_date" value="{{ $filters['arrival_date'] ?? '' }}" class="{{ $inputClass }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_arrival_time') }}</label>
+                        <input type="time" name="arrival_time" value="{{ $filters['arrival_time'] ?? '' }}" class="{{ $inputClass }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_driver') }}</label>
+                        <input type="text" name="driver" value="{{ $filters['driver'] ?? '' }}" class="{{ $inputClass }}" placeholder="{{ __('vender/earning.filter_driver') }}">
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}">{{ __('vender/earning.filter_conductor') }}</label>
+                        <input type="text" name="conductor" value="{{ $filters['conductor'] ?? '' }}" class="{{ $inputClass }}" placeholder="{{ __('vender/earning.filter_conductor') }}">
+                    </div>
                 </div>
             </form>
         </div>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
-            <div class="bg-white rounded-lg shadow-md p-4 border border-gray-100">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+            <div class="{{ $cardClass }}">
                 <div class="flex items-center">
                     <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-money-bill-wave"></i>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-500">{{ __('vender/earning.balance') }}</p>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ $currency }} {{ convert_money(auth()->user()->campany->balance->amount ?? 0) }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.balance') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money(auth()->user()->campany->balance->amount ?? 0) }}</h3>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-md p-4 border border-gray-100">
+            <div class="{{ $cardClass }}">
                 <div class="flex items-center">
                     <div class="bg-teal-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-ticket-alt"></i>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-500">{{ __('vender/earning.ticket_earnings') }}</p>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ $currency }} {{ convert_money($data['ticket_earnings'] ?? 0) }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.ticket_earnings') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($data['ticket_earnings'] ?? 0) }}</h3>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-md p-4 border border-gray-100">
+            <div class="{{ $cardClass }}">
                 <div class="flex items-center">
                     <div class="bg-amber-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-suitcase"></i>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-500">{{ __('vender/earning.luggage_earnings') }}</p>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ $currency }} {{ convert_money($data['luggage_earnings'] ?? 0) }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.luggage_earnings') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($data['luggage_earnings'] ?? 0) }}</h3>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-md p-4 border border-gray-100">
+            <div class="{{ $cardClass }}">
+                <div class="flex items-center">
+                    <div class="bg-violet-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.parcel_earnings') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($data['parcel_earnings'] ?? 0) }}</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="{{ $cardClass }}">
                 <div class="flex items-center">
                     <div class="bg-yellow-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-clock"></i>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-500">{{ __('vender/earning.withdrawals_requested') }}</p>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ $currency }} {{ convert_money($data['request'] ?? 0) }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.withdrawals_requested') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($data['request'] ?? 0) }}</h3>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-md p-4 border border-gray-100">
+            <div class="{{ $cardClass }}">
                 <div class="flex items-center">
                     <div class="bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-wallet"></i>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-500">{{ __('vender/earning.withdrawals') }}</p>
-                        <h3 class="text-lg font-semibold text-gray-900">{{ $currency }} {{ convert_money($data['success'] ?? 0) }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.withdrawals') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($data['success'] ?? 0) }}</h3>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Earnings Tabs -->
-        <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6 border border-gray-100">
-            <div class="px-6 pt-4 bg-gray-50 border-b border-gray-200">
-                <h5 class="text-lg font-semibold text-gray-800 mb-4">{{ __('vender/earning.income_breakdown') }}</h5>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden mb-6 border border-gray-100 dark:border-slate-700">
+            <div class="px-6 pt-4 bg-gray-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700">
+                <h5 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">{{ __('vender/earning.income_breakdown') }}</h5>
                 <nav class="flex flex-wrap gap-0 -mb-px" role="tablist" aria-label="{{ __('vender/earning.income_breakdown') }}">
                     <button type="button" id="tabPaidTickets" role="tab" aria-selected="true" aria-controls="panelPaidTickets"
                         class="earnings-tab is-active" data-tab="paidTickets">
@@ -231,6 +330,10 @@
                         class="earnings-tab" data-tab="excessLuggage">
                         <i class="fas fa-suitcase mr-2"></i>{{ __('vender/earning.tab_excess_luggage') }}
                     </button>
+                    <button type="button" id="tabParcels" role="tab" aria-selected="false" aria-controls="panelParcels"
+                        class="earnings-tab" data-tab="parcels">
+                        <i class="fas fa-box mr-2"></i>{{ __('vender/earning.tab_parcels') }}
+                    </button>
                     <button type="button" id="tabPaymentTransactions" role="tab" aria-selected="false" aria-controls="panelPaymentTransactions"
                         class="earnings-tab" data-tab="paymentTransactions">
                         <i class="fas fa-exchange-alt mr-2"></i>{{ __('vender/earning.payment_transactions') }}
@@ -239,34 +342,49 @@
             </div>
 
             <div id="panelPaidTickets" role="tabpanel" aria-labelledby="tabPaidTickets" class="earnings-tab-panel p-4 overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 w-full" id="paidTicketsTable">
-                    <thead class="bg-gray-50">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 w-full" id="paidTicketsTable">
+                    <thead class="bg-gray-50 dark:bg-slate-900">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.booking_code') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.travel_date') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.route') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.customer') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.ticket_amount') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.paid_date') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.booking_code') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.travel_date') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.route') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.customer') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.ticket_amount') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.paid_date') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200"></tbody>
+                    <tbody class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700"></tbody>
                 </table>
             </div>
 
             <div id="panelExcessLuggage" role="tabpanel" aria-labelledby="tabExcessLuggage" class="earnings-tab-panel is-hidden p-4 overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 w-full" id="excessLuggageTable">
-                    <thead class="bg-gray-50">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 w-full" id="excessLuggageTable">
+                    <thead class="bg-gray-50 dark:bg-slate-900">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.booking_code') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.released_fee') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.owner_share') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.status') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.released_at') }}</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ __('vender/earning.route') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.booking_code') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.released_fee') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.owner_share') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.status') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.released_at') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.route') }}</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200"></tbody>
+                    <tbody class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700"></tbody>
+                </table>
+            </div>
+
+            <div id="panelParcels" role="tabpanel" aria-labelledby="tabParcels" class="earnings-tab-panel is-hidden p-4 overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 w-full" id="parcelsTable">
+                    <thead class="bg-gray-50 dark:bg-slate-900">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.parcel_number') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.bus_number') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.parcel_amount') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.parcel_owner_share') }}</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{ __('vender/earning.settled_at') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700"></tbody>
                 </table>
             </div>
 
@@ -441,11 +559,13 @@
         window.earningsPeriod = @json($currentPeriod);
         window.earningsStartDate = @json($currentStart);
         window.earningsEndDate = @json($currentEnd);
+        window.earningsFilters = @json($filters);
 
         (function() {
             const earningsPanels = {
                 paidTickets: document.getElementById('panelPaidTickets'),
                 excessLuggage: document.getElementById('panelExcessLuggage'),
+                parcels: document.getElementById('panelParcels'),
                 paymentTransactions: document.getElementById('panelPaymentTransactions')
             };
 
@@ -482,6 +602,7 @@
                 empty_table: "{{ __('vender/earning.no_transactions_found') }}",
                 no_tickets: "{{ __('vender/earning.no_tickets_found') }}",
                 no_luggage: "{{ __('vender/earning.no_luggage_found') }}",
+                no_parcels: "{{ __('vender/earning.no_parcels_found') }}",
                 processing: "{{ __('vender/earning.processing') }}",
                 search_company: "{{ __('vender/earning.search_company') }}",
                 search_user: "{{ __('vender/earning.search_user') }}",
@@ -509,12 +630,21 @@
                 d.period = window.earningsPeriod;
                 d.start_date = window.earningsStartDate;
                 d.end_date = window.earningsEndDate;
+                const filters = window.earningsFilters || {};
+                d.bus_number = filters.bus_number || '';
+                d.departure_date = filters.departure_date || '';
+                d.departure_time = filters.departure_time || '';
+                d.arrival_date = filters.arrival_date || '';
+                d.arrival_time = filters.arrival_time || '';
+                d.driver = filters.driver || '';
+                d.conductor = filters.conductor || '';
             };
 
             DataTable.ext.errMode = 'none';
 
             let paidTicketsTable = null;
             let excessLuggageTable = null;
+            let parcelsTable = null;
             let transactionsTable = null;
             let transactionsTableInitialized = false;
 
@@ -527,6 +657,11 @@
                     initLuggageTable();
                     if (excessLuggageTable) {
                         excessLuggageTable.columns.adjust().draw(false);
+                    }
+                } else if (tab === 'parcels') {
+                    initParcelsTable();
+                    if (parcelsTable) {
+                        parcelsTable.columns.adjust().draw(false);
                     }
                 } else if (tab === 'paymentTransactions') {
                     initTransactionsTable();
@@ -564,6 +699,39 @@
                     { data: 'paid_at', name: 'created_at' }
                 ]
             });
+
+            function initParcelsTable() {
+                if (parcelsTable) {
+                    return;
+                }
+                parcelsTable = $('#parcelsTable').DataTable({
+                    serverSide: true,
+                    processing: true,
+                    responsive: true,
+                    paging: true,
+                    searching: true,
+                    ordering: true,
+                    pageLength: 10,
+                    lengthMenu: [10, 25, 50, 100],
+                    order: [[4, 'desc']],
+                    dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600 dark:text-gray-400'l><'text-sm'f>>rtip",
+                    language: Object.assign({}, dtLanguage, { emptyTable: translations.no_parcels }),
+                    ajax: {
+                        url: '{{ route('earnings.parcels.data') }}',
+                        data: periodPayload,
+                        error: function() {
+                            alert('{{ __('vender/earning.no_parcels_found') }}');
+                        }
+                    },
+                    columns: [
+                        { data: 'parcel_number', name: 'parcel_number' },
+                        { data: 'bus_number', name: 'bus_number', orderable: false },
+                        { data: 'amount_display', name: 'amount_paid' },
+                        { data: 'owner_share_display', name: 'owner_share' },
+                        { data: 'settled_at', name: 'settled_at' }
+                    ]
+                });
+            }
 
             function initLuggageTable() {
                 if (excessLuggageTable) {

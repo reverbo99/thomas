@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AuthorizesBookingActor;
 use App\Models\Booking;
 use App\Models\Refund;
 use App\Models\RefundPercentage;
+use App\Services\BookingActorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class RefundController extends Controller
 {
+    use AuthorizesBookingActor;
+
     /**
      * Normalize phone to digits only, 255XXXXXXXXX for comparison.
      */
@@ -65,6 +69,12 @@ class RefundController extends Controller
             return back()->with('error', 'Booking not available for refund or does not exist.');
         }
 
+        // Optional actor: vender who owns the booking may bypass phone match.
+        // Guest / public refund keeps phone match as today.
+        $actor = $this->resolveBookingActor($request);
+        $venderOwns = $actor === BookingActorService::ACTOR_VENDER
+            && $this->bookingActor()->canManage($booking, BookingActorService::ACTOR_VENDER);
+
         $existingPending = Refund::where('booking_code', $booking->booking_code)
             ->where('status', 'Pending')
             ->exists();
@@ -79,8 +89,8 @@ class RefundController extends Controller
             return back()->with('error', 'Refund is only available more than 6 hours before departure.')->withInput();
         }
 
-        // Validate mobile or bank matches an existing number: mobile must match booking customer phone
-        if ($mobile !== '') {
+        // Validate mobile matches booking phone unless authenticated vender owns the ticket
+        if (!$venderOwns && $mobile !== '') {
             $normalizedInput = $this->normalizePhone($mobile);
             $normalizedBooking = $this->normalizePhone($booking->customer_phone);
             if ($normalizedBooking !== '' && $normalizedInput !== $normalizedBooking) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AuthorizesBookingActor;
 use App\Http\Controllers\ConstData;
 use App\Models\AdminWallet;
 use App\Models\Booking;
@@ -10,12 +11,13 @@ use App\Models\CancelledBookings;
 use App\Models\Schedule;
 use App\Models\TempWallet;
 use App\Services\ExcessLuggageService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CancelController extends Controller
 {
+    use AuthorizesBookingActor;
+
     public function index(Request $request)
     {
         return redirect()->route('info');
@@ -32,8 +34,10 @@ class CancelController extends Controller
             return back()->with('error', __('all.booking_not_found'));
         }
 
-        if (auth()->check() && auth()->user()->role === 'customer' && (int) $booking->user_id !== (int) auth()->id()) {
-            return back()->with('error', __('all.booking_not_found'));
+        // Optional actor context: customer | vender | guest | bus_owner
+        $actor = $this->resolveBookingActor($request);
+        if ($deny = $this->denyUnlessCanManageBooking($booking, $actor)) {
+            return $deny;
         }
 
         if ($booking->payment_status === 'Cancel') {

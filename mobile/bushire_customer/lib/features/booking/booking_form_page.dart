@@ -25,6 +25,7 @@ class BookingFormPage extends StatefulWidget {
     required this.coaster,
     this.initialHireDate,
     this.initialHireTime,
+    this.prefill,
   });
 
   final CoasterModel coaster;
@@ -32,6 +33,9 @@ class BookingFormPage extends StatefulWidget {
   /// Pre-fill from Book tab date/time filters when the customer already chose them.
   final DateTime? initialHireDate;
   final TimeOfDay? initialHireTime;
+
+  /// Prefill from `POST /bookings/{id}/reorder` (or similar).
+  final Map<String, dynamic>? prefill;
 
   @override
   State<BookingFormPage> createState() => _BookingFormPageState();
@@ -72,6 +76,97 @@ class _BookingFormPageState extends State<BookingFormPage> {
         ? DateTime(seeded.year, seeded.month, seeded.day)
         : DateTime(now.year, now.month, now.day);
     _hireTime = widget.initialHireTime ?? TimeOfDay.now();
+    _applyPrefill(widget.prefill);
+  }
+
+  void _applyPrefill(Map<String, dynamic>? prefill) {
+    if (prefill == null || prefill.isEmpty) return;
+
+    final pickup = prefill['pickup_location']?.toString();
+    if (pickup != null && pickup.isNotEmpty) _pickup.text = pickup;
+
+    final dropoff = prefill['dropoff_location']?.toString();
+    if (dropoff != null && dropoff.isNotEmpty) _dropoff.text = dropoff;
+
+    final passengers = prefill['passengers_count'];
+    if (passengers != null) _passengers.text = passengers.toString();
+
+    final purpose = prefill['purpose']?.toString();
+    if (purpose != null && purpose.isNotEmpty) _purpose.text = purpose;
+
+    final notes = prefill['notes']?.toString();
+    if (notes != null && notes.isNotEmpty) _notes.text = notes;
+
+    final hireDate = _parseDate(prefill['hire_date']?.toString());
+    if (hireDate != null) _hireDate = hireDate;
+
+    final hireTime = _parseTime(prefill['hire_time']?.toString());
+    if (hireTime != null) _hireTime = hireTime;
+
+    final returnDate = _parseDate(prefill['return_date']?.toString());
+    if (returnDate != null) _returnDate = returnDate;
+
+    final returnTime = _parseTime(prefill['return_time']?.toString());
+    if (returnTime != null) _returnTime = returnTime;
+
+    final pLat = _asDouble(prefill['pickup_latitude']);
+    final pLng = _asDouble(prefill['pickup_longitude']);
+    if (pickup != null &&
+        pickup.isNotEmpty &&
+        pLat != null &&
+        pLng != null) {
+      _pickupPlace = PlaceResult(
+        displayName: pickup,
+        latitude: pLat,
+        longitude: pLng,
+      );
+    }
+
+    final dLat = _asDouble(prefill['dropoff_latitude']);
+    final dLng = _asDouble(prefill['dropoff_longitude']);
+    if (dropoff != null &&
+        dropoff.isNotEmpty &&
+        dLat != null &&
+        dLng != null) {
+      _dropoffPlace = PlaceResult(
+        displayName: dropoff,
+        latitude: dLat,
+        longitude: dLng,
+      );
+    }
+
+    final dist = prefill['distance_km'];
+    if (dist is num) {
+      _distanceKm = dist.toDouble();
+    } else if (dist != null) {
+      _distanceKm = double.tryParse(dist.toString());
+    }
+
+    if (_pickupPlace != null && _dropoffPlace != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refreshRoute());
+    }
+  }
+
+  static DateTime? _parseDate(String? raw) {
+    if (raw == null || raw.length < 10) return null;
+    return DateTime.tryParse(raw.substring(0, 10));
+  }
+
+  static TimeOfDay? _parseTime(String? raw) {
+    if (raw == null || raw.length < 5) return null;
+    final parts = raw.substring(0, 5).split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return null;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  static double? _asDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
   }
 
   @override

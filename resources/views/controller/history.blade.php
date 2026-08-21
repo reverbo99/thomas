@@ -1,15 +1,13 @@
 @extends('admin.app')
 
 @section('content')
-    <!-- DataTables CSS -->
+    <!-- DataTables CSS (Tailwind comes from admin.app CDN with darkMode: 'class') -->
     <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 
     <div class="container mx-auto px-4 py-6 max-w-full">
-        <h4 class="text-blue-600 text-center text-lg font-semibold mb-4">{{ __('vender/history.highlink_isgc') }}</h4>
-        <div class="bg-white rounded-lg shadow-md overflow-hidden">
-            <!-- Card Header -->
+        <h4 class="text-blue-600 dark:text-teal-300 text-center text-lg font-semibold mb-4">{{ __('vender/history.highlink_isgc') }}</h4>
+        <div class="bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden border border-gray-100 dark:border-slate-700">
+            <!-- Card Header (totals + actions only — filters sit on a neutral strip below) -->
             <div
                 class="p-4 bg-gradient-to-r from-teal-500 to-teal-400 text-white flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div class="flex flex-col">
@@ -21,46 +19,47 @@
                         <span>{{ __('vender/history.grand_total') }} {{ $currency ?? 'TSH' }} <span id="grandTotal">{{ convert_money($grandTotal ?? 0) }}</span></span>
                     </div>
                 </div>
-                <div class="flex flex-col sm:flex-row items-center gap-2 flex-wrap">
-                    @include('partials.booking_history_period_filter', [
-                        'formAction' => route('history'),
-                        'resetUrl' => route('history'),
-                        'period' => $period ?? request('period'),
-                        'startDate' => $startDate ?? request('start_date'),
-                        'endDate' => $endDate ?? request('end_date'),
-                        'labelClass' => 'text-white',
-                        'columnFilters' => [
-                            ['name' => 'bus_name', 'type' => 'text', 'label' => __('system.pages.filter_bus_name'), 'value' => request('bus_name')],
-                            ['name' => 'bus_number', 'type' => 'text', 'label' => __('system.pages.filter_plate_number'), 'value' => request('bus_number')],
-                            ['name' => 'departure_date', 'type' => 'date', 'label' => __('system.pages.filter_departure_date'), 'value' => request('departure_date')],
-                            ['name' => 'departure_time', 'type' => 'time', 'label' => __('system.pages.filter_departure_time'), 'value' => request('departure_time')],
-                            ['name' => 'driver', 'type' => 'text', 'label' => __('system.pages.filter_driver'), 'value' => request('driver')],
-                            ['name' => 'conductor', 'type' => 'text', 'label' => __('system.pages.filter_conductor'), 'value' => request('conductor')],
-                        ],
-                    ])
-                    <div class="relative w-full sm:w-auto">
-                        <button type="button"
-                            class="px-3 py-2 bg-white text-blue-500 rounded-lg hover:bg-blue-50 transition flex items-center gap-1 text-sm w-full sm:w-auto"
-                            onclick="toggleDropdown(this)">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
-                            </svg>
-                            {{ __('vender/history.actions') }}
-                        </button>
-                        <div class="dropdown-menu hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-10">
-                            <form action="{{ route('admin.print.manifest') }}" method="POST" id="manifestForm">
-                                @csrf
-                                <input type="hidden" name="booking_ids" id="manifestBookingIds" value="">
-                                <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">{{ __('vender/history.print_manifest') }}</button>
-                            </form>
-                            <form action="{{ route('admin.print') }}" method="POST" id="incomeForm">
-                                @csrf
-                                <input type="hidden" name="booking_ids" id="incomeBookingIds" value="">
-                                <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full">{{ __('vender/history.print_income') }}</button>
-                            </form>
-                        </div>
+                <div class="relative w-full sm:w-auto">
+                    <button type="button"
+                        class="px-3 py-2 bg-white text-blue-500 rounded-lg hover:bg-blue-50 transition flex items-center gap-1 text-sm w-full sm:w-auto"
+                        onclick="toggleDropdown(this)">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                        </svg>
+                        {{ __('vender/history.actions') }}
+                    </button>
+                    <div class="dropdown-menu hidden absolute right-0 mt-2 w-48 bg-white dark:bg-slate-700 rounded-lg shadow-lg z-10">
+                        <form action="{{ route('admin.print.manifest') }}" method="POST" id="manifestForm">
+                            @csrf
+                            <input type="hidden" name="booking_ids" id="manifestBookingIds" value="">
+                            <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600">{{ __('vender/history.print_manifest') }}</button>
+                        </form>
+                        <form action="{{ route('admin.print') }}" method="POST" id="incomeForm">
+                            @csrf
+                            <input type="hidden" name="booking_ids" id="incomeBookingIds" value="">
+                            <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600">{{ __('vender/history.print_income') }}</button>
+                        </form>
                     </div>
                 </div>
+            </div>
+
+            <div class="px-4 py-4 bg-gray-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-3">{{ __('system.pages.select_date_range') }}</p>
+                @include('partials.booking_history_period_filter', [
+                    'formAction' => route('history'),
+                    'resetUrl' => route('history'),
+                    'period' => $period ?? request('period'),
+                    'startDate' => $startDate ?? request('start_date'),
+                    'endDate' => $endDate ?? request('end_date'),
+                    'columnFilters' => [
+                        ['name' => 'bus_name', 'type' => 'text', 'label' => __('system.pages.filter_bus_name'), 'value' => request('bus_name')],
+                        ['name' => 'bus_number', 'type' => 'text', 'label' => __('system.pages.filter_plate_number'), 'value' => request('bus_number')],
+                        ['name' => 'departure_date', 'type' => 'date', 'label' => __('system.pages.filter_departure_date'), 'value' => request('departure_date')],
+                        ['name' => 'departure_time', 'type' => 'time', 'label' => __('system.pages.filter_departure_time'), 'value' => request('departure_time')],
+                        ['name' => 'driver', 'type' => 'text', 'label' => __('system.pages.filter_driver'), 'value' => request('driver')],
+                        ['name' => 'conductor', 'type' => 'text', 'label' => __('system.pages.filter_conductor'), 'value' => request('conductor')],
+                    ],
+                ])
             </div>
 
             <!-- Card Body -->
@@ -255,8 +254,7 @@
                                                         action="{{ route('booking.transfer.form', ['booking_id' => $booking->id]) }}"
                                                         method="GET">
                                                         <button type="submit"
-                                                            class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Transfer
-                                                            Booking</button>
+                                                            class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{{ __('vender/transfer.transfer_booking') }}</button>
                                                     </form>
                                                     <button type="button"
                                                         class="excess-luggage-btn block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -692,15 +690,24 @@
     </script>
 
     <style>
-        .dataTables_wrapper .dataTables_filter input {
-            padding: 4px 8px;
-            border-radius: 4px;
-            border: 1px solid #d1d5db;
-        }
+        .dataTables_wrapper .dataTables_filter input,
         .dataTables_wrapper .dataTables_length select {
             padding: 4px 8px;
             border-radius: 4px;
             border: 1px solid #d1d5db;
+            background: #fff;
+            color: #111827;
+        }
+        html.dark .dataTables_wrapper .dataTables_filter input,
+        html.dark .dataTables_wrapper .dataTables_length select {
+            border-color: #475569;
+            background: #334155;
+            color: #e2e8f0;
+        }
+        html.dark .dataTables_wrapper .dataTables_info,
+        html.dark .dataTables_wrapper .dataTables_filter,
+        html.dark .dataTables_wrapper .dataTables_length {
+            color: #94a3b8;
         }
     </style>
 @endsection

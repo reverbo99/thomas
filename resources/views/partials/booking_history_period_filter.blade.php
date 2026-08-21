@@ -12,17 +12,19 @@
     $isVendor = $variant === 'vendor';
     // Allow callers that place the filter on a coloured header to override the
     // label colour so the labels stay legible (e.g. white text on a teal card).
-    $labelClass = $labelClass ?? 'text-gray-600';
-    $selectClass = $isVendor
+    // Inputs must NEVER inherit that colour — force readable field text in light/dark.
+    $labelClass = $labelClass ?? 'text-gray-600 dark:text-gray-300';
+    $fieldClass = $isVendor
         ? 'page-input text-sm'
-        : 'px-3 py-2 border rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm';
-    $dateClass = $selectClass;
+        : 'px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-slate-400 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 text-sm';
+    $selectClass = $fieldClass;
+    $dateClass = $fieldClass;
     $btnClass = $isVendor
         ? 'page-btn page-btn--outline text-sm'
         : 'px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium';
     $resetClass = $isVendor
         ? 'page-btn page-btn--outline text-sm'
-        : 'px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium';
+        : 'px-3 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition text-sm font-medium';
 @endphp
 
 <form method="GET" action="{{ $formAction }}" class="flex flex-wrap items-end gap-2 booking-history-period-filter" id="bookingHistoryPeriodForm">

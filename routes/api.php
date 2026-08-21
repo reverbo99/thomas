@@ -223,6 +223,16 @@ Route::prefix('special-hire/customer')->group(function () {
             ->whereNumber('id');
         Route::post('/bookings/{id}/cancel', [CustomerApiController::class, 'cancelBooking'])
             ->whereNumber('id');
+        Route::post('/bookings/{id}/reorder', [CustomerApiController::class, 'reorderBooking'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/transfer', [CustomerApiController::class, 'transferBooking'])
+            ->whereNumber('id');
+        Route::post('/bookings/{id}/refund-request', [CustomerApiController::class, 'refundRequestBooking'])
+            ->whereNumber('id');
+        Route::get('/bookings/{id}/receipt.pdf', [CustomerApiController::class, 'bookingReceiptPdf'])
+            ->whereNumber('id');
+        Route::get('/bookings/{id}/receipt', [CustomerApiController::class, 'bookingReceipt'])
+            ->whereNumber('id');
         Route::get('/bookings/{id}/track', [CustomerApiController::class, 'trackBooking'])
             ->whereNumber('id');
         Route::post('/bookings/{id}/pay-deposit', [CustomerApiController::class, 'specialHirePayDeposit'])

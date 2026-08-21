@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Access;
+use App\Models\Campany;
 use App\Models\ExcessLuggageEscrow;
 use App\Models\bus;
 use App\Models\City;
+use App\Models\Parcel;
 use App\Models\Point;
 use App\Models\route;
 use App\Models\Schedule;
@@ -21,7 +23,9 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use App\Models\Setting; // Added this line
+use App\Services\BookingTransferService;
 use App\Services\FareFormulaService;
+use App\Services\ParcelFlowService;
 use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 use PhpParser\Node\Expr\FuncCall;
 use Yoeunes\Toastr\Toastr;
@@ -179,16 +183,74 @@ class AdminController extends Controller
     /**
      * Released excess luggage owner share credited to company wallet.
      */
-    private function sumBusOwnerReleasedLuggageEarnings(int $companyId, Carbon $start, Carbon $end): float
+    private function sumBusOwnerReleasedLuggageEarnings(int $companyId, Carbon $start, Carbon $end, ?Request $request = null): float
     {
-        return (float) ExcessLuggageEscrow::query()
+        $query = ExcessLuggageEscrow::query()
             ->whereIn('status', [
                 ExcessLuggageEscrow::STATUS_RELEASED,
                 ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
             ])
             ->whereBetween('released_at', [$start, $end])
-            ->whereHas('booking.bus', fn ($q) => $q->where('campany_id', $companyId))
-            ->sum('owner_share');
+            ->whereHas('booking.bus', fn ($q) => $q->where('campany_id', $companyId));
+
+        if ($request) {
+            $query->whereHas('booking', function ($q) use ($request) {
+                apply_booking_history_column_filters($q, $request);
+            });
+        }
+
+        return (float) $query->sum('owner_share');
+    }
+
+    /**
+     * Bus-owner parcel wallet share for paid/settled parcels in the period.
+     */
+    private function sumBusOwnerParcelEarnings(array $busIds, Carbon $start, Carbon $end, ?Request $request = null): float
+    {
+        $query = Parcel::query()
+            ->whereIn('bus_id', $busIds)
+            ->where('payment_status', ParcelFlowService::PAY_PAID)
+            ->whereNotNull('settled_at')
+            ->whereBetween('settled_at', [$start, $end]);
+
+        if ($request) {
+            apply_bus_relation_column_filters($query, $request);
+        }
+
+        $systemPct = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+
+        return (float) $query->get(['amount_paid', 'vender_id'])->sum(
+            fn ($parcel) => ParcelFlowService::ownerShareAmount(
+                (float) ($parcel->amount_paid ?? 0),
+                $parcel->vender_id,
+                $systemPct
+            )
+        );
+    }
+
+    private function earningsFilterInputs(Request $request): array
+    {
+        return $request->only([
+            'period',
+            'start_date',
+            'end_date',
+            'bus_number',
+            'departure_date',
+            'departure_time',
+            'arrival_date',
+            'arrival_time',
+            'driver',
+            'conductor',
+        ]);
+    }
+
+    private function companyTicketEarningsQuery(array $busIds, int $companyId)
+    {
+        return Booking::query()
+            ->where(function ($q) use ($busIds, $companyId) {
+                $q->where('campany_id', $companyId)
+                    ->orWhereIn('bus_id', $busIds);
+            });
     }
 
     /**
@@ -806,11 +868,12 @@ $q->where('id', auth()->user()->campany->id);
         $start_date = $request->input('start_date');
         $end_date = $request->input('end_date');
 
-        $data = $this->getEarningsData($bus_ids, $period, $start_date, $end_date);
+        $data = $this->getEarningsData($bus_ids, $period, $start_date, $end_date, $request);
+        $filters = $this->earningsFilterInputs($request);
 
         session()->put('export_data', $data);
 
-        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date'));
+        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date', 'filters'));
     }
 
     public function filterEarnings(Request $request)
@@ -827,32 +890,29 @@ $q->where('id', auth()->user()->campany->id);
                 ->withInput();
         }
 
-        // Redirect with all inputs to preserve them
-        return redirect()->route('erning', [
-            'period' => $request->period,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date
-        ]);
+        return redirect()->route('erning', $this->earningsFilterInputs($request));
     }
 
-    private function getEarningsData($bus_ids, $period, $start_date = null, $end_date = null)
+    private function getEarningsData($bus_ids, $period, $start_date = null, $end_date = null, ?Request $request = null)
     {
+        $request = $request ?? request();
         $query = Transaction::with('campany')->where('campany_id', Auth::user()->campany->id);
 
         [$start, $end] = $this->parseEarningsPeriod($period, $start_date, $end_date);
 
-        // Filter transactions by date range
         $transactions = $query->whereBetween('created_at', [$start, $end])->get();
 
         $companyId = (int) Auth::user()->campany->id;
 
+        $ticketQuery = $this->companyTicketEarningsQuery($bus_ids, $companyId)
+            ->whereBetween('created_at', [$start, $end])
+            ->where('payment_status', 'Paid');
+        apply_booking_history_column_filters($ticketQuery, $request);
+
         return [
-            'ticket_earnings' => $this->sumBusOwnerTicketEarnings(
-                Booking::whereIn('bus_id', $bus_ids)
-                    ->whereBetween('created_at', [$start, $end])
-                    ->where('payment_status', 'Paid')
-            ),
-            'luggage_earnings' => $this->sumBusOwnerReleasedLuggageEarnings($companyId, $start, $end),
+            'ticket_earnings' => $this->sumBusOwnerTicketEarnings($ticketQuery),
+            'luggage_earnings' => $this->sumBusOwnerReleasedLuggageEarnings($companyId, $start, $end, $request),
+            'parcel_earnings' => $this->sumBusOwnerParcelEarnings($bus_ids, $start, $end, $request),
             'request' => $transactions->sum('amount'),
             'success' => $transactions->where('status', 'Completed')->sum('amount'),
             'transactions' => $transactions,
@@ -875,17 +935,19 @@ $q->where('id', auth()->user()->campany->id);
             ]);
         }
 
+        $companyId = (int) Auth::user()->campany->id;
+
         [$periodStart, $periodEnd] = $this->parseEarningsPeriod(
             $request->input('period', 'month'),
             $request->input('start_date'),
             $request->input('end_date')
         );
 
-        $baseQuery = Booking::query()
-            ->with(['schedule'])
-            ->whereIn('bus_id', $bus_ids)
+        $baseQuery = $this->companyTicketEarningsQuery($bus_ids, $companyId)
+            ->with(['schedule', 'bus'])
             ->where('payment_status', 'Paid')
             ->whereBetween('created_at', [$periodStart, $periodEnd]);
+        apply_booking_history_column_filters($baseQuery, $request);
 
         $recordsTotal = (clone $baseQuery)->count();
 
@@ -976,7 +1038,10 @@ $q->where('id', auth()->user()->campany->id);
                 ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
             ])
             ->whereBetween('released_at', [$periodStart, $periodEnd])
-            ->whereHas('booking', fn ($q) => $q->whereIn('bus_id', $bus_ids));
+            ->whereHas('booking', function ($q) use ($bus_ids, $request) {
+                $q->whereIn('bus_id', $bus_ids);
+                apply_booking_history_column_filters($q, $request);
+            });
 
         $recordsTotal = (clone $baseQuery)->count();
 
@@ -1025,9 +1090,9 @@ $q->where('id', auth()->user()->campany->id);
                 default => e($statusKey),
             };
             $statusClass = match ($statusKey) {
-                ExcessLuggageEscrow::STATUS_RELEASED => 'bg-green-100 text-green-800',
-                ExcessLuggageEscrow::STATUS_SURPLUS_HELD => 'bg-amber-100 text-amber-800',
-                default => 'bg-gray-100 text-gray-800',
+                ExcessLuggageEscrow::STATUS_RELEASED => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+                default => 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-200',
             };
 
             return [
@@ -1038,6 +1103,97 @@ $q->where('id', auth()->user()->campany->id);
                 'status_html' => '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ' . $statusClass . '">' . e($statusLabel) . '</span>',
                 'released_at' => e($escrow->released_at?->format('Y-m-d H:i') ?? __('vender/earning.na')),
                 'route' => e("{$from} → {$to}"),
+            ];
+        })->values();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
+    }
+
+    public function earningsParcelsData(Request $request)
+    {
+        $bus_ids = $this->resolveCompanyBusIds();
+        $draw = (int) $request->input('draw', 1);
+
+        if (!$bus_ids) {
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+            ]);
+        }
+
+        [$periodStart, $periodEnd] = $this->parseEarningsPeriod(
+            $request->input('period', 'month'),
+            $request->input('start_date'),
+            $request->input('end_date')
+        );
+
+        $baseQuery = Parcel::query()
+            ->with(['bus.campany'])
+            ->whereIn('bus_id', $bus_ids)
+            ->where('payment_status', ParcelFlowService::PAY_PAID)
+            ->whereNotNull('settled_at')
+            ->whereBetween('settled_at', [$periodStart, $periodEnd]);
+        apply_bus_relation_column_filters($baseQuery, $request);
+
+        $recordsTotal = (clone $baseQuery)->count();
+
+        $filteredQuery = clone $baseQuery;
+        $search = trim((string) $request->input('search.value', ''));
+        if ($search !== '') {
+            $filteredQuery->where(function ($q) use ($search) {
+                $q->where('parcel_number', 'like', "%{$search}%")
+                    ->orWhere('sender_name', 'like', "%{$search}%")
+                    ->orWhere('receiver_name', 'like', "%{$search}%")
+                    ->orWhereHas('bus', function ($bq) use ($search) {
+                        $bq->where('bus_number', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $recordsFiltered = (clone $filteredQuery)->count();
+
+        $orderMap = [
+            0 => 'parcel_number',
+            1 => 'bus_id',
+            2 => 'amount_paid',
+            3 => 'amount_paid',
+            4 => 'settled_at',
+        ];
+        $orderCol = (int) $request->input('order.0.column', 4);
+        $orderDir = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
+        $filteredQuery->orderBy($orderMap[$orderCol] ?? 'settled_at', $orderDir);
+
+        $offset = (int) $request->input('start', 0);
+        $length = (int) $request->input('length', 10);
+        if ($length < 0) {
+            $length = 100000;
+        }
+
+        $parcels = $filteredQuery->skip($offset)->take($length)->get();
+        $currency = session('currency', 'Tzs');
+        $systemPct = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+
+        $data = $parcels->map(function ($parcel) use ($currency, $systemPct) {
+            $ownerShare = ParcelFlowService::ownerShareAmount(
+                (float) ($parcel->amount_paid ?? 0),
+                $parcel->vender_id,
+                $systemPct
+            );
+
+            return [
+                'parcel_number' => e($parcel->parcel_number ?? __('vender/earning.na')),
+                'bus_number' => e($parcel->bus->bus_number ?? __('vender/earning.na')),
+                'amount_display' => e($currency . ' ' . convert_money($parcel->amount_paid ?? 0)),
+                'owner_share' => $ownerShare,
+                'owner_share_display' => e($currency . ' ' . convert_money($ownerShare)),
+                'settled_at' => e($parcel->settled_at?->format('Y-m-d H:i') ?? __('vender/earning.na')),
             ];
         })->values();
 
@@ -1796,34 +1952,128 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         $booking_id = $booking_id ?? request('booking_id');
+        $transferService = app(BookingTransferService::class);
 
-        $bookings = Booking::whereHas('bus', function ($query) use ($companyId) {
-            $query->where('campany_id', $companyId);
-        })
-            ->whereIn('payment_status', ['Paid', 'Reserved', 'resaved'])
-            ->with('bus.busname', 'route_name')
-            ->orderByDesc('travel_date')
-            ->get();
-
-        $buses = Bus::where('campany_id', $companyId)->with('busname', 'route')->get();
-        $schedules = collect();
+        $company = Campany::find($companyId);
+        $routes = $transferService->listCompanyRoutes((int) $companyId);
+        $otherCompanies = Campany::query()
+            ->where('id', '!=', $companyId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         $selectedBooking = null;
+        $prefill = null;
         if ($booking_id) {
-            $selectedBooking = Booking::with('bus.busname', 'route_name', 'route.schedule')->find($booking_id);
-            if (!$selectedBooking || $selectedBooking->bus->campany_id !== $companyId) {
-                $selectedBooking = null;
+            $selectedBooking = Booking::with('bus.busname', 'bus.campany', 'route_name', 'schedule')->find($booking_id);
+            if (!$selectedBooking || (int) ($selectedBooking->bus->campany_id ?? 0) !== (int) $companyId) {
                 return redirect()->route('booking.transfer.form')
                     ->with('error', __('vender/transfer.booking_not_found_or_unauthorized'));
             }
-            if (!in_array($selectedBooking->payment_status, ['Paid', 'Reserved', 'resaved'], true)) {
-                $selectedBooking = null;
+            if (!in_array($selectedBooking->payment_status, BookingTransferService::TRANSFERABLE_STATUSES, true)) {
                 return redirect()->route('booking.transfer.form')
                     ->with('error', __('vender/transfer.booking_not_transferable'));
             }
+
+            $prefill = [
+                'booking_id' => (int) $selectedBooking->id,
+                'travel_date' => $selectedBooking->travel_date,
+                'route_id' => $selectedBooking->route_id ?? $selectedBooking->bus->route_id ?? null,
+                'company_id' => (int) $companyId,
+                'bus_id' => (int) $selectedBooking->bus_id,
+                'schedule_id' => $selectedBooking->schedule_id,
+                'seat' => $selectedBooking->seat,
+                'pickup_point' => $selectedBooking->pickup_point,
+                'dropping_point' => $selectedBooking->dropping_point,
+            ];
         }
 
-        return view('controller.transfer_booking', compact('bookings', 'buses', 'schedules', 'selectedBooking'));
+        return view('controller.transfer_booking', compact(
+            'company',
+            'routes',
+            'otherCompanies',
+            'selectedBooking',
+            'prefill'
+        ));
+    }
+
+    public function getTransferSourceBuses(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $request->validate([
+            'travel_date' => 'required|date',
+            'route_id' => 'nullable|integer|exists:routes,id',
+        ]);
+
+        $buses = app(BookingTransferService::class)->listSourceBuses(
+            (int) $companyId,
+            (string) $request->travel_date,
+            $request->filled('route_id') ? (int) $request->route_id : null
+        );
+
+        return response()->json($buses);
+    }
+
+    public function getTransferSourceSeats(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $request->validate([
+            'bus_id' => 'required|integer|exists:buses,id',
+            'travel_date' => 'required|date',
+            'schedule_id' => 'nullable|integer|exists:schedules,id',
+        ]);
+
+        try {
+            $payload = app(BookingTransferService::class)->sourceOccupiedSeats(
+                (int) $companyId,
+                (int) $request->bus_id,
+                (string) $request->travel_date,
+                $request->filled('schedule_id') ? (int) $request->schedule_id : null
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json($payload);
+    }
+
+    public function getTransferDestinationSeats(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $request->validate([
+            'bus_id' => 'required|integer|exists:buses,id',
+            'travel_date' => 'required|date',
+            'schedule_id' => 'nullable|integer|exists:schedules,id',
+            'exclude_booking_ids' => 'nullable|array',
+            'exclude_booking_ids.*' => 'integer',
+        ]);
+
+        try {
+            $payload = app(BookingTransferService::class)->destinationSeatAvailability(
+                (int) $request->bus_id,
+                (string) $request->travel_date,
+                $request->filled('schedule_id') ? (int) $request->schedule_id : null,
+                $request->input('exclude_booking_ids', [])
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json($payload);
     }
 
     public function resavedTickets()
@@ -1871,19 +2121,38 @@ $q->where('id', auth()->user()->campany->id);
 
     public function getFilteredSchedules(Request $request)
     {
-        $busId = $request->input('bus_id');
-        // travel_date is optional: when omitted, every upcoming schedule for the
-        // bus is returned so the caller can pick a schedule first and derive the
-        // travel date from it (used by the transfer-booking form, where forcing
-        // the user to guess a date the target bus actually runs on left the
-        // schedule dropdown empty with no explanation).
-        $travelDate = $request->input('travel_date');
-
-        if (!$busId) {
-            return response()->json([], 400);
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return response()->json([], 403);
         }
 
-        $query = Schedule::where('bus_id', $busId);
+        $busId = $request->input('bus_id');
+        $travelDate = $request->input('travel_date');
+        $routeId = $request->input('route_id');
+        $emergency = $request->boolean('emergency');
+        $destCompanyId = $request->input('dest_company_id');
+        $transferService = app(BookingTransferService::class);
+
+        $query = Schedule::query()->with(['bus.campany', 'bus.busname']);
+
+        if ($busId) {
+            $query->where('bus_id', $busId);
+        } elseif ($emergency) {
+            if ($destCompanyId) {
+                $query->whereHas('bus', fn ($q) => $q->where('campany_id', $destCompanyId));
+            }
+        } else {
+            $query->whereHas('bus', fn ($q) => $q->where('campany_id', $companyId));
+        }
+
+        if ($routeId) {
+            $query->where(function ($q) use ($routeId) {
+                $q->where('route_id', $routeId)
+                    ->orWhereHas('bus.route', fn ($rq) => $rq->where('routes.id', $routeId));
+            });
+        }
+
         if ($travelDate) {
             $query->whereDate('schedule_date', $travelDate);
         } else {
@@ -1891,72 +2160,129 @@ $q->where('id', auth()->user()->campany->id);
         }
 
         $schedules = $query->orderBy('schedule_date')
-                             ->orderBy('start')
-                             ->get()
-                             ->unique('id')
-                             ->values();
+            ->orderBy('start')
+            ->get()
+            ->unique('id')
+            ->values()
+            ->map(fn ($schedule) => $transferService->formatTransferSchedule($schedule));
 
         return response()->json($schedules);
+    }
+
+    public function getTransferBuses(Request $request)
+    {
+        $user = Auth::user();
+        $companyId = $user->campany->id ?? null;
+        if (!$companyId) {
+            return response()->json([], 403);
+        }
+
+        $emergency = $request->boolean('emergency');
+        $scheduleId = $request->input('schedule_id');
+        $destCompanyId = $request->input('dest_company_id');
+        $routeId = $request->input('route_id');
+        $travelDate = $request->input('travel_date');
+        $transferService = app(BookingTransferService::class);
+
+        $schedule = $scheduleId ? Schedule::with('bus.campany', 'bus.route')->find($scheduleId) : null;
+
+        $buses = $transferService->listDestinationBuses(
+            BookingTransferService::ACTOR_BUS_OWNER,
+            [
+                'company_id' => (int) $companyId,
+                'dest_company_id' => $destCompanyId,
+                'emergency' => $emergency,
+                'allow_emergency' => true,
+                'schedule_id' => $scheduleId,
+            ]
+        );
+
+        // When a schedule is chosen, trust that bus; otherwise filter by route/date.
+        if (!$scheduleId) {
+            if ($routeId) {
+                $buses = $buses->filter(function ($bus) use ($routeId) {
+                    $busRouteId = (int) ($bus->route?->id ?? 0);
+
+                    return $busRouteId === (int) $routeId;
+                })->values();
+            }
+
+            if ($travelDate) {
+                $busIdsWithSchedule = Schedule::query()
+                    ->whereDate('schedule_date', $travelDate)
+                    ->when($routeId, function ($q) use ($routeId) {
+                        $q->where(function ($inner) use ($routeId) {
+                            $inner->where('route_id', $routeId)
+                                ->orWhereHas('bus.route', fn ($rq) => $rq->where('routes.id', $routeId));
+                        });
+                    })
+                    ->pluck('bus_id')
+                    ->unique()
+                    ->all();
+                if (!empty($busIdsWithSchedule)) {
+                    $buses = $buses->filter(
+                        fn ($bus) => in_array((int) $bus->id, array_map('intval', $busIdsWithSchedule), true)
+                    )->values();
+                }
+            }
+        }
+
+        $preferredBusId = $schedule->bus_id ?? null;
+
+        return response()->json(
+            $buses->map(fn ($bus) => $transferService->formatDestinationBus($bus, $preferredBusId))
+        );
+    }
+
+    private function formatTransferSchedule(Schedule $schedule): array
+    {
+        return app(BookingTransferService::class)->formatTransferSchedule($schedule);
     }
 
     public function calculateTransferAmounts(Request $request)
     {
         $request->validate([
             'bus_id' => 'required|exists:buses,id',
-            'schedule_id' => 'required|exists:schedules,id',
-            'travel_date' => 'required|date',
+            'original_booking_id' => 'required|exists:bookings,id',
             'pickup_point' => 'required|string',
             'dropping_point' => 'required|string',
-            'original_booking_id' => 'required|exists:bookings,id',
+            'schedule_id' => 'nullable|exists:schedules,id',
+            'travel_date' => 'nullable|date',
+            'emergency' => 'nullable|boolean',
         ]);
 
+        $emergency = $request->boolean('emergency');
         $originalBooking = Booking::find($request->original_booking_id);
         $newBus = Bus::with('route', 'campany')->find($request->bus_id);
-        $newSchedule = Schedule::find($request->schedule_id);
+        $newSchedule = $request->schedule_id ? Schedule::find($request->schedule_id) : null;
 
-        if (!$originalBooking || !$newBus || !$newSchedule) {
+        if (!$originalBooking || !$newBus) {
             return response()->json(['error' => 'Invalid data provided'], 400);
         }
-        if ((int) $newSchedule->bus_id !== (int) $newBus->id || (string) $newSchedule->schedule_date !== (string) $request->travel_date) {
-            return response()->json(['error' => __('vender/transfer.invalid_schedule_for_bus_date')], 422);
-        }
-        if ((int) $originalBooking->campany_id !== (int) ($newBus->campany->id ?? 0)) {
+
+        $userCompanyId = Auth::user()->campany->id ?? null;
+        $crossCompany = (int) ($newBus->campany?->id ?? 0) !== (int) $userCompanyId;
+
+        if (!$emergency && $crossCompany) {
             return response()->json(['error' => __('vender/transfer.new_bus_company_mismatch')], 422);
         }
 
-        $formulaService = app(FareFormulaService::class);
-        $numberOfSeats = $formulaService->seatCountFromSeatString($originalBooking->seat);
-        $basePrice = max(0, (float) ($newBus->route->price ?? 0) * $numberOfSeats);
-        $newAmount = $basePrice;
-        $newDiscountAmount = min(max((float) ($originalBooking->discount_amount ?? 0), 0), $newAmount);
-        $discountedFare = max(0, $newAmount - $newDiscountAmount);
+        if (!$emergency && $newSchedule) {
+            if ((int) $newSchedule->bus_id !== (int) $newBus->id || ($request->travel_date && (string) $newSchedule->schedule_date !== (string) $request->travel_date)) {
+                return response()->json(['error' => __('vender/transfer.invalid_schedule_for_bus_date')], 422);
+            }
+        }
 
-        $setting = Setting::first();
-        $fees = $formulaService->calculateTravellerServiceFee((float) $discountedFare, $setting, $numberOfSeats);
-        $distance = \App\Services\RouteDistanceService::resolveForBooking(
-            null,
-            (string) $request->pickup_point,
-            (string) $request->dropping_point,
-            (float) ($newBus->route->distance ?? 0)
+        return response()->json(
+            app(BookingTransferService::class)->previewPricing(
+                $originalBooking,
+                $newBus,
+                (string) $request->pickup_point,
+                (string) $request->dropping_point,
+                $emergency,
+                $userCompanyId ? (int) $userCompanyId : null
+            )
         );
-
-        // Keep legacy VAT baseline aligned with transfer commit logic.
-        $newVat = $newAmount * (0.5 / 100);
-
-        return response()->json([
-            'new_amount' => round($newAmount, 2),
-            'new_busFee' => round($newAmount, 2),
-            'new_discount_amount' => round($newDiscountAmount, 2),
-            'new_distance' => round($distance, 2),
-            'new_bima_amount' => round((float) ($originalBooking->bima_amount ?? 0), 2),
-            'new_vat' => round($newVat, 2),
-            'new_fee' => round($fees, 2),
-            'new_service' => round((float) ($originalBooking->service ?? 0), 2),
-            'new_vender_fee' => round((float) ($originalBooking->vender_fee ?? 0), 2),
-            'new_vender_service' => round((float) ($originalBooking->vender_service ?? 0), 2),
-            'new_campany_id' => $newBus->campany->id,
-            'new_route_id' => $newBus->route->id,
-        ]);
     }
 
     /**

@@ -6,6 +6,7 @@ return [
     'My Tickets' => 'My Tickets',
     'Bus Route' => 'Bus Route',
     'Round Trip' => 'Round Trip',
+    'Special Hire' => 'Special Hire',
     'Profile' => 'Profile',
     'Logout' => 'Logout',
     'Wallet' => 'Wallet',

@@ -266,7 +266,8 @@
                                     <span class="vendor-tx-amount total-amount" data-total="{{ $rowTotal }}">{{ $currency }} {{ convert_money($rowTotal) }}</span>
                                 </td>
                                 <td>
-                                    <div class="flex flex-wrap gap-1">
+                                    <div class="flex flex-wrap gap-1 items-center">
+                                        @include('vender.partials.ticket_actions', ['book' => $booking])
                                         <form action="{{ route('ticket.print') }}" method="POST" class="inline">
                                             @csrf
                                             <input type="hidden" name="data" value='{{ json_encode(["id" => $booking->id]) }}'>
@@ -321,6 +322,12 @@
         </div>
     </div>
 </div>
+
+@foreach ($bookings as $book)
+    @if (in_array($book->payment_status, ['Paid', 'Refund Rejected']))
+        @include('vender.partials.refund_modal', ['book' => $book, 'refundRoute' => 'vender.refund', 'refundActor' => 'vender'])
+    @endif
+@endforeach
 @endsection
 
 @push('scripts')
@@ -432,6 +439,58 @@
             });
 
             table.draw();
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.refund-trigger').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = this.getAttribute('data-refund-modal');
+                    var modal = id ? document.getElementById(id) : null;
+                    if (modal) modal.classList.remove('hidden');
+                });
+            });
+
+            function closeRefundModal(id) {
+                var modal = id ? document.getElementById(id) : null;
+                if (modal) modal.classList.add('hidden');
+            }
+
+            document.querySelectorAll('[data-close-refund-modal]').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    closeRefundModal(this.getAttribute('data-close-refund-modal'));
+                });
+            });
+
+            document.querySelectorAll('.refund-form').forEach(function(form) {
+                form.addEventListener('submit', function(event) {
+                    var mobile = (form.querySelector('input[name="mobile_number"]') || {}).value || '';
+                    var bank = (form.querySelector('input[name="bank_number"]') || {}).value || '';
+                    var errEl = form.querySelector('[id^="refundFormError"]');
+                    if (!mobile.trim() && !bank.trim()) {
+                        event.preventDefault();
+                        if (errEl) {
+                            errEl.textContent = @json(__('all.please_enter_mobile_or_bank'));
+                            errEl.classList.remove('hidden');
+                        }
+                        return false;
+                    }
+                    if (errEl) {
+                        errEl.classList.add('hidden');
+                        errEl.textContent = '';
+                    }
+                    if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+
+            var refundBookingId = @json(old('booking_id'));
+            if (refundBookingId) {
+                var modalEl = document.getElementById('refundModal' + refundBookingId);
+                if (modalEl) modalEl.classList.remove('hidden');
+            }
         });
     </script>
 @endpush

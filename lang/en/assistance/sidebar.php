@@ -9,6 +9,7 @@ return [
     'booking_history' => 'Booking History',
     'booking_history_menu' => 'Booking History Menu',
     'reserved_tickets' => 'Reserved Tickets',
+    'transfer_booking' => 'Transfer Booking',
     'today' => 'Today',
     'week' => 'Week',
     'month' => 'Month',

@@ -22,6 +22,11 @@ abstract final class ApiEndpoints {
   static String payBalance(int id) => '/bookings/$id/pay-balance';
   static String passengers(int id) => '/bookings/$id/passengers';
   static String syncPayment(int id) => '/bookings/$id/sync-payment';
+  static String reorderBooking(int id) => '/bookings/$id/reorder';
+  static String transferBooking(int id) => '/bookings/$id/transfer';
+  static String refundRequest(int id) => '/bookings/$id/refund-request';
+  static String receiptPdf(int id) => '/bookings/$id/receipt.pdf';
+  static String receipt(int id) => '/bookings/$id/receipt';
 }
 
 /// Base URL configuration via `--dart-define=API_BASE_URL=...`.

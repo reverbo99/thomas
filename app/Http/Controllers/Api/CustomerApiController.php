@@ -12,6 +12,7 @@ use App\Models\SpecialHirePaymentIntent;
 use App\Models\SpecialHirePricing;
 use App\Models\User;
 use App\Services\DiscountService;
+use App\Services\SpecialHireCustomerActionsService;
 use App\Services\SpecialHireOrderPaymentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use InvalidArgumentException;
 
 class CustomerApiController extends Controller
 {
@@ -1210,6 +1212,135 @@ class CustomerApiController extends Controller
     }
 
     /**
+     * Prefill fields to book again from an existing hire (no payment created).
+     */
+    public function reorderBooking(int $id)
+    {
+        $order = $this->customerHireOrderOrAbort($id);
+        $prefill = app(SpecialHireCustomerActionsService::class)->reorderPrefill($order);
+
+        return response()->json([
+            'success' => true,
+            'data' => $prefill,
+        ]);
+    }
+
+    /**
+     * Transfer hire to another available coaster (keeps pricing).
+     */
+    public function transferBooking(Request $request, int $id)
+    {
+        $order = $this->customerHireOrderOrAbort($id);
+
+        $request->validate([
+            'coaster_id' => 'required|integer|exists:coasters,id',
+        ]);
+
+        try {
+            $updated = app(SpecialHireCustomerActionsService::class)
+                ->transferToCoaster($order, (int) $request->coaster_id);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        }
+
+        $payload = $updated->toArray();
+        $payload['hire_next_step'] = $updated->customerHireNextStep();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Booking transferred successfully',
+            'data' => $payload,
+        ]);
+    }
+
+    /**
+     * Request a refund on a paid hire (sets payment_status = refund_pending).
+     */
+    public function refundRequestBooking(Request $request, int $id)
+    {
+        $order = $this->customerHireOrderOrAbort($id);
+
+        $request->validate([
+            'reason' => 'nullable|string|max:1000',
+            'phone' => 'nullable|string|max:20',
+            'bank' => 'nullable|string|max:255',
+            'bank_account' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $updated = app(SpecialHireCustomerActionsService::class)->requestRefund($order, [
+                'reason' => $request->input('reason'),
+                'phone' => $request->input('phone'),
+                'bank' => $request->input('bank'),
+                'bank_account' => $request->input('bank_account'),
+            ]);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        }
+
+        $payload = $updated->toArray();
+        $payload['hire_next_step'] = $updated->customerHireNextStep();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Refund request submitted',
+            'data' => $payload,
+        ]);
+    }
+
+    /**
+     * Download customer hire receipt as PDF attachment.
+     */
+    public function bookingReceiptPdf(int $id)
+    {
+        $order = $this->customerHireOrderOrAbort($id);
+
+        try {
+            return app(SpecialHireCustomerActionsService::class)
+                ->customerReceiptPdf($order, 'attachment');
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * Inline PDF for print (?disposition=inline) or attachment.
+     */
+    public function bookingReceipt(Request $request, int $id)
+    {
+        $order = $this->customerHireOrderOrAbort($id);
+        $disposition = $request->query('disposition', 'inline') === 'attachment'
+            ? 'attachment'
+            : 'inline';
+
+        try {
+            return app(SpecialHireCustomerActionsService::class)
+                ->customerReceiptPdf($order, $disposition);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * Resolve a hire order owned by the authenticated customer.
+     */
+    protected function customerHireOrderOrAbort(int $id): SpecialHireOrder
+    {
+        $order = SpecialHireOrder::where('customer_user_id', Auth::id())
+            ->with('coaster')
+            ->find($id);
+
+        if (! $order) {
+            abort(response()->json([
+                'success' => false,
+                'message' => 'Booking not found',
+            ], 404));
+        }
+
+        return $order;
+    }
+
+    /**
      * Logout customer.
      */
     public function logout(Request $request)
@@ -1222,5 +1353,6 @@ class CustomerApiController extends Controller
         ]);
     }
 }
+
 
 

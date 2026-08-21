@@ -607,7 +607,7 @@ class SpecialHireApiController extends Controller
 
         $validator = Validator::make($request->all(), [
             'order_status' => 'sometimes|in:pending,confirmed,in_progress,completed,cancelled',
-            'payment_status' => 'sometimes|in:pending,paid,refunded',
+            'payment_status' => 'sometimes|in:pending,paid,refunded,refund_pending',
             'payment_method' => 'sometimes|string|max:50',
         ]);
 
