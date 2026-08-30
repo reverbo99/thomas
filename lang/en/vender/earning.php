@@ -96,4 +96,9 @@ return [
     'filter_driver' => 'Driver name',
     'filter_conductor' => 'Conductor name',
     'trip_filters' => 'Track by bus trip',
+    'filter_earnings_type' => 'Show earnings',
+    'filter_type_all' => 'All',
+    'filter_type_ticket' => 'Paid ticket',
+    'filter_type_luggage' => 'Excess luggage',
+    'filter_type_parcel' => 'Parcel',
 ];

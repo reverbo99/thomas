@@ -96,4 +96,9 @@ return [
     'filter_driver' => 'Jina la dereva',
     'filter_conductor' => 'Jina la kondakta',
     'trip_filters' => 'Fuatilia kwa safari ya basi',
+    'filter_earnings_type' => 'Onyesha mapato',
+    'filter_type_all' => 'Yote',
+    'filter_type_ticket' => 'Tiketi iliyolipwa',
+    'filter_type_luggage' => 'Mizigo ya ziada',
+    'filter_type_parcel' => 'Mzigo',
 ];

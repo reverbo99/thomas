@@ -186,30 +186,34 @@
                                                         readonly>
                                                 </div>
                                                 @livewire('temp')
-                                                @if (isset($distance) && $distance > 99)
-                                                    @if (isset($info['travel_date']) && $info['travel_date'] != date('Y-m-d'))
-                                                        @php
-                                                            date_default_timezone_set('Africa/Nairobi');
-                                                            $currentDate = date('Y-m-d');
-                                                            try {
-                                                                $travelDate = \Carbon\Carbon::parse($info['travel_date'])->format('Y-m-d');
-                                                                $minDate =
-                                                                    $travelDate >= $currentDate
-                                                                        ? $travelDate
-                                                                        : $currentDate;
-                                                            } catch (Exception $e) {
-                                                                $minDate = $currentDate;
-                                                            }
-                                                        @endphp
+                                                @php
+                                                    $insuranceForm = is_array($info ?? null) ? $info : [];
+                                                    if (!isset($insuranceForm['route_distance']) && isset($distance)) {
+                                                        $insuranceForm['route_distance'] = $distance;
+                                                    }
+                                                    $insuranceEligible = booking_insurance_eligible($insuranceForm);
+                                                    $minDate = now('Africa/Nairobi')->format('Y-m-d');
+                                                    if ($insuranceEligible) {
+                                                        try {
+                                                            $travelDate = \Carbon\Carbon::parse($insuranceForm['travel_date'])
+                                                                ->timezone('Africa/Nairobi')
+                                                                ->format('Y-m-d');
+                                                            $minDate = $travelDate >= $minDate ? $travelDate : $minDate;
+                                                        } catch (\Throwable $e) {
+                                                            // keep today as min
+                                                        }
+                                                    }
+                                                @endphp
+                                                @if ($insuranceEligible)
                                                         <div>
                                                             <label for="Insurance"
-                                                                class="block text-sm font-semibold text-gray-800">{{ __('customer/busroot.insurance', ['amount' => insurance_local_rate_display() . '/' . (__('all.day') ?? 'day')]) }}</label>
+                                                                class="block text-sm font-semibold text-gray-800 dark:text-gray-100">{{ __('customer/busroot.insurance', ['amount' => insurance_local_rate_display() . '/' . (__('all.day') ?? 'day')]) }}</label>
                                                             <div class="mt-1">
                                                                 <input type="checkbox" id="Insurance" name="Insurance"
                                                                     value="1" class="mr-2"
                                                                     onchange="toggleDateInput()">
                                                                 <select name="type" id="type"
-                                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hidden mt-2">
+                                                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-100 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hidden mt-2">
                                                                     <option value="local">
                                                                         {{ __('customer/busroot.local') }}</option>
                                                                     <option value="foreign">
@@ -217,11 +221,10 @@
                                                                 </select>
                                                                 <input type="date" id="insuranceDate"
                                                                     name="insuranceDate"
-                                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hidden mt-2"
+                                                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-100 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 hidden mt-2"
                                                                     min="{{ $minDate }}">
                                                             </div>
                                                         </div>
-                                                    @endif
                                                 @endif
                                             </div>
                                         </div>

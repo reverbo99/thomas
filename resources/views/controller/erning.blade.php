@@ -148,6 +148,16 @@
         $currentStart = $start_date ?? ($data['period_start'] ?? '');
         $currentEnd = $end_date ?? ($data['period_end'] ?? '');
         $filters = $filters ?? [];
+        $earnings_type = $earnings_type ?? ($filters['earnings_type'] ?? 'all');
+        $showTickets = in_array($earnings_type, ['all', 'ticket'], true);
+        $showLuggage = in_array($earnings_type, ['all', 'luggage'], true);
+        $showParcels = in_array($earnings_type, ['all', 'parcel'], true);
+        $defaultTab = match ($earnings_type) {
+            'ticket' => 'paidTickets',
+            'luggage' => 'excessLuggage',
+            'parcel' => 'parcels',
+            default => 'paidTickets',
+        };
         $currency = $currency ?? session('currency', 'Tzs');
         $inputClass = 'w-full border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:border-teal-500 focus:ring-teal-500';
         $labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
@@ -181,7 +191,7 @@
         <div class="mb-6 bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 border border-gray-100 dark:border-slate-700">
             <form action="{{ route('earnings.filter') }}" method="POST" class="space-y-4" id="earningsPeriodForm">
                 @csrf
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
                 <div>
                     <label class="{{ $labelClass }}">{{ __('vender/earning.earnings_period') }}</label>
                     <select name="period" id="earningsPeriodSelect"
@@ -191,6 +201,15 @@
                         <option value="month" @selected($currentPeriod === 'month')>{{ __('vender/earning.this_month') }}</option>
                         <option value="year" @selected($currentPeriod === 'year')>{{ __('vender/earning.this_year') }}</option>
                         <option value="custom" @selected($currentPeriod === 'custom')>{{ __('vender/earning.custom_range') }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="{{ $labelClass }}">{{ __('vender/earning.filter_earnings_type') }}</label>
+                    <select name="earnings_type" id="earningsTypeSelect" class="{{ $inputClass }}">
+                        <option value="all" @selected($earnings_type === 'all')>{{ __('vender/earning.filter_type_all') }}</option>
+                        <option value="ticket" @selected($earnings_type === 'ticket')>{{ __('vender/earning.filter_type_ticket') }}</option>
+                        <option value="luggage" @selected($earnings_type === 'luggage')>{{ __('vender/earning.filter_type_luggage') }}</option>
+                        <option value="parcel" @selected($earnings_type === 'parcel')>{{ __('vender/earning.filter_type_parcel') }}</option>
                     </select>
                 </div>
                 <div id="earningsCustomStart" class="{{ $currentPeriod === 'custom' ? '' : 'hidden' }}">
@@ -256,7 +275,7 @@
                 </div>
             </div>
 
-            <div class="{{ $cardClass }}">
+            <div class="{{ $cardClass }} {{ $showTickets ? '' : 'hidden' }}">
                 <div class="flex items-center">
                     <div class="bg-teal-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-ticket-alt"></i>
@@ -268,7 +287,7 @@
                 </div>
             </div>
 
-            <div class="{{ $cardClass }}">
+            <div class="{{ $cardClass }} {{ $showLuggage ? '' : 'hidden' }}">
                 <div class="flex items-center">
                     <div class="bg-amber-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-suitcase"></i>
@@ -280,7 +299,7 @@
                 </div>
             </div>
 
-            <div class="{{ $cardClass }}">
+            <div class="{{ $cardClass }} {{ $showParcels ? '' : 'hidden' }}">
                 <div class="flex items-center">
                     <div class="bg-violet-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-box"></i>
@@ -322,18 +341,24 @@
             <div class="px-6 pt-4 bg-gray-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700">
                 <h5 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">{{ __('vender/earning.income_breakdown') }}</h5>
                 <nav class="flex flex-wrap gap-0 -mb-px" role="tablist" aria-label="{{ __('vender/earning.income_breakdown') }}">
-                    <button type="button" id="tabPaidTickets" role="tab" aria-selected="true" aria-controls="panelPaidTickets"
-                        class="earnings-tab is-active" data-tab="paidTickets">
+                    @if($showTickets)
+                    <button type="button" id="tabPaidTickets" role="tab" aria-selected="{{ $defaultTab === 'paidTickets' ? 'true' : 'false' }}" aria-controls="panelPaidTickets"
+                        class="earnings-tab {{ $defaultTab === 'paidTickets' ? 'is-active' : '' }}" data-tab="paidTickets">
                         <i class="fas fa-ticket-alt mr-2"></i>{{ __('vender/earning.tab_paid_tickets') }}
                     </button>
-                    <button type="button" id="tabExcessLuggage" role="tab" aria-selected="false" aria-controls="panelExcessLuggage"
-                        class="earnings-tab" data-tab="excessLuggage">
+                    @endif
+                    @if($showLuggage)
+                    <button type="button" id="tabExcessLuggage" role="tab" aria-selected="{{ $defaultTab === 'excessLuggage' ? 'true' : 'false' }}" aria-controls="panelExcessLuggage"
+                        class="earnings-tab {{ $defaultTab === 'excessLuggage' ? 'is-active' : '' }}" data-tab="excessLuggage">
                         <i class="fas fa-suitcase mr-2"></i>{{ __('vender/earning.tab_excess_luggage') }}
                     </button>
-                    <button type="button" id="tabParcels" role="tab" aria-selected="false" aria-controls="panelParcels"
-                        class="earnings-tab" data-tab="parcels">
+                    @endif
+                    @if($showParcels)
+                    <button type="button" id="tabParcels" role="tab" aria-selected="{{ $defaultTab === 'parcels' ? 'true' : 'false' }}" aria-controls="panelParcels"
+                        class="earnings-tab {{ $defaultTab === 'parcels' ? 'is-active' : '' }}" data-tab="parcels">
                         <i class="fas fa-box mr-2"></i>{{ __('vender/earning.tab_parcels') }}
                     </button>
+                    @endif
                     <button type="button" id="tabPaymentTransactions" role="tab" aria-selected="false" aria-controls="panelPaymentTransactions"
                         class="earnings-tab" data-tab="paymentTransactions">
                         <i class="fas fa-exchange-alt mr-2"></i>{{ __('vender/earning.payment_transactions') }}
@@ -341,7 +366,8 @@
                 </nav>
             </div>
 
-            <div id="panelPaidTickets" role="tabpanel" aria-labelledby="tabPaidTickets" class="earnings-tab-panel p-4 overflow-x-auto">
+            @if($showTickets)
+            <div id="panelPaidTickets" role="tabpanel" aria-labelledby="tabPaidTickets" class="earnings-tab-panel {{ $defaultTab === 'paidTickets' ? '' : 'is-hidden' }} p-4 overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 w-full" id="paidTicketsTable">
                     <thead class="bg-gray-50 dark:bg-slate-900">
                         <tr>
@@ -356,8 +382,10 @@
                     <tbody class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700"></tbody>
                 </table>
             </div>
+            @endif
 
-            <div id="panelExcessLuggage" role="tabpanel" aria-labelledby="tabExcessLuggage" class="earnings-tab-panel is-hidden p-4 overflow-x-auto">
+            @if($showLuggage)
+            <div id="panelExcessLuggage" role="tabpanel" aria-labelledby="tabExcessLuggage" class="earnings-tab-panel {{ $defaultTab === 'excessLuggage' ? '' : 'is-hidden' }} p-4 overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 w-full" id="excessLuggageTable">
                     <thead class="bg-gray-50 dark:bg-slate-900">
                         <tr>
@@ -372,8 +400,10 @@
                     <tbody class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700"></tbody>
                 </table>
             </div>
+            @endif
 
-            <div id="panelParcels" role="tabpanel" aria-labelledby="tabParcels" class="earnings-tab-panel is-hidden p-4 overflow-x-auto">
+            @if($showParcels)
+            <div id="panelParcels" role="tabpanel" aria-labelledby="tabParcels" class="earnings-tab-panel {{ $defaultTab === 'parcels' ? '' : 'is-hidden' }} p-4 overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700 w-full" id="parcelsTable">
                     <thead class="bg-gray-50 dark:bg-slate-900">
                         <tr>
@@ -387,6 +417,7 @@
                     <tbody class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700"></tbody>
                 </table>
             </div>
+            @endif
 
             <div id="panelPaymentTransactions" role="tabpanel" aria-labelledby="tabPaymentTransactions" class="earnings-tab-panel is-hidden p-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
@@ -560,6 +591,8 @@
         window.earningsStartDate = @json($currentStart);
         window.earningsEndDate = @json($currentEnd);
         window.earningsFilters = @json($filters);
+        window.earningsType = @json($earnings_type);
+        window.earningsDefaultTab = @json($defaultTab);
 
         (function() {
             const earningsPanels = {
@@ -570,6 +603,10 @@
             };
 
             function activateEarningsTab(tab) {
+                if (!earningsPanels[tab]) {
+                    return;
+                }
+
                 document.querySelectorAll('.earnings-tab').forEach(function(btn) {
                     const isActive = btn.getAttribute('data-tab') === tab;
                     btn.classList.toggle('is-active', isActive);
@@ -630,6 +667,7 @@
                 d.period = window.earningsPeriod;
                 d.start_date = window.earningsStartDate;
                 d.end_date = window.earningsEndDate;
+                d.earnings_type = window.earningsType || 'all';
                 const filters = window.earningsFilters || {};
                 d.bus_number = filters.bus_number || '';
                 d.departure_date = filters.departure_date || '';
@@ -671,37 +709,42 @@
                 }
             };
 
-            paidTicketsTable = $('#paidTicketsTable').DataTable({
-                serverSide: true,
-                processing: true,
-                responsive: true,
-                paging: true,
-                searching: true,
-                ordering: true,
-                pageLength: 10,
-                lengthMenu: [10, 25, 50, 100],
-                order: [[5, 'desc']],
-                dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600'l><'text-sm'f>>rtip",
-                language: dtLanguage,
-                ajax: {
-                    url: '{{ route('earnings.tickets.data') }}',
-                    data: periodPayload,
-                    error: function() {
-                        alert('{{ __('vender/earning.no_tickets_found') }}');
-                    }
-                },
-                columns: [
-                    { data: 'booking_code', name: 'booking_code' },
-                    { data: 'travel_date', name: 'travel_date' },
-                    { data: 'route', name: 'route', orderable: false },
-                    { data: 'customer_name', name: 'customer_name' },
-                    { data: 'amount_display', name: 'amount' },
-                    { data: 'paid_at', name: 'created_at' }
-                ]
-            });
+            function initPaidTicketsTable() {
+                if (paidTicketsTable || !$('#paidTicketsTable').length) {
+                    return;
+                }
+                paidTicketsTable = $('#paidTicketsTable').DataTable({
+                    serverSide: true,
+                    processing: true,
+                    responsive: true,
+                    paging: true,
+                    searching: true,
+                    ordering: true,
+                    pageLength: 10,
+                    lengthMenu: [10, 25, 50, 100],
+                    order: [[5, 'desc']],
+                    dom: "<'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3'<'text-sm text-gray-600'l><'text-sm'f>>rtip",
+                    language: dtLanguage,
+                    ajax: {
+                        url: '{{ route('earnings.tickets.data') }}',
+                        data: periodPayload,
+                        error: function() {
+                            alert('{{ __('vender/earning.no_tickets_found') }}');
+                        }
+                    },
+                    columns: [
+                        { data: 'booking_code', name: 'booking_code' },
+                        { data: 'travel_date', name: 'travel_date' },
+                        { data: 'route', name: 'route', orderable: false },
+                        { data: 'customer_name', name: 'customer_name' },
+                        { data: 'amount_display', name: 'amount' },
+                        { data: 'paid_at', name: 'created_at' }
+                    ]
+                });
+            }
 
             function initParcelsTable() {
-                if (parcelsTable) {
+                if (parcelsTable || !$('#parcelsTable').length) {
                     return;
                 }
                 parcelsTable = $('#parcelsTable').DataTable({
@@ -734,7 +777,7 @@
             }
 
             function initLuggageTable() {
-                if (excessLuggageTable) {
+                if (excessLuggageTable || !$('#excessLuggageTable').length) {
                     return;
                 }
                 excessLuggageTable = $('#excessLuggageTable').DataTable({
@@ -921,6 +964,13 @@
                 const isCustom = $(this).val() === 'custom';
                 $('#earningsCustomStart, #earningsCustomEnd').toggleClass('hidden', !isCustom);
             });
+
+            const initialTab = window.earningsDefaultTab || 'paidTickets';
+            if (initialTab === 'paidTickets') {
+                initPaidTicketsTable();
+            } else if (window.activateEarningsTab) {
+                window.activateEarningsTab(initialTab);
+            }
         });
     </script>
 @endpush

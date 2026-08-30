@@ -230,10 +230,11 @@ class AdminController extends Controller
 
     private function earningsFilterInputs(Request $request): array
     {
-        return $request->only([
+        $inputs = $request->only([
             'period',
             'start_date',
             'end_date',
+            'earnings_type',
             'bus_number',
             'departure_date',
             'departure_time',
@@ -242,6 +243,12 @@ class AdminController extends Controller
             'driver',
             'conductor',
         ]);
+
+        $allowedTypes = ['all', 'ticket', 'luggage', 'parcel'];
+        $type = $inputs['earnings_type'] ?? 'all';
+        $inputs['earnings_type'] = in_array($type, $allowedTypes, true) ? $type : 'all';
+
+        return $inputs;
     }
 
     private function companyTicketEarningsQuery(array $busIds, int $companyId)
@@ -867,13 +874,14 @@ $q->where('id', auth()->user()->campany->id);
         $period = $request->input('period', 'month');
         $start_date = $request->input('start_date');
         $end_date = $request->input('end_date');
-
-        $data = $this->getEarningsData($bus_ids, $period, $start_date, $end_date, $request);
         $filters = $this->earningsFilterInputs($request);
+        $earnings_type = $filters['earnings_type'];
+
+        $data = $this->getEarningsData($bus_ids, $period, $start_date, $end_date, $request, $earnings_type);
 
         session()->put('export_data', $data);
 
-        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date', 'filters'));
+        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date', 'filters', 'earnings_type'));
     }
 
     public function filterEarnings(Request $request)
@@ -882,6 +890,7 @@ $q->where('id', auth()->user()->campany->id);
             'period' => 'required|in:today,week,month,year,custom',
             'start_date' => 'required_if:period,custom|date',
             'end_date' => 'required_if:period,custom|date|after_or_equal:start_date',
+            'earnings_type' => 'nullable|in:all,ticket,luggage,parcel',
         ]);
 
         if ($validator->fails()) {
@@ -893,7 +902,7 @@ $q->where('id', auth()->user()->campany->id);
         return redirect()->route('erning', $this->earningsFilterInputs($request));
     }
 
-    private function getEarningsData($bus_ids, $period, $start_date = null, $end_date = null, ?Request $request = null)
+    private function getEarningsData($bus_ids, $period, $start_date = null, $end_date = null, ?Request $request = null, string $earningsType = 'all')
     {
         $request = $request ?? request();
         $query = Transaction::with('campany')->where('campany_id', Auth::user()->campany->id);
@@ -903,21 +912,33 @@ $q->where('id', auth()->user()->campany->id);
         $transactions = $query->whereBetween('created_at', [$start, $end])->get();
 
         $companyId = (int) Auth::user()->campany->id;
+        $includeTickets = in_array($earningsType, ['all', 'ticket'], true);
+        $includeLuggage = in_array($earningsType, ['all', 'luggage'], true);
+        $includeParcels = in_array($earningsType, ['all', 'parcel'], true);
 
-        $ticketQuery = $this->companyTicketEarningsQuery($bus_ids, $companyId)
-            ->whereBetween('created_at', [$start, $end])
-            ->where('payment_status', 'Paid');
-        apply_booking_history_column_filters($ticketQuery, $request);
+        $ticketEarnings = 0.0;
+        if ($includeTickets) {
+            $ticketQuery = $this->companyTicketEarningsQuery($bus_ids, $companyId)
+                ->whereBetween('created_at', [$start, $end])
+                ->where('payment_status', 'Paid');
+            apply_booking_history_column_filters($ticketQuery, $request);
+            $ticketEarnings = $this->sumBusOwnerTicketEarnings($ticketQuery);
+        }
 
         return [
-            'ticket_earnings' => $this->sumBusOwnerTicketEarnings($ticketQuery),
-            'luggage_earnings' => $this->sumBusOwnerReleasedLuggageEarnings($companyId, $start, $end, $request),
-            'parcel_earnings' => $this->sumBusOwnerParcelEarnings($bus_ids, $start, $end, $request),
+            'ticket_earnings' => $ticketEarnings,
+            'luggage_earnings' => $includeLuggage
+                ? $this->sumBusOwnerReleasedLuggageEarnings($companyId, $start, $end, $request)
+                : 0.0,
+            'parcel_earnings' => $includeParcels
+                ? $this->sumBusOwnerParcelEarnings($bus_ids, $start, $end, $request)
+                : 0.0,
             'request' => $transactions->sum('amount'),
             'success' => $transactions->where('status', 'Completed')->sum('amount'),
             'transactions' => $transactions,
             'period_start' => $start->format('Y-m-d'),
             'period_end' => $end->format('Y-m-d'),
+            'earnings_type' => $earningsType,
         ];
     }
 

@@ -43,6 +43,7 @@ return [
     'service_fee' => 'Service fee:',
     'commission_total' => 'Commission:',
     'government_levy' => 'Gov. levy:',
+    'luggage_section' => 'Luggage',
     'luggage_admin' => 'Luggage admin (5%)',
     'luggage_government' => 'Luggage gov. levy (5%)',
     'luggage_owner_net' => 'Luggage to bus owner',

@@ -124,24 +124,13 @@
                                                     {{ $booking->seat ?? __('vender/history.na') }}</p>
                                                 <p class="text-gray-500 mb-0">{{ __('vender/history.pickup') }}
                                                     {{ $booking->pickup_point ?? __('vender/history.na') }}</p>
-                                                <p class="text-gray-500 mb-0">{{ __('vender/history.drop_point') }}
+                                                <p class="text-gray-500 dark:text-gray-400 mb-0">{{ __('vender/history.drop_point') }}
                                                     {{ $booking->dropping_point ?? __('vender/history.na') }}</p>
-                                                @if ($booking->has_excess_luggage ?? false)
-                                                    @php
-                                                        $luggageGross = (float) ($booking->excess_luggage_fee ?? 0);
-                                                        $luggageOwnerNet = bus_owner_luggage_fee($booking);
-                                                        $luggageAdminShare = system_luggage_fee($booking);
-                                                        $luggageGovShare = government_luggage_fee($booking);
-                                                    @endphp
-                                                    <p class="mb-0">
-                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium">
-                                                            {{ __('vender/luggage.excess_luggage_net') }}: {{ $currency ?? 'TSH' }} {{ convert_money($luggageOwnerNet) }}
+                                                @if (($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0)
+                                                    <p class="mb-0 mt-1">
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium dark:bg-amber-900/40 dark:text-amber-200">
+                                                            {{ __('vender/history.luggage_section') }}
                                                         </span>
-                                                    </p>
-                                                    <p class="mb-0 text-[10px] text-gray-500">
-                                                        {{ __('vender/luggage.fee_gross') }}: {{ $currency ?? 'TSH' }} {{ convert_money($luggageGross) }}
-                                                        · {{ __('vender/luggage.fee_admin_5') }}: {{ convert_money($luggageAdminShare) }}
-                                                        · {{ __('vender/luggage.fee_government_5') }}: {{ convert_money($luggageGovShare) }}
                                                     </p>
                                                 @endif
                                             </div>
@@ -150,11 +139,11 @@
                                             <div class="flex flex-col">
                                                 <p class="font-medium mb-0">
                                                     {{ $booking->customer_name ?? __('vender/history.na') }}</p>
-                                                <p class="text-gray-500 mb-0">
+                                                <p class="text-gray-500 dark:text-gray-400 mb-0">
                                                     {{ $booking->customer_phone ?? __('vender/history.na') }}</p>
                                                 @if (!empty($booking->infant_child))
                                                     <p class="mb-0 mt-1">
-                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium">
+                                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium dark:bg-amber-900/40 dark:text-amber-200">
                                                             {{ __('vender/history.infant_badge') }}
                                                         </span>
                                                     </p>
@@ -162,8 +151,15 @@
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">
+                                            @php
+                                                $hasLuggage = (bool) ($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0;
+                                                $luggageGross = $hasLuggage ? (float) ($booking->excess_luggage_fee ?? 0) : 0;
+                                                $luggageAdminShare = $hasLuggage ? system_luggage_fee($booking) : 0;
+                                                $luggageGovShare = $hasLuggage ? government_luggage_fee($booking) : 0;
+                                                $luggageOwnerNet = $hasLuggage ? bus_owner_luggage_fee($booking) : 0;
+                                            @endphp
                                             <div class="flex flex-col">
-                                                <p class="text-gray-500 mb-0 payment-amount"
+                                                <p class="text-gray-500 dark:text-gray-400 mb-0 payment-amount"
                                                     data-amount="{{ $booking->amount ?? '0' }}"
                                                     data-vat="{{ $booking->vat ?? '0' }}"
                                                     data-discount="{{ $booking->discount_amount ?? '0' }}"
@@ -172,38 +168,49 @@
                                                     data-fee_vat="{{ $booking->fee_vat ?? '0' }}">
                                                     {{ $currency ?? 'TSH' }} {{ convert_money(($booking->amount ?? 0) + ($booking->vat ?? 0)) }}
                                                 </p>
+                                                @if ($hasLuggage)
+                                                    <div class="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50 luggage-breakdown"
+                                                        data-luggage-gross="{{ $luggageGross }}"
+                                                        data-luggage-admin="{{ $luggageAdminShare }}"
+                                                        data-luggage-gov="{{ $luggageGovShare }}"
+                                                        data-luggage-owner="{{ $luggageOwnerNet }}">
+                                                        <p class="text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200 mb-0.5">
+                                                            {{ __('vender/history.luggage_section') }}
+                                                        </p>
+                                                        <p class="text-gray-500 dark:text-gray-400 font-medium mb-0 text-[11px]">
+                                                            {{ __('vender/luggage.fee_gross') }}:
+                                                            {{ $currency ?? 'TSH' }} {{ convert_money($luggageGross) }}</p>
+                                                        <p class="text-gray-500 dark:text-gray-400 font-medium mb-0 text-[11px]">
+                                                            {{ __('vender/history.luggage_admin') }}:
+                                                            {{ $currency ?? 'TSH' }} {{ convert_money($luggageAdminShare) }}</p>
+                                                        <p class="text-gray-500 dark:text-gray-400 font-medium mb-0 text-[11px]">
+                                                            {{ __('vender/history.luggage_government') }}:
+                                                            {{ $currency ?? 'TSH' }} {{ convert_money($luggageGovShare) }}</p>
+                                                        <p class="text-teal-700 dark:text-teal-300 font-medium mb-0 text-[11px]">
+                                                            {{ __('vender/history.luggage_owner_net') }}:
+                                                            {{ $currency ?? 'TSH' }} {{ convert_money($luggageOwnerNet) }}</p>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">
                                             @php
                                                 $govLevyOnFare = booking_government_levy_on_fare($booking);
                                                 $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
-                                                $hasLuggage = (bool) ($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0;
-                                                $luggageAdminShare = $hasLuggage ? system_luggage_fee($booking) : 0;
-                                                $luggageGovShare = $hasLuggage ? government_luggage_fee($booking) : 0;
-                                                $luggageOwnerNet = $hasLuggage ? bus_owner_luggage_fee($booking) : 0;
                                             @endphp
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"
                                                 data-discount="{{ $booking->discount_amount ?? 0 }}"
                                                 data-gov-levy="{{ $govLevyOnFare }}"
                                                 data-vat="{{ $booking->vat ?? 0 }}">
-                                                <p class="text-gray-500 font-medium mb-0">
+                                                <p class="text-gray-500 dark:text-gray-400 font-medium mb-0">
                                                     {{ __('vender/history.commission_total') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($totalCommission) }}</p>
-                                                <p class="text-gray-500 font-medium mb-0">
+                                                <p class="text-gray-500 dark:text-gray-400 font-medium mb-0">
                                                     {{ __('vender/history.discount') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($booking->discount_amount ?? 0) }}</p>
-                                                <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.government_levy') }}
+                                                <p class="text-gray-500 dark:text-gray-400 font-medium mb-0">{{ __('vender/history.government_levy') }}
                                                     {{ $currency ?? 'TSH' }} {{ convert_money($govLevyOnFare) }}</p>
-                                                @if ($hasLuggage)
-                                                    <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.luggage_admin') }}
-                                                        {{ $currency ?? 'TSH' }} {{ convert_money($luggageAdminShare) }}</p>
-                                                    <p class="text-gray-500 font-medium mb-0">{{ __('vender/history.luggage_government') }}
-                                                        {{ $currency ?? 'TSH' }} {{ convert_money($luggageGovShare) }}</p>
-                                                    <p class="text-teal-700 font-medium mb-0">{{ __('vender/history.luggage_owner_net') }}
-                                                        {{ $currency ?? 'TSH' }} {{ convert_money($luggageOwnerNet) }}</p>
-                                                @endif
                                             </div>
                                         </td>
                                         <td class="py-2 px-4">

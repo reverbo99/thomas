@@ -108,7 +108,7 @@
                         </label>
                         <input type="text" id="routeDistanceDisplay" readonly
                                class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-800 focus:outline-none"
-                               name="route_distance" placeholder="{{ __('vender/busroot.distance_will_be_calculated') }}">
+                               placeholder="{{ __('vender/busroot.distance_will_be_calculated') }}">
                     </div>
 
                     <!-- Map Section -->

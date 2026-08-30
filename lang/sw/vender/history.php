@@ -43,6 +43,7 @@ return [
     'service_fee' => 'Ada ya huduma:',
     'commission_total' => 'Kamisheni:',
     'government_levy' => 'Ushuru wa serikali:',
+    'luggage_section' => 'Mzigo',
     'luggage_admin' => 'Admin wa mzigo (5%)',
     'luggage_government' => 'Ushuru wa serikali wa mzigo (5%)',
     'luggage_owner_net' => 'Mzigo kwa mmiliki',

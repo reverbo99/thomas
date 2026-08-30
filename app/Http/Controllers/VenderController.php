@@ -422,9 +422,10 @@ class VenderController extends Controller
             'route_id' => $request->route_id,
             'pickup_point' => $request->pickup_point ?? ($schedule ? $schedule->from : $route->from),
             'dropping_point' => $request->dropping_point ?? ($schedule ? $schedule->to : $route->to),
-            'travel_date' => session()->get('departure_date') ?? now()->format('Y-m-d'),
+            'travel_date' => session()->get('departure_date') ?? now('Africa/Nairobi')->format('Y-m-d'),
             'dropping_point_amount' => $request->dropping_point_amount ?? ($route ? $route->price : 0),
-            'route_distance' => $request->route_distance ?? 0
+            // Cast: form may send string; eligibility checks need a real float (> 99 km).
+            'route_distance' => (float) ($request->route_distance ?? 0),
         ];
 
         // Store in session
@@ -552,7 +553,10 @@ class VenderController extends Controller
             $setting,
             $formulaService->seatCountFromBookingForm($bookingForm)
         );
-        $distance = session()->get('booking_form')['route_distance'] ?? 0;
+        $distance = (float) (session()->get('booking_form')['route_distance'] ?? 0);
+        if (is_array($info)) {
+            $info['route_distance'] = $distance;
+        }
         //return $info;
         return view('vender.payment', compact('price', 'seats', 'info', 'car', 'time', 'date', 'fees', 'distance'));
     }

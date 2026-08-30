@@ -102,7 +102,7 @@
                             <div class="flex items-center">
                                 <input type="text" id="routeDistanceDisplay" readonly
                                     class="w-full border border-gray-200 rounded-l-md px-4 py-2 text-sm text-gray-900"
-                                    name="route_distance" placeholder="{{ __('customer/busroot.distance_will_be_calculated') }}">
+                                    name="route_distance_display" placeholder="{{ __('customer/busroot.distance_will_be_calculated') }}">
                                 <span class="bg-blue-500 text-black px-4 py-2 rounded-r-md text-sm">{{ __('all.km') }}</span>
                             </div>
                         </div>
