@@ -11,6 +11,7 @@
         'next' => __('all.next'),
         'select_option_placeholder' => __('all.select_option_placeholder'),
         'calculating_distance' => __('all.calculating_distance'),
+        'unable_to_resolve_route_distance' => __('all.unable_to_resolve_route_distance'),
         'loading' => __('all.loading'),
         'select_at_least_one_seat' => __('all.select_at_least_one_seat'),
         'select_insurance_type' => __('all.select_insurance_type'),

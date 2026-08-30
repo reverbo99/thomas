@@ -407,25 +407,50 @@ class VenderController extends Controller
 
     public function get_form(Request $request)
     {
-
-        //return $request->all();
-        if ($request->route_distance < 1) {
-            return back()->with('error', __('all.calculate_distance_before_continue'));
-        }
-        $route = Route::find($request->route_id);
+        $route = route::find($request->route_id);
         $schedule = Schedule::find($request->schedule_id);
+        $cityFrom = $schedule ? $schedule->from : ($route ? $route->from : null);
+        $cityTo = $schedule ? $schedule->to : ($route ? $route->to : null);
+        $pickupPoint = $request->pickup_point ?? $cityFrom;
+        $droppingPoint = $request->dropping_point ?? $cityTo;
+
+        $storedDistance = $route ? (float) ($route->distance ?? 0) : 0.0;
+        $routeDistance = \App\Services\RouteDistanceService::resolveForBooking(
+            $request->route_distance,
+            $pickupPoint,
+            $droppingPoint,
+            $storedDistance > 1 ? $storedDistance : null,
+            $cityFrom,
+            $cityTo
+        );
+
+        if ($routeDistance === null || $routeDistance < 1) {
+            return back()->with('error', __('all.unable_to_resolve_route_distance'));
+        }
+
+        $travelDate = session()->get('departure_date');
+        if ($request->filled('departure_date') || $request->filled('travel_date')) {
+            $travelDate = Carbon::parse($request->input('departure_date', $request->input('travel_date')))
+                ->timezone('Africa/Nairobi')
+                ->toDateString();
+            session()->put('departure_date', $travelDate);
+        } elseif (!empty($travelDate)) {
+            $travelDate = Carbon::parse($travelDate)->timezone('Africa/Nairobi')->toDateString();
+        } else {
+            $travelDate = now('Africa/Nairobi')->format('Y-m-d');
+        }
+
         $bus_info = [
             'bus_id' => $request->bus_id,
-            'from' => $schedule ? $schedule->from : $route->from,
-            'to' => $schedule ? $schedule->to : $route->to,
+            'from' => $cityFrom,
+            'to' => $cityTo,
             'schedule_id' => $request->schedule_id,
             'route_id' => $request->route_id,
-            'pickup_point' => $request->pickup_point ?? ($schedule ? $schedule->from : $route->from),
-            'dropping_point' => $request->dropping_point ?? ($schedule ? $schedule->to : $route->to),
-            'travel_date' => session()->get('departure_date') ?? now('Africa/Nairobi')->format('Y-m-d'),
+            'pickup_point' => $pickupPoint,
+            'dropping_point' => $droppingPoint,
+            'travel_date' => $travelDate,
             'dropping_point_amount' => $request->dropping_point_amount ?? ($route ? $route->price : 0),
-            // Cast: form may send string; eligibility checks need a real float (> 99 km).
-            'route_distance' => (float) ($request->route_distance ?? 0),
+            'route_distance' => (float) $routeDistance,
         ];
 
         // Store in session

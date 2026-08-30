@@ -556,39 +556,67 @@ class BookingController extends Controller
         return $this->payment_info($paymentRequest);
     }
 
+    /**
+     * Preserve search travel date into booking_form (Africa/Nairobi).
+     * Prefer request → session → today (never invent "today" when search date exists).
+     */
+    private function resolveBookingTravelDate(Request $request): string
+    {
+        foreach (['departure_date', 'travel_date'] as $key) {
+            if ($request->filled($key)) {
+                $date = Carbon::parse($request->input($key))->timezone('Africa/Nairobi')->toDateString();
+                session()->put('departure_date', $date);
+
+                return $date;
+            }
+        }
+
+        $fromSession = session()->get('departure_date');
+        if (!empty($fromSession)) {
+            return Carbon::parse($fromSession)->timezone('Africa/Nairobi')->toDateString();
+        }
+
+        return now('Africa/Nairobi')->format('Y-m-d');
+    }
+
     public function get_form(Request $request)
     {
         $route = route::find($request->route_id);
         $schedule = Schedule::find($request->schedule_id);
-        $pickupPoint = $request->pickup_point ?? ($schedule ? $schedule->from : ($route ? $route->from : null));
-        $droppingPoint = $request->dropping_point ?? ($schedule ? $schedule->to : ($route ? $route->to : null));
+        $cityFrom = $schedule ? $schedule->from : ($route ? $route->from : null);
+        $cityTo = $schedule ? $schedule->to : ($route ? $route->to : null);
+        $pickupPoint = $request->pickup_point ?? $cityFrom;
+        $droppingPoint = $request->dropping_point ?? $cityTo;
 
+        $storedDistance = $route ? (float) ($route->distance ?? 0) : 0.0;
         $routeDistance = RouteDistanceService::resolveForBooking(
             $request->route_distance,
             $pickupPoint,
             $droppingPoint,
-            $route ? (float) ($route->distance ?? 0) : null
+            $storedDistance > 1 ? $storedDistance : null,
+            $cityFrom,
+            $cityTo
         );
 
-        if ($routeDistance < 1) {
+        if ($routeDistance === null || $routeDistance < 1) {
             if ($this->isInlineBookingRequest($request)) {
                 return response()->json([
                     'ok' => false,
-                    'message' => __('all.select_pickup_dropping_points'),
+                    'message' => __('all.unable_to_resolve_route_distance'),
                 ], 422);
             }
 
-            return back()->with('error', __('all.calculate_distance_before_continue'));
+            return back()->with('error', __('all.unable_to_resolve_route_distance'));
         }
 
         $bus_info = [
             'bus_id' => $request->bus_id,
-            'from' => $schedule ? $schedule->from : $route->from,
-            'to' => $schedule ? $schedule->to : $route->to,
+            'from' => $cityFrom,
+            'to' => $cityTo,
             'route_id' => $request->route_id,
             'pickup_point' => $pickupPoint,
             'dropping_point' => $droppingPoint,
-            'travel_date' => session()->get('departure_date') ?? now()->format('Y-m-d'),
+            'travel_date' => $this->resolveBookingTravelDate($request),
             'dropping_point_amount' => $request->dropping_point_amount ?? ($route ? $route->price : 0),
             'route_distance' => $routeDistance,
             'schedule_id' => $request->schedule_id,

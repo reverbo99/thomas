@@ -622,6 +622,7 @@ return [
     'select_age_group_each_passenger' => 'Please select age group for each passenger.',
     'select_pickup_dropping_points' => 'Please select pickup and dropping points.',
     'calculate_distance_before_continue' => 'Calculate distance before continue',
+    'unable_to_resolve_route_distance' => 'Could not determine the route distance. Please reselect pickup and drop-off points, or try again.',
     'trip_not_available' => 'This trip is not available. Please run a new search and try again.',
     'trip_not_available_try_another' => 'This trip is not available. Please try another bus.',
     'invalid_coupon_code' => 'Invalid coupon code. Please check and try again.',

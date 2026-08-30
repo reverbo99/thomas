@@ -622,6 +622,7 @@ return [
     'select_age_group_each_passenger' => 'Tafadhali chagua kikundi cha umri kwa kila abiria.',
     'select_pickup_dropping_points' => 'Tafadhali chagua sehemu za kuchukua na kushuka.',
     'calculate_distance_before_continue' => 'Hesabu umbali kabla ya kuendelea',
+    'unable_to_resolve_route_distance' => 'Hatukuweza kubaini umbali wa njia. Tafadhali chagua tena sehemu za kupanda na kushuka, au jaribu tena.',
     'trip_not_available' => 'Safari hii haipatikani. Tafadhali fanya utafutaji mpya na ujaribu tena.',
     'trip_not_available_try_another' => 'Safari hii haipatikani. Tafadhali jaribu basi lingine.',
     'invalid_coupon_code' => 'Msimbo wa kuponi si sahihi. Tafadhali angalia na ujaribu tena.',

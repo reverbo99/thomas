@@ -1,4 +1,14 @@
-<div class="inline-booking-panel" data-inline-panel="pickup">
+@php
+    $travelDate = session('departure_date')
+        ?? ($car->schedule->schedule_date ?? null)
+        ?? now('Africa/Nairobi')->format('Y-m-d');
+    $travelDate = \Carbon\Carbon::parse($travelDate)->timezone('Africa/Nairobi')->toDateString();
+    $routeDefaultDistance = (float) ($car->route->distance ?? 0);
+@endphp
+<div class="inline-booking-panel" data-inline-panel="pickup"
+    data-route-default-distance="{{ $routeDefaultDistance > 1 ? $routeDefaultDistance : '' }}"
+    data-route-city-from="{{ $car->schedule->from ?? $car->route->from ?? '' }}"
+    data-route-city-to="{{ $car->schedule->to ?? $car->route->to ?? '' }}">
     @include('test.partials.booking_steps', [
         'currentStep' => 1,
         'interactive' => true,
@@ -28,7 +38,10 @@
         <input type="hidden" name="bus_id" value="{{ $car->id }}">
         <input type="hidden" name="route_id" value="{{ $car->route->id }}">
         <input type="hidden" name="schedule_id" value="{{ $car->schedule->id }}">
-        <input type="hidden" name="route_distance" id="routeDistance_{{ $inlineUid }}" value="">
+        <input type="hidden" name="departure_date" value="{{ $travelDate }}">
+        <input type="hidden" name="travel_date" value="{{ $travelDate }}">
+        <input type="hidden" name="route_distance" id="routeDistance_{{ $inlineUid }}"
+            value="{{ $routeDefaultDistance > 1 ? number_format($routeDefaultDistance, 2, '.', '') : '' }}">
         <input type="hidden" name="dropping_point_amount" id="droppingPointAmount_{{ $inlineUid }}" value="{{ $car->route->price ?? 0 }}">
 
         <div class="booking-grid booking-grid--2">
@@ -63,7 +76,12 @@
             </div>
         </div>
 
-        <p class="inline-booking-distance-hint" id="routeDistanceHint_{{ $inlineUid }}" data-inline-distance-hint hidden></p>
+        <p class="inline-booking-distance-hint" id="routeDistanceHint_{{ $inlineUid }}" data-inline-distance-hint
+            @if ($routeDefaultDistance <= 1) hidden @endif>
+            @if ($routeDefaultDistance > 1)
+                <i class="fas fa-road" aria-hidden="true"></i> {{ number_format($routeDefaultDistance, 1) }} km total distance
+            @endif
+        </p>
 
         <div class="inline-booking-actions">
             <button type="button" class="page-btn page-btn--outline" data-inline-nav-back="collapse">

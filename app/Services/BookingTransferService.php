@@ -7,6 +7,7 @@ use App\Models\bus;
 use App\Models\route;
 use App\Models\Schedule;
 use App\Models\Setting;
+use App\Services\RouteDistanceService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -860,12 +861,18 @@ class BookingTransferService
         $discountedFare = max(0, $baseFare - $discountAmount);
         $setting = Setting::first();
         $fee = $this->formulaService->calculateTravellerServiceFee($discountedFare, $setting, $seatCount);
+        $storedDistance = (float) ($newBus->route->distance ?? 0);
         $distance = RouteDistanceService::resolveForBooking(
             null,
             $pickupPoint,
             $droppingPoint,
-            (float) ($newBus->route->distance ?? 0)
+            $storedDistance > 1 ? $storedDistance : null,
+            $newBus->route->from ?? null,
+            $newBus->route->to ?? null
         );
+        if ($distance === null || $distance < 1) {
+            $distance = (float) ($booking->distance ?? 0);
+        }
 
         return [
             'amount' => round($baseFare, 2),

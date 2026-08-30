@@ -9,28 +9,151 @@ class RouteDistanceService
 {
     /**
      * Resolve route distance for booking checkout.
-     * Recalculates when the value is missing or the inline placeholder (1 km).
+     *
+     * Priority:
+     * 1. Client-submitted distance when > 99 km (trusted long-haul)
+     * 2. Stored routes.distance when > 99 km
+     * 3. Live geocode of schedule/route city endpoints
+     * 4. Live geocode of pickup → drop
+     * 5. Known Tanzania city-pair fallback (e.g. DAR ↔ DODOMA ≈ 451 km)
+     * 6. Short submitted/stored distance (> 1 km) for local routes
+     *
+     * Returns null when distance cannot be resolved. Never invents a silent 1 km
+     * fallback (that incorrectly hid BIMA for long trips like DAR → DODOMA).
      */
-    public static function resolveForBooking($submitted, ?string $pickup, ?string $drop, ?float $routeDefault = null): float
-    {
+    public static function resolveForBooking(
+        $submitted,
+        ?string $pickup,
+        ?string $drop,
+        ?float $routeDefault = null,
+        ?string $cityFrom = null,
+        ?string $cityTo = null
+    ): ?float {
         $submitted = ($submitted !== null && $submitted !== '') ? (float) $submitted : 0.0;
+        $cityFrom = $cityFrom !== null ? trim($cityFrom) : '';
+        $cityTo = $cityTo !== null ? trim($cityTo) : '';
 
-        if ($submitted > 1) {
+        // Trust client distance only when it looks like a real long-haul value.
+        // Short submitted values often come from failed/partial stop geocoding and
+        // incorrectly hide BIMA on intercity trips.
+        if ($submitted > 99) {
             return $submitted;
         }
 
-        if ($pickup && $drop) {
-            $computed = self::betweenPlaceNames($pickup, $drop);
-            if ($computed !== null && $computed >= 1) {
+        // Prefer a real stored long-haul distance. Values ≤ 99 are often wrong
+        // placeholders for intercity routes and would incorrectly hide BIMA.
+        $storedLongHaul = ($routeDefault !== null && $routeDefault > 99)
+            ? (float) $routeDefault
+            : null;
+        if ($storedLongHaul !== null) {
+            return $storedLongHaul;
+        }
+
+        if ($cityFrom !== '' && $cityTo !== '') {
+            $computed = self::betweenPlaceNames($cityFrom, $cityTo);
+            if ($computed !== null && $computed > 1) {
                 return $computed;
             }
         }
 
-        if ($routeDefault !== null && $routeDefault >= 1) {
+        if ($pickup && $drop && !self::samePlacePair($pickup, $drop, $cityFrom, $cityTo)) {
+            $computed = self::betweenPlaceNames($pickup, $drop);
+            if ($computed !== null && $computed > 1) {
+                return $computed;
+            }
+        }
+
+        // Offline fallback for major TZ city pairs when Nominatim/OSRM are unavailable.
+        $known = self::knownCityPairKm($cityFrom ?: $pickup, $cityTo ?: $drop);
+        if ($known !== null) {
+            return $known;
+        }
+
+        // Local / short routes: accept submitted or stored distance when > 1.
+        if ($submitted > 1) {
+            return $submitted;
+        }
+        if ($routeDefault !== null && $routeDefault > 1) {
             return (float) $routeDefault;
         }
 
-        return max($submitted, 1);
+        return null;
+    }
+
+    /**
+     * Approximate road distances (km) between major Tanzania cities.
+     * Used only when live geocode fails so long-haul BIMA eligibility is not lost.
+     */
+    public static function knownCityPairKm(?string $from, ?string $to): ?float
+    {
+        $a = self::normalizeCityKey($from);
+        $b = self::normalizeCityKey($to);
+        if ($a === '' || $b === '' || $a === $b) {
+            return null;
+        }
+
+        // Undirected pairs — approximate highway distances.
+        $pairs = [
+            'dar es salaam|dodoma' => 451.0,
+            'dar es salaam|arusha' => 645.0,
+            'dar es salaam|mwanza' => 1115.0,
+            'dar es salaam|mbeya' => 835.0,
+            'dar es salaam|morogoro' => 195.0,
+            'dar es salaam|tanga' => 355.0,
+            'dar es salaam|iringa' => 500.0,
+            'dodoma|arusha' => 430.0,
+            'dodoma|mwanza' => 680.0,
+            'dodoma|mbeya' => 610.0,
+            'dodoma|morogoro' => 265.0,
+            'arusha|mwanza' => 615.0,
+            'arusha|moshi' => 80.0,
+            'mbeya|iringa' => 340.0,
+        ];
+
+        $key = $a < $b ? "{$a}|{$b}" : "{$b}|{$a}";
+
+        return $pairs[$key] ?? null;
+    }
+
+    private static function normalizeCityKey(?string $place): string
+    {
+        $p = strtolower(trim((string) $place));
+        if ($p === '') {
+            return '';
+        }
+
+        $p = preg_replace('/\s+/', ' ', $p) ?? $p;
+        $aliases = [
+            'dar es salaam' => ['dar', 'dsm', 'dar-es-salaam', 'daresalaam', 'dar es salam'],
+            'dodoma' => ['dodoma city'],
+            'arusha' => ['arusha city'],
+            'mwanza' => ['mwanza city'],
+            'mbeya' => ['mbeya city'],
+            'morogoro' => ['morogoro city'],
+            'tanga' => ['tanga city'],
+            'iringa' => ['iringa city'],
+            'moshi' => ['moshi town'],
+        ];
+
+        foreach ($aliases as $canonical => $names) {
+            if ($p === $canonical || str_contains($p, $canonical)) {
+                return $canonical;
+            }
+            foreach ($names as $alias) {
+                if ($p === $alias || str_contains($p, $alias)) {
+                    return $canonical;
+                }
+            }
+        }
+
+        return $p;
+    }
+
+    private static function samePlacePair(?string $a1, ?string $a2, string $b1, string $b2): bool
+    {
+        $norm = static fn (?string $v) => strtolower(trim((string) $v));
+
+        return $norm($a1) === $norm($b1) && $norm($a2) === $norm($b2);
     }
 
     public static function betweenPlaceNames(string $from, string $to): ?float

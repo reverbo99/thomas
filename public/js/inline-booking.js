@@ -582,10 +582,13 @@ document.addEventListener('DOMContentLoaded', function () {
             var from = pickup?.value;
             var to = drop?.value;
             if (!from || !to || !distanceField) {
-                distanceField.value = '';
-                setHint('', false);
-                container._inlineDistancePromise = Promise.resolve(null);
-                return null;
+                applyDefaultDistance();
+                container._inlineDistancePromise = Promise.resolve(
+                    distanceField && parseFloat(distanceField.value) >= 1
+                        ? parseFloat(distanceField.value)
+                        : null
+                );
+                return container._inlineDistancePromise;
             }
 
             var token = ++calcToken;
@@ -598,8 +601,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (token !== calcToken) return null;
                 if (!fromCoords || !toCoords) {
-                    setHint('', false);
-                    return null;
+                    // Fall back to stored route distance or city-pair geocode
+                    var cityFrom = container.dataset.routeCityFrom || '';
+                    var cityTo = container.dataset.routeCityTo || '';
+                    if (cityFrom && cityTo && (cityFrom !== from || cityTo !== to)) {
+                        var cityFromCoords = await geocodeInlinePlace(cityFrom);
+                        await new Promise(function (resolve) { setTimeout(resolve, 1100); });
+                        var cityToCoords = await geocodeInlinePlace(cityTo);
+                        if (token !== calcToken) return null;
+                        if (cityFromCoords && cityToCoords) {
+                            var cityKm = await routeDistanceInlineKm(cityFromCoords, cityToCoords);
+                            if (token !== calcToken) return null;
+                            if (cityKm >= 1) {
+                                distanceField.value = cityKm.toFixed(2);
+                                setHint(Number(cityKm).toFixed(1) + ' km total distance', true);
+                                return cityKm;
+                            }
+                        }
+                    }
+                    return applyDefaultDistance();
                 }
 
                 var km = await routeDistanceInlineKm(fromCoords, toCoords);
@@ -608,15 +628,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (km >= 1) {
                     distanceField.value = km.toFixed(2);
                     setHint(Number(km).toFixed(1) + ' km total distance', true);
-                } else {
-                    distanceField.value = '';
-                    setHint('', false);
+                    return km;
                 }
 
-                return km;
+                return applyDefaultDistance();
             })();
 
             return container._inlineDistancePromise;
+        }
+
+        function applyDefaultDistance() {
+            var def = parseFloat(container.dataset.routeDefaultDistance || '');
+            if (!isNaN(def) && def > 1 && distanceField) {
+                distanceField.value = def.toFixed(2);
+                setHint(Number(def).toFixed(1) + ' km total distance', true);
+                return def;
+            }
+            if (distanceField && !(parseFloat(distanceField.value) > 1)) {
+                distanceField.value = '';
+                setHint('', false);
+            }
+            return distanceField && parseFloat(distanceField.value) > 1
+                ? parseFloat(distanceField.value)
+                : null;
         }
 
         if (drop && amountField) {
@@ -1208,6 +1242,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     if (distancePanel?._inlineDistancePromise) {
                         await distancePanel._inlineDistancePromise;
+                    }
+                    // Prefer a resolved distance, but still allow POST so the backend can
+                    // use routes.distance / city geocode when browser geocode is blocked.
+                    const uid = form.dataset.inlineUid;
+                    const distanceField = form.querySelector('#routeDistance_' + uid);
+                    const km = distanceField ? parseFloat(distanceField.value) : NaN;
+                    const def = parseFloat(distancePanel?.dataset?.routeDefaultDistance || '');
+                    if (!(km > 1) && def > 1 && distanceField) {
+                        distanceField.value = def.toFixed(2);
                     }
                     inner._pickupState = readPickupFormState(inner);
                 }

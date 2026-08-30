@@ -1024,21 +1024,49 @@ class RoundTripController extends Controller
         $pickupPoint = $request->pickup_point ?? ($schedule->from ?? $route->from);
         $droppingPoint = $request->dropping_point ?? ($schedule->to ?? $route->to);
 
+        $cityFrom = $schedule->from ?? ($route->from ?? null);
+        $cityTo = $schedule->to ?? ($route->to ?? null);
+        $storedDistance = $route ? (float) ($route->distance ?? 0) : 0.0;
         $routeDistance = RouteDistanceService::resolveForBooking(
             $request->route_distance,
             $pickupPoint,
             $droppingPoint,
-            $route ? (float) ($route->distance ?? 0) : null
+            $storedDistance > 1 ? $storedDistance : null,
+            $cityFrom,
+            $cityTo
         );
+
+        if ($routeDistance === null || $routeDistance < 1) {
+            if ($this->isInlineBookingRequest($request)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => __('all.unable_to_resolve_route_distance'),
+                ], 422);
+            }
+
+            return back()->with('error', __('all.unable_to_resolve_route_distance'));
+        }
+
+        $travelDate = session()->get('departure_date');
+        if ($request->filled('departure_date') || $request->filled('travel_date')) {
+            $travelDate = \Carbon\Carbon::parse($request->input('departure_date', $request->input('travel_date')))
+                ->timezone('Africa/Nairobi')
+                ->toDateString();
+            session()->put('departure_date', $travelDate);
+        } elseif (!empty($travelDate)) {
+            $travelDate = \Carbon\Carbon::parse($travelDate)->timezone('Africa/Nairobi')->toDateString();
+        } else {
+            $travelDate = now('Africa/Nairobi')->format('Y-m-d');
+        }
 
         $bus_info = [
             'bus_id' => $request->bus_id,
-            'from' => $schedule->from ?? $route->from,
-            'to' => $schedule->to ?? $route->to,
+            'from' => $cityFrom,
+            'to' => $cityTo,
             'route_id' => $request->route_id,
             'pickup_point' => $pickupPoint,
             'dropping_point' => $droppingPoint,
-            'travel_date' => session()->get('departure_date') ?? now()->format('Y-m-d'),
+            'travel_date' => $travelDate,
             'dropping_point_amount' => $request->dropping_point_amount ?? ($route ? $route->price : 0),
             'route_distance' => $routeDistance,
             'schedule_id' => $request->schedule_id,

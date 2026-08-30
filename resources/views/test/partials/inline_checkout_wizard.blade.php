@@ -146,7 +146,7 @@
                         <div class="booking-field">
                             <label class="booking-field__label" for="insuranceDate_{{ $inlineUid }}">{{ __('all.insurance_date') }}</label>
                             <input type="date" class="page-input" name="insuranceDate" id="insuranceDate_{{ $inlineUid }}"
-                                value="{{ session('booking_form.travel_date') ?? now()->format('Y-m-d') }}" disabled>
+                                value="{{ session('booking_form.travel_date') ?? now('Africa/Nairobi')->format('Y-m-d') }}" disabled>
                         </div>
                     </div>
                 </div>
