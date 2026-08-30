@@ -1325,9 +1325,11 @@ if (!function_exists('booking_to_report_row')) {
         $routeLabel = strtoupper(trim($routeFrom . '-' . $routeTo, '-'));
         $discountAmount = round((float) ($booking->discount_amount ?? 0));
 
-        // Manifest "Paid fare" = ticket nauli only (busFee; coupon already applied).
-        // Excludes luggage, service fee, and insurance — extras stay in Remarks.
-        $paidFare = round(max(0, $busFee));
+        // Manifest Base/Paid fare = ticket nauli only (`bookings.busFee`, coupon already applied).
+        // Never use customer_paid_total / rowTotal / amount — those include luggage, service fee,
+        // insurance, or are post-settlement owner shares / platform commissions.
+        $ticketFareOnly = round(max(0, $busFee));
+        $paidFare = $ticketFareOnly;
 
         $travelDateRaw = $booking->travel_date
             ? \Carbon\Carbon::parse($booking->travel_date)
@@ -1373,8 +1375,8 @@ if (!function_exists('booking_to_report_row')) {
             'dropping_point' => $booking->dropping_point ?? '',
             'customer_name' => $booking->customer_name ?? 'N/A',
             'customer_phone' => $booking->customer_phone ?? 'N/A',
-            'bus_fee' => (string) round($busFee),
-            'base_fare' => (string) round($busFee),
+            'bus_fee' => (string) $ticketFareOnly,
+            'base_fare' => (string) $ticketFareOnly,
             'amount' => $booking->amount ?? '0',
             'luggage_fee' => (string) round($luggageFee),
             'service_fee' => (string) round($serviceFee),
@@ -1879,8 +1881,14 @@ if (!function_exists('expand_bookings_to_manifest_rows')) {
                     $row['passenger_type'] = 'INFANT';
                     $emittedInfant = true;
                 }
+                // Single legacy row: keep booking-level ticket nauli only (already busFee).
                 $bookingRows[] = $row;
             } else {
+                // Split ticket nauli across seated passengers so each row shows only that
+                // seat's bus fee — never the full booking total or customer extras.
+                $seatCountForSplit = max(1, count($seatLabels) > 0 ? count($seatLabels) : count($passengers));
+                $bookingDiscount = (float) ($baseRow['manifest_discount'] ?? 0);
+
                 foreach ($passengers as $idx => $passenger) {
                     if (! is_array($passenger)) {
                         continue;
@@ -1905,6 +1913,13 @@ if (!function_exists('expand_bookings_to_manifest_rows')) {
                     $row['id_type'] = $passenger['id_type'] ?? $baseRow['id_type'] ?? '';
                     $row['id_number'] = $passenger['id_number'] ?? $baseRow['id_number'] ?? '';
                     $row['is_staff'] = false;
+
+                    $seatAmounts = booking_per_seat_payment_amounts($booking, (int) $idx, $seatCountForSplit);
+                    $ticketOnly = (string) round((float) ($seatAmounts['breakdownTicketFee'] ?? 0));
+                    $row['bus_fee'] = $ticketOnly;
+                    $row['base_fare'] = $ticketOnly;
+                    $row['paid_fare'] = $ticketOnly;
+                    $row['manifest_discount'] = (string) round(split_amount_across_seats($bookingDiscount, $seatCountForSplit, (int) $idx));
 
                     if ($isInfant) {
                         $emittedInfant = true;
