@@ -295,8 +295,16 @@
                         else hintEl.textContent = labels.hintZero;
                     }
 
-                    // Show split on total luggage fee after reconciliation (paid + positive top-up).
-                    const totalGross = round2((isNaN(paid) ? 0 : paid) + Math.max(0, delta));
+                    // Gross = actual weight × rate (true luggage fee). Do not add delta onto
+                    // excess_luggage_fee — after top-up that field already includes the extra.
+                    let totalGross;
+                    if (feePerKg > 0 && !isNaN(actualRaw)) {
+                        totalGross = round2(actualRaw * feePerKg);
+                    } else if (!isNaN(actualRaw) && !isNaN(paid)) {
+                        totalGross = round2(Math.max(0, paid + delta));
+                    } else {
+                        totalGross = round2(isNaN(paid) ? 0 : paid);
+                    }
                     updateBreakdown(totalGross);
                 }
 
