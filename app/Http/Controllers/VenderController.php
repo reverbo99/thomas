@@ -178,7 +178,7 @@ class VenderController extends Controller
 
     /**
      * Vendor fee cards: vender_fee / vender_service / luggage remainder-share credit the commission wallet.
-     * Parcel uses ParcelFlowService settlement (fixed remainder %); cancellation has no vendor share.
+     * Parcel uses ParcelFlowService settlement (settings.parcel_vendor_commission_percentage of remainder); cancellation has no vendor share.
      */
     private function buildVendorFeeSummary(int $venderId, string $period = 'month', ?string $startDate = null, ?string $endDate = null): array
     {

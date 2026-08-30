@@ -2671,6 +2671,7 @@ class SystemController extends Controller
                 'service' => 0,
                 'service_percentage' => 0,
                 'parcel_commission_percentage' => 0,
+                'parcel_vendor_commission_percentage' => 25,
                 'excess_luggage_fee_per_kg' => 0,
                 'parcel_fee_per_kg' => 0,
                 'enable_customer_sms_notifications' => true,
@@ -2698,6 +2699,8 @@ class SystemController extends Controller
     public function setting_update(Request $request)
     {
         $request->validate([
+            'parcel_commission_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+            'parcel_vendor_commission_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'excess_luggage_fee_per_kg' => ['required', 'numeric', 'min:0'],
             'parcel_fee_per_kg' => ['required', 'numeric', 'min:0'],
             'sms_driver' => ['nullable', Rule::in(SmsManager::DRIVERS)],
@@ -2718,6 +2721,7 @@ class SystemController extends Controller
                 'service' => 0,
                 'service_percentage' => 0,
                 'parcel_commission_percentage' => 0,
+                'parcel_vendor_commission_percentage' => 25,
                 'excess_luggage_fee_per_kg' => 0,
                 'parcel_fee_per_kg' => 0,
                 'test_mode' => false,
@@ -2735,6 +2739,7 @@ class SystemController extends Controller
             'service' => $request->service,
             'service_percentage' => $request->service_percentage,
             'parcel_commission_percentage' => $request->parcel_commission_percentage,
+            'parcel_vendor_commission_percentage' => $request->parcel_vendor_commission_percentage,
             'excess_luggage_fee_per_kg' => $request->excess_luggage_fee_per_kg,
             'parcel_fee_per_kg' => $request->parcel_fee_per_kg,
             'enable_customer_sms_notifications' => $request->boolean('enable_customer_sms_notifications'),

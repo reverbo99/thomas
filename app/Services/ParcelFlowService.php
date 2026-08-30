@@ -33,23 +33,46 @@ class ParcelFlowService
     public const PAY_PENDING = 'pending';
     public const PAY_PAID = 'paid';
 
-    /** Vendor share of the non-system remainder when a vendor registered the parcel. */
+    /** Default vendor share of the non-system remainder when a vendor registered the parcel. */
     public const VENDOR_REMAINDER_PERCENT = 25.0;
+
+    /**
+     * Vendor % of (amount − system commission). Reads settings; falls back to VENDOR_REMAINDER_PERCENT.
+     */
+    public static function vendorRemainderPercent(?Setting $settings = null): float
+    {
+        $settings = $settings ?? Setting::first();
+        if ($settings === null) {
+            return self::VENDOR_REMAINDER_PERCENT;
+        }
+
+        $pct = $settings->parcel_vendor_commission_percentage ?? null;
+
+        return $pct === null || $pct === ''
+            ? self::VENDOR_REMAINDER_PERCENT
+            : (float) $pct;
+    }
 
     /**
      * Bus-owner wallet share of a paid parcel (same formula as confirmPayment).
      */
-    public static function ownerShareAmount(float $amountPaid, $venderId = null, ?float $systemPct = null): float
+    public static function ownerShareAmount(float $amountPaid, $venderId = null, ?float $systemPct = null, ?float $vendorPct = null): float
     {
+        $settings = Setting::first();
+
         if ($systemPct === null) {
-            $systemPct = (float) (Setting::first()->parcel_commission_percentage ?? 0);
+            $systemPct = (float) ($settings->parcel_commission_percentage ?? 0);
+        }
+
+        if ($vendorPct === null) {
+            $vendorPct = self::vendorRemainderPercent($settings);
         }
 
         $systemShare = round($amountPaid * $systemPct / 100, 2);
         $remainder = round($amountPaid - $systemShare, 2);
 
         if ($venderId) {
-            $vendorShare = round($remainder * self::VENDOR_REMAINDER_PERCENT / 100, 2);
+            $vendorShare = round($remainder * $vendorPct / 100, 2);
 
             return round($remainder - $vendorShare, 2);
         }

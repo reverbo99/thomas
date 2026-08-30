@@ -19,6 +19,7 @@ class Setting extends Model
             'service',
             'service_percentage',
             'parcel_commission_percentage',
+            'parcel_vendor_commission_percentage',
             'excess_luggage_fee_per_kg',
             'parcel_fee_per_kg',
             'enable_customer_sms_notifications',

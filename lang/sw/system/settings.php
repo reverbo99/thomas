@@ -14,6 +14,8 @@ return [
     'service_percentage' => 'Asilimia ya Huduma',
     'parcel_commission_percentage' => 'Asilimia ya Kamisheni ya Mizigo',
     'parcel_commission_percentage_desc' => 'Asilimia ya kiasi cha kila mzigo kinachobaki kama kamisheni ya mfumo.',
+    'parcel_vendor_commission_percentage' => 'Asilimia ya Kamisheni ya Muuzaji wa Mizigo',
+    'parcel_vendor_commission_percentage_desc' => 'Asilimia ya kiasi kilichobaki baada ya kamisheni ya mfumo ya mizigo kinachokwenda kwa muuzaji aliyesajili mzigo. Mmiliki wa basi anapokea salio.',
     'excess_luggage_fee_per_kg' => 'Ada ya Mzigo wa Ziada kwa Kilo',
     'excess_luggage_fee_per_kg_desc' => 'Kiwango kinachotozwa wakati wa kuhifadhi tiketi kwa mzigo wa ziada: uzito wa ziada (kg) × ada hii kwa kilo.',
     'parcel_fee_per_kg' => 'Ada ya Usafirishaji wa Mzigo kwa Kilo',

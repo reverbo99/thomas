@@ -14,6 +14,8 @@ return [
     'service_percentage' => 'Service Percentage',
     'parcel_commission_percentage' => 'Parcel Commission Percentage',
     'parcel_commission_percentage_desc' => 'Percentage of each parcel amount kept as system commission.',
+    'parcel_vendor_commission_percentage' => 'Parcel Vendor Commission Percentage',
+    'parcel_vendor_commission_percentage_desc' => 'Percentage of the amount left after system parcel commission that goes to the vendor who registered the parcel. The bus owner receives the remainder.',
     'excess_luggage_fee_per_kg' => 'Excess Luggage Fee Per Kg',
     'excess_luggage_fee_per_kg_desc' => 'Rate charged at ticket booking for excess luggage: excess weight (kg) × this fee per kg.',
     'parcel_fee_per_kg' => 'Parcel Transport Fee Per Kg',
