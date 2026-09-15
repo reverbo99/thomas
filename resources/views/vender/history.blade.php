@@ -184,7 +184,9 @@
                         </form>
                         <form action="{{ route('vender.print') }}" method="POST" id="incomeForm">
                             @csrf
-                            <input type="hidden" name="booking_ids" id="incomeBookingIds" value="">
+                            <input type="hidden" name="period" value="{{ $period }}">
+                            <input type="hidden" name="start_date" value="{{ $startDate }}">
+                            <input type="hidden" name="end_date" value="{{ $endDate }}">
                             <button type="submit">{{ __('vender/history.print_income') }}</button>
                         </form>
                     </div>
@@ -242,7 +244,7 @@
                                 </td>
                                 <td>
                                     <span class="vendor-tx-amount payment-amount"
-                                        data-amount="{{ $booking->amount ?? 0 }}"
+                                        data-amount="{{ $booking->busFee ?? 0 }}"
                                         data-vat="{{ $booking->vat ?? 0 }}"
                                         data-discount="{{ $booking->discount_amount ?? 0 }}"
                                         data-fee="{{ $booking->fee ?? 0 }}"
@@ -250,15 +252,18 @@
                                         data-fee_vat="{{ $booking->fee_vat ?? 0 }}"
                                         data-service="{{ $booking->service ?? 0 }}"
                                         data-vender_service="{{ $booking->vender_service ?? 0 }}">
-                                        {{ $currency }} {{ convert_money(($booking->amount ?? 0) + ($booking->vat ?? 0)) }}
+                                        {{ $currency }} {{ convert_money(($booking->busFee ?? 0) + ($booking->vat ?? 0)) }}
                                     </span>
                                 </td>
                                 <td>
                                     @php
-                                        $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
+                                        $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0) + ($booking->vender_service ?? 0);
                                         $rowTotal = round((float) ($booking->busFee ?: $booking->amount ?? 0));
                                     @endphp
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.commission_total') }} {{ convert_money($totalCommission) }}</span>
+                                    @if (($booking->vender_service ?? 0) > 0)
+                                        <span class="vendor-schedule-date__sub block">{{ __('vender/history.vendor_service') }} {{ convert_money($booking->vender_service) }}</span>
+                                    @endif
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.discount') }} {{ convert_money($booking->discount_amount ?? 0) }}</span>
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.government_levy') }} {{ convert_money(booking_government_levy_on_fare($booking)) }}</span>
                                 </td>
@@ -418,7 +423,7 @@
                 return ids;
             }
 
-            $('#manifestForm, #incomeForm').on('submit', function (e) {
+            $('#manifestForm').on('submit', function (e) {
                 e.preventDefault();
                 const form = $(this);
                 const ids = getVisibleBookingIds();
@@ -428,6 +433,12 @@
                 }
                 form.find('input[name="booking_ids"]').val(JSON.stringify(ids));
                 form.off('submit').submit();
+            });
+
+            $('#incomeForm').on('submit', function () {
+                // Period filters are submitted with the form so the PDF includes
+                // every paid booking in the selected range (not only this page).
+                return true;
             });
 
             $(document).on('click', '.view-booking', function () {

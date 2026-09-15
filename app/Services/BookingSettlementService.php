@@ -216,15 +216,22 @@ class BookingSettlementService
             $systemBalanceAmount = max(0, $systemBalanceAmount - $vendorFee);
         }
 
+        // Insurance (bima) is tracked only in the bima table / Insurance Amount metric.
+        // Do NOT credit AdminWallet — Available Balance excludes paid insurance.
+        // credited_to_admin_wallet=false so the one-time wallet strip migration
+        // (and any re-runs) will not treat this row as historically wallet-credited.
         if ($bimaAmount > 0) {
-            Bima::create([
+            $bimaPayload = [
                 'booking_id' => $booking->id,
                 'start_date' => $booking->travel_date,
                 'end_date' => $booking->insuranceDate,
                 'amount' => $bimaAmount,
                 'bima_vat' => $bimaAmount * (18 / 118),
-            ]);
-            $adminWallet->increment('balance', $bimaAmount);
+            ];
+            if (Schema::hasColumn('bima', 'credited_to_admin_wallet')) {
+                $bimaPayload['credited_to_admin_wallet'] = false;
+            }
+            Bima::create($bimaPayload);
         }
 
         $bookingUpdatePayload = array_merge([

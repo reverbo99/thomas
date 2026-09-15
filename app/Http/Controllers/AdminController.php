@@ -173,33 +173,62 @@ class AdminController extends Controller
     }
 
     /**
-     * Bus owner ticket fare share only (bookings.amount after settlement).
+     * Bus owner ticket fare share only — never includes excess luggage.
      */
     private function sumBusOwnerTicketEarnings($query): float
     {
-        return (float) $query->sum('amount');
+        return (float) $query
+            ->get(['id', 'amount', 'customer_paid_total', 'busFee', 'has_excess_luggage', 'excess_luggage_fee'])
+            ->sum(fn ($booking) => bus_owner_ticket_share($booking));
     }
 
     /**
-     * Released excess luggage owner share credited to company wallet.
+     * Excess luggage owner earnings from actual luggage details (booking + escrow),
+     * not from ticket fare totals. Includes held deposits already credited to the
+     * company wallet, not only post-weigh-in released rows.
      */
     private function sumBusOwnerReleasedLuggageEarnings(int $companyId, Carbon $start, Carbon $end, ?Request $request = null): float
     {
-        $query = ExcessLuggageEscrow::query()
-            ->whereIn('status', [
-                ExcessLuggageEscrow::STATUS_RELEASED,
-                ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
-            ])
-            ->whereBetween('released_at', [$start, $end])
-            ->whereHas('booking.bus', fn ($q) => $q->where('campany_id', $companyId));
+        $query = $this->companyLuggageEarningsQuery($companyId, $start, $end, $request);
+
+        return (float) $query
+            ->with('excessLuggageEscrow')
+            ->get()
+            ->sum(fn ($booking) => bus_owner_actual_luggage_share($booking));
+    }
+
+    /**
+     * Paid bookings that carry excess luggage for this company in the period.
+     */
+    private function companyLuggageEarningsQuery(int $companyId, Carbon $start, Carbon $end, ?Request $request = null)
+    {
+        $busIds = Bus::where('campany_id', $companyId)->pluck('id')->toArray();
+
+        $query = Booking::query()
+            ->where('payment_status', 'Paid')
+            ->whereBetween('created_at', [$start, $end])
+            ->where(function ($q) use ($busIds, $companyId) {
+                $q->where('campany_id', $companyId);
+                if (!empty($busIds)) {
+                    $q->orWhereIn('bus_id', $busIds);
+                }
+            })
+            ->where(function ($q) {
+                $q->where('has_excess_luggage', 1)
+                    ->orWhere('excess_luggage_fee', '>', 0)
+                    ->orWhereHas('excessLuggageEscrow', function ($eq) {
+                        $eq->where('owner_share', '>', 0)
+                            ->orWhere('held_amount', '>', 0)
+                            ->orWhere('actual_fee', '>', 0)
+                            ->orWhere('released_fee', '>', 0);
+                    });
+            });
 
         if ($request) {
-            $query->whereHas('booking', function ($q) use ($request) {
-                apply_booking_history_column_filters($q, $request);
-            });
+            apply_booking_history_column_filters($query, $request);
         }
 
-        return (float) $query->sum('owner_share');
+        return $query;
     }
 
     /**
@@ -1011,14 +1040,16 @@ $q->where('id', auth()->user()->campany->id);
         $data = $bookings->map(function ($booking) use ($currency) {
             $from = $booking->schedule->from ?? __('vender/earning.na');
             $to = $booking->schedule->to ?? __('vender/earning.na');
+            // Ticket earnings only — never fold in excess luggage.
+            $ticketAmount = bus_owner_ticket_share($booking);
 
             return [
                 'booking_code' => e($booking->booking_code ?? __('vender/earning.na')),
                 'travel_date' => e($booking->travel_date ?? __('vender/earning.na')),
                 'route' => e("{$from} → {$to}"),
                 'customer_name' => e($booking->customer_name ?? __('vender/earning.na')),
-                'amount' => (float) ($booking->amount ?? 0),
-                'amount_display' => e($currency . ' ' . convert_money($booking->amount ?? 0)),
+                'amount' => $ticketAmount,
+                'amount_display' => e($currency . ' ' . convert_money($ticketAmount)),
                 'paid_at' => e($booking->created_at?->format('Y-m-d H:i') ?? __('vender/earning.na')),
             ];
         })->values();
@@ -1052,17 +1083,8 @@ $q->where('id', auth()->user()->campany->id);
             $request->input('end_date')
         );
 
-        $baseQuery = ExcessLuggageEscrow::query()
-            ->with(['booking.schedule'])
-            ->whereIn('status', [
-                ExcessLuggageEscrow::STATUS_RELEASED,
-                ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
-            ])
-            ->whereBetween('released_at', [$periodStart, $periodEnd])
-            ->whereHas('booking', function ($q) use ($bus_ids, $request) {
-                $q->whereIn('bus_id', $bus_ids);
-                apply_booking_history_column_filters($q, $request);
-            });
+        $baseQuery = $this->companyLuggageEarningsQuery((int) $companyId, $periodStart, $periodEnd, $request)
+            ->with(['schedule', 'excessLuggageEscrow']);
 
         $recordsTotal = (clone $baseQuery)->count();
 
@@ -1071,7 +1093,8 @@ $q->where('id', auth()->user()->campany->id);
         if ($search !== '') {
             $filteredQuery->where(function ($q) use ($search) {
                 $q->where('booking_code', 'like', "%{$search}%")
-                    ->orWhereHas('booking.schedule', function ($sq) use ($search) {
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhereHas('schedule', function ($sq) use ($search) {
                         $sq->where('from', 'like', "%{$search}%")
                             ->orWhere('to', 'like', "%{$search}%");
                     });
@@ -1082,15 +1105,15 @@ $q->where('id', auth()->user()->campany->id);
 
         $orderMap = [
             0 => 'booking_code',
-            1 => 'released_fee',
-            2 => 'owner_share',
-            3 => 'status',
-            4 => 'released_at',
-            5 => 'released_at',
+            1 => 'excess_luggage_fee',
+            2 => 'excess_luggage_fee',
+            3 => 'created_at',
+            4 => 'created_at',
+            5 => 'created_at',
         ];
         $orderCol = (int) $request->input('order.0.column', 4);
         $orderDir = $request->input('order.0.dir', 'desc') === 'asc' ? 'asc' : 'desc';
-        $filteredQuery->orderBy($orderMap[$orderCol] ?? 'released_at', $orderDir);
+        $filteredQuery->orderBy($orderMap[$orderCol] ?? 'created_at', $orderDir);
 
         $offset = (int) $request->input('start', 0);
         $length = (int) $request->input('length', 10);
@@ -1098,31 +1121,48 @@ $q->where('id', auth()->user()->campany->id);
             $length = 100000;
         }
 
-        $escrows = $filteredQuery->skip($offset)->take($length)->get();
+        $bookings = $filteredQuery->skip($offset)->take($length)->get();
         $currency = session('currency', 'Tzs');
 
-        $data = $escrows->map(function ($escrow) use ($currency) {
-            $from = $escrow->booking?->schedule?->from ?? __('vender/earning.na');
-            $to = $escrow->booking?->schedule?->to ?? __('vender/earning.na');
-            $statusKey = $escrow->status ?? '';
+        $data = $bookings->map(function ($booking) use ($currency) {
+            $escrow = $booking->excessLuggageEscrow;
+            $from = $booking->schedule->from ?? __('vender/earning.na');
+            $to = $booking->schedule->to ?? __('vender/earning.na');
+            $gross = booking_actual_luggage_gross($booking);
+            $ownerShare = bus_owner_actual_luggage_share($booking);
+
+            $statusKey = $escrow->status ?? (
+                ((int) ($booking->has_excess_luggage ?? 0) === 1 || (float) ($booking->excess_luggage_fee ?? 0) > 0)
+                    ? ExcessLuggageEscrow::STATUS_HELD
+                    : ''
+            );
             $statusLabel = match ($statusKey) {
                 ExcessLuggageEscrow::STATUS_RELEASED => __('vender/earning.luggage_status_released'),
                 ExcessLuggageEscrow::STATUS_SURPLUS_HELD => __('vender/earning.luggage_status_surplus_held'),
-                default => e($statusKey),
+                ExcessLuggageEscrow::STATUS_HELD => __('vender/earning.luggage_status_held'),
+                ExcessLuggageEscrow::STATUS_AWAITING_TOPUP => __('vender/earning.luggage_status_awaiting_topup'),
+                default => e($statusKey !== '' ? $statusKey : __('vender/earning.na')),
             };
             $statusClass = match ($statusKey) {
                 ExcessLuggageEscrow::STATUS_RELEASED => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
                 ExcessLuggageEscrow::STATUS_SURPLUS_HELD => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+                ExcessLuggageEscrow::STATUS_HELD => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+                ExcessLuggageEscrow::STATUS_AWAITING_TOPUP => 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
                 default => 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-200',
             };
 
+            $eventAt = $escrow?->released_at
+                ?? $booking->luggage_weighed_at
+                ?? $escrow?->created_at
+                ?? $booking->created_at;
+
             return [
-                'booking_code' => e($escrow->booking_code ?? $escrow->booking?->booking_code ?? __('vender/earning.na')),
-                'released_fee_display' => e($currency . ' ' . convert_money($escrow->released_fee ?? 0)),
-                'owner_share' => (float) ($escrow->owner_share ?? 0),
-                'owner_share_display' => e($currency . ' ' . convert_money($escrow->owner_share ?? 0)),
+                'booking_code' => e($booking->booking_code ?? __('vender/earning.na')),
+                'released_fee_display' => e($currency . ' ' . convert_money($gross)),
+                'owner_share' => (float) $ownerShare,
+                'owner_share_display' => e($currency . ' ' . convert_money($ownerShare)),
                 'status_html' => '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ' . $statusClass . '">' . e($statusLabel) . '</span>',
-                'released_at' => e($escrow->released_at?->format('Y-m-d H:i') ?? __('vender/earning.na')),
+                'released_at' => e($eventAt?->format('Y-m-d H:i') ?? __('vender/earning.na')),
                 'route' => e("{$from} → {$to}"),
             ];
         })->values();
@@ -1437,60 +1477,16 @@ $q->where('id', auth()->user()->campany->id);
             return redirect()->back()->with('error', __('vender/earning.no_company_account'));
         }
 
-        if ($isAdmin && !$request->filled('data') && !$request->filled('booking_ids')) {
-            return redirect()->back()->with('error', __('vender/transfer.please_select_manifest'));
+        $loadedBookings = $this->resolveManifestBookings($request, $companyId, $isAdmin);
+
+        if ($loadedBookings->isEmpty()) {
+            return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
         }
 
-        $data = null;
-        $loadedBookings = null;
-
-        if ($request->filled('start_date') && $request->filled('end_date') && $companyId) {
-            $loadedBookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
-                ->where('campany_id', $companyId)
-                ->where('payment_status', 'Paid')
-                ->whereBetween('created_at', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay(),
-                ])
-                ->orderBy('seat')
-                ->latest()
-                ->get();
-            $data = $this->bookingsToReportArray($loadedBookings);
-        } elseif ($request->filled('booking_ids')) {
-            $ids = is_array($request->booking_ids) ? $request->booking_ids : (array) json_decode($request->booking_ids, true);
-            $ids = array_filter(array_map('intval', $ids));
-            if (!empty($ids)) {
-                $query = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
-                    ->whereIn('id', $ids)
-                    ->where('payment_status', 'Paid')
-                    ->orderBy('seat');
-                if ($companyId) {
-                    $query->where('campany_id', $companyId);
-                }
-                $loadedBookings = $query->get();
-                $data = $this->bookingsToReportArray($loadedBookings);
-            }
-        }
-
-        if ($data === null && $request->filled('data')) {
-            $data = json_decode($request->data, true);
-        }
-
-        if ($data === null && $companyId) {
-            $loadedBookings = Booking::with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'])
-                ->where('campany_id', $companyId)
-                ->where('payment_status', 'Paid')
-                ->orderBy('seat')
-                ->latest()
-                ->get();
-            $data = $this->bookingsToReportArray($loadedBookings);
-        }
-
+        $data = $this->bookingsToReportArray($loadedBookings);
         // Expand multi-passenger bookings into individual manifest rows
         // (including lap infants from bookings.infant_child).
-        if ($loadedBookings !== null) {
-            $data = expand_bookings_to_manifest_rows($loadedBookings, $data);
-        }
+        $data = expand_bookings_to_manifest_rows($loadedBookings, $data);
 
         if (empty($data) || !is_array($data) || !isset($data[0])) {
             return redirect()->back()->with('error', __('vender/history.no_booking_data_manifest'));
@@ -1509,7 +1505,7 @@ $q->where('id', auth()->user()->campany->id);
         foreach ($grouped as $tripKey => $tripRows) {
             [$busNumber] = array_pad(explode('|', (string) $tripKey, 2), 2, '');
             $busNumber = trim((string) $busNumber);
-            if ($busNumber === '') {
+            if ($busNumber === '' || strcasecmp($busNumber, 'N/A') === 0) {
                 continue;
             }
 
@@ -1551,6 +1547,71 @@ $q->where('id', auth()->user()->campany->id);
         $pdf->setPaper('a4', 'landscape');
 
         return $pdf->download('manifest-' . now()->format('Ymd_His') . '.pdf');
+    }
+
+    /**
+     * Resolve bookings for the bus-owner/admin passenger manifest using the same
+     * filters the history page applies. Never falls back to an unfiltered dump.
+     *
+     * @return \Illuminate\Support\Collection<int, \App\Models\Booking>
+     */
+    private function resolveManifestBookings(Request $request, ?int $companyId, bool $isAdmin)
+    {
+        $with = ['campany', 'schedule', 'bus.route', 'governmentLeviesOnService', 'vender'];
+
+        // 1) Explicit booking IDs from the filtered history table (preferred).
+        if ($request->filled('booking_ids')) {
+            $ids = is_array($request->booking_ids)
+                ? $request->booking_ids
+                : (array) json_decode((string) $request->booking_ids, true);
+            $ids = array_values(array_filter(array_map('intval', $ids)));
+
+            if (empty($ids)) {
+                return collect();
+            }
+
+            $query = Booking::with($with)
+                ->whereIn('id', $ids)
+                ->where('payment_status', 'Paid')
+                ->orderBy('seat');
+
+            if ($companyId) {
+                $query->where('campany_id', $companyId);
+            }
+
+            return $query->get();
+        }
+
+        // 2) Rebuild from history filters (period + trip columns).
+        $hasFilter = $request->filled('period')
+            || ($request->filled('start_date') && $request->filled('end_date'))
+            || $request->filled('bus_name')
+            || $request->filled('bus_number')
+            || $request->filled('departure_date')
+            || $request->filled('departure_time')
+            || $request->filled('arrival_date')
+            || $request->filled('arrival_time')
+            || $request->filled('driver')
+            || $request->filled('conductor');
+
+        if (! $hasFilter) {
+            return collect();
+        }
+
+        $query = Booking::with($with)->where('payment_status', 'Paid');
+
+        if ($companyId) {
+            $query->where('campany_id', $companyId);
+        } elseif (! $isAdmin) {
+            return collect();
+        }
+
+        // Manifests are trip documents — prefer travel_date for period filters
+        // so "today" means passengers travelling today, not bookings paid today.
+        apply_booking_history_date_filter($query, $request, 'travel_date');
+        apply_booking_history_column_filters($query, $request);
+
+        return $query->orderBy('seat')->latest()->get();
     }
 
     /**

@@ -718,6 +718,85 @@ if (!function_exists('bus_owner_luggage_fee')) {
     }
 }
 
+if (!function_exists('bus_owner_ticket_share')) {
+    /**
+     * Bus-owner ticket (fare) earnings only — never includes excess luggage.
+     *
+     * After settlement, bookings.amount is the fare owner share and customer_paid_total
+     * keeps the checkout total. Legacy/unsettled rows may still store a checkout-style
+     * total in amount; strip luggage gross in that case so ticket reports stay clean.
+     */
+    function bus_owner_ticket_share($booking): float
+    {
+        $amount = (float) ($booking->amount ?? 0);
+        $luggageGross = booking_luggage_fee($booking);
+        if ($luggageGross <= 0) {
+            return max(0.0, round($amount, 2));
+        }
+
+        $customerTotal = (float) ($booking->customer_paid_total ?? 0);
+        // Settled: amount was rewritten to fare owner share (differs from checkout total).
+        if ($customerTotal > 0 && abs($amount - $customerTotal) > 0.01) {
+            return max(0.0, round($amount, 2));
+        }
+
+        return max(0.0, round($amount - $luggageGross, 2));
+    }
+}
+
+if (!function_exists('booking_actual_luggage_gross')) {
+    /**
+     * Gross excess-luggage fee from verified/actual details when available,
+     * otherwise the paid/estimated booking luggage fee.
+     */
+    function booking_actual_luggage_gross($booking): float
+    {
+        if (is_object($booking) && method_exists($booking, 'loadMissing')) {
+            $booking->loadMissing('excessLuggageEscrow');
+        }
+
+        $escrow = is_object($booking) ? ($booking->excessLuggageEscrow ?? null) : null;
+        if ($escrow) {
+            if ((float) ($escrow->actual_fee ?? 0) > 0) {
+                return round((float) $escrow->actual_fee, 2);
+            }
+            if ((float) ($escrow->released_fee ?? 0) > 0) {
+                return round((float) $escrow->released_fee, 2);
+            }
+        }
+
+        $actualWeight = $booking->actual_weight ?? ($escrow->actual_weight ?? null);
+        if ($actualWeight !== null && (float) $actualWeight > 0) {
+            $rate = excess_luggage_fee_per_kg();
+            if ($rate > 0) {
+                return round((float) $actualWeight * $rate, 2);
+            }
+        }
+
+        return booking_luggage_fee($booking);
+    }
+}
+
+if (!function_exists('bus_owner_actual_luggage_share')) {
+    /**
+     * Bus-owner luggage earnings from actual excess-luggage details.
+     * Prefers escrow.owner_share (wallet credit) when present.
+     */
+    function bus_owner_actual_luggage_share($booking): float
+    {
+        if (is_object($booking) && method_exists($booking, 'loadMissing')) {
+            $booking->loadMissing('excessLuggageEscrow');
+        }
+
+        $escrow = is_object($booking) ? ($booking->excessLuggageEscrow ?? null) : null;
+        if ($escrow && (float) ($escrow->owner_share ?? 0) > 0) {
+            return round((float) $escrow->owner_share, 2);
+        }
+
+        return split_luggage_fee_amount(booking_actual_luggage_gross($booking))['owner'];
+    }
+}
+
 if (!function_exists('government_luggage_fee')) {
     /**
      * Government levy share of a booking's excess luggage fee (5% of gross).
@@ -1315,8 +1394,13 @@ if (!function_exists('booking_to_report_row')) {
         $customerTotal = (float) ($booking->customer_paid_total ?? 0);
         $busFee = (float) ($booking->busFee ?? 0);
         $insurance = (float) ($booking->bima_amount ?? 0);
+        $systemFee = round((float) ($booking->fee ?? 0));
+        $vendorFee = round((float) ($booking->vender_fee ?? 0));
+        $vendorService = round((float) ($booking->vender_service ?? 0));
 
-        $rowTotal = $customerTotal > 0
+        // Full amount the customer paid (ticket + luggage + service + insurance).
+        // Kept for exports/receipts — do NOT use as the booking-report Total column.
+        $customerPaidTotal = $customerTotal > 0
             ? round($customerTotal)
             : round($busFee + $luggageFee + $serviceFee + $insurance);
 
@@ -1325,11 +1409,14 @@ if (!function_exists('booking_to_report_row')) {
         $routeLabel = strtoupper(trim($routeFrom . '-' . $routeTo, '-'));
         $discountAmount = round((float) ($booking->discount_amount ?? 0));
 
-        // Manifest Base/Paid fare = ticket nauli only (`bookings.busFee`, coupon already applied).
-        // Never use customer_paid_total / rowTotal / amount — those include luggage, service fee,
-        // insurance, or are post-settlement owner shares / platform commissions.
+        // Ticket / income-report Total = bus fee (nauli) only. Excludes excess luggage,
+        // service fee, and insurance — those stay as separate fee lines. Never use
+        // customer_paid_total / amount (post-settlement owner share) for this column.
         $ticketFareOnly = round(max(0, $busFee));
         $paidFare = $ticketFareOnly;
+        $rowTotal = $ticketFareOnly;
+        // Platform cash fee + vendor fare share + vendor service share (matches history commission).
+        $commissionTotal = round($systemFee + $vendorFee + $vendorService);
 
         $travelDateRaw = $booking->travel_date
             ? \Carbon\Carbon::parse($booking->travel_date)
@@ -1380,9 +1467,13 @@ if (!function_exists('booking_to_report_row')) {
             'amount' => $booking->amount ?? '0',
             'luggage_fee' => (string) round($luggageFee),
             'service_fee' => (string) round($serviceFee),
-            'commision' => (string) round(($booking->fee ?? 0) + ($booking->vender_fee ?? 0)),
-            'service' => $booking->vender_fee ?? 'N/A',
-            'vendor_service' => $booking->vender_service ?? 'N/A',
+            'insurance' => (string) round($insurance),
+            'commision' => (string) $commissionTotal,
+            'system_fee' => (string) $systemFee,
+            'service' => (string) $vendorFee,
+            'vendor_fee' => (string) $vendorFee,
+            'vendor_service' => (string) $vendorService,
+            'vendor_commission' => (string) round($vendorFee + $vendorService),
             'discount' => $booking->discount_amount ?? 'N/A',
             'manifest_discount' => (string) $discountAmount,
             'gov_levy' => (string) $govLevyOnFare,
@@ -1390,6 +1481,7 @@ if (!function_exists('booking_to_report_row')) {
             'gov_levy_total' => (string) $totalGovLevy,
             'vat' => $booking->vat ?? 'N/A',
             'total' => (string) $rowTotal,
+            'customer_paid_total' => (string) $customerPaidTotal,
             'paid_fare' => (string) $paidFare,
             'gender' => $booking->gender ?? 'N/A',
             'gender_code' => manifest_gender_code($booking->gender ?? null),
@@ -1627,9 +1719,10 @@ if (!function_exists('apply_booking_history_date_filter')) {
      */
     function apply_booking_history_date_filter($query, $request, string $dateColumn = 'created_at'): array
     {
-        $period = $request->query('period');
-        $startDate = $request->query('start_date');
-        $endDate = $request->query('end_date');
+        // Use input() so GET history filters and POST print/export forms both work.
+        $period = $request->input('period');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
 
         if ($period === 'custom' && $request->filled('start_date') && $request->filled('end_date')) {
             $start = \Carbon\Carbon::parse($startDate)->startOfDay();

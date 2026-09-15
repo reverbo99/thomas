@@ -1461,7 +1461,8 @@ class VenderController extends Controller
     private function mapVendorBookingHistoryExportRow(Booking $booking): array
     {
         $row = booking_to_report_row($booking);
-        $payment = (float) ($booking->amount ?? 0) + (float) ($booking->vat ?? 0);
+        // Seat payment = ticket nauli (busFee). Post-settlement `amount` is bus-owner share.
+        $payment = (float) ($booking->busFee ?? 0);
 
         return [
             'booking_code' => $row['booking_code'],
@@ -1474,10 +1475,10 @@ class VenderController extends Controller
             'customer_name' => $row['customer_name'],
             'customer_phone' => $row['customer_phone'],
             'payment' => number_format($payment, 2),
-            'commission' => $row['commision'], // fee + vender_fee (matches history page; VAT is separate column)
+            'commission' => $row['commision'], // fee + vender_fee + vender_service
             'discount' => $row['manifest_discount'],
             'vat' => is_numeric($row['vat']) ? number_format((float) $row['vat'], 2) : (string) $row['vat'],
-            'total' => $row['total'],
+            'total' => $row['total'], // ticket fare only (excludes luggage / service / insurance)
             'paid_at' => $row['issue_date'],
         ];
     }
@@ -1611,7 +1612,20 @@ class VenderController extends Controller
         $venderId = Auth::id();
         $data = null;
 
-        if ($request->filled('booking_ids')) {
+        // Prefer the active history period filter so Print Income covers the full
+        // filtered set (not only the current paginated DataTables page).
+        $hasPeriodFilter = $request->filled('period')
+            || ($request->filled('start_date') && $request->filled('end_date'));
+
+        if ($hasPeriodFilter) {
+            $built = $this->buildVendorBookingHistoryQuery($request);
+            $bookings = $built['query']
+                ->with(['campany', 'schedule', 'bus.route', 'governmentLeviesOnService'])
+                ->where('payment_status', 'Paid')
+                ->latest()
+                ->get();
+            $data = $this->bookingsToReportArray($bookings);
+        } elseif ($request->filled('booking_ids')) {
             $ids = is_array($request->booking_ids) ? $request->booking_ids : (array) json_decode($request->booking_ids, true);
             $ids = array_filter(array_map('intval', $ids));
             if (empty($ids)) {

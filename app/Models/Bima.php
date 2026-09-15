@@ -14,7 +14,12 @@ class Bima extends Model
         'start_date',
         'end_date',
         'amount',
-        'bima_vat'
+        'bima_vat',
+        'credited_to_admin_wallet',
+    ];
+
+    protected $casts = [
+        'credited_to_admin_wallet' => 'boolean',
     ];
 
     public function booking()

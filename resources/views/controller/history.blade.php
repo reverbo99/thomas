@@ -32,11 +32,21 @@
                         <form action="{{ route('admin.print.manifest') }}" method="POST" id="manifestForm">
                             @csrf
                             <input type="hidden" name="booking_ids" id="manifestBookingIds" value="">
+                            @foreach (['period', 'start_date', 'end_date', 'bus_name', 'bus_number', 'departure_date', 'departure_time', 'arrival_date', 'arrival_time', 'driver', 'conductor'] as $filterKey)
+                                @if (request()->filled($filterKey))
+                                    <input type="hidden" name="{{ $filterKey }}" value="{{ request($filterKey) }}">
+                                @endif
+                            @endforeach
                             <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600">{{ __('vender/history.print_manifest') }}</button>
                         </form>
                         <form action="{{ route('admin.print') }}" method="POST" id="incomeForm">
                             @csrf
                             <input type="hidden" name="booking_ids" id="incomeBookingIds" value="">
+                            @foreach (['period', 'start_date', 'end_date', 'bus_name', 'bus_number', 'departure_date', 'departure_time', 'arrival_date', 'arrival_time', 'driver', 'conductor'] as $filterKey)
+                                @if (request()->filled($filterKey))
+                                    <input type="hidden" name="{{ $filterKey }}" value="{{ request($filterKey) }}">
+                                @endif
+                            @endforeach
                             <button type="submit" class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600">{{ __('vender/history.print_income') }}</button>
                         </form>
                     </div>
@@ -490,12 +500,19 @@
 
                 function getVisibleBookingIds() {
                     var ids = [];
-                    table.rows({ filter: 'applied', search: 'applied' }).every(function() {
+                    // page:'all' so DataTables search/filter includes every matching row,
+                    // not only the current pagination page.
+                    table.rows({ search: 'applied', page: 'all' }).every(function() {
                         var rowNode = this.node();
+                        if (!rowNode) {
+                            return;
+                        }
                         var id = $(rowNode).attr('data-booking-id') || $(rowNode).find('[data-booking-id]').first().attr('data-booking-id');
-                        if (id) ids.push(parseInt(id, 10));
+                        if (id) {
+                            ids.push(parseInt(id, 10));
+                        }
                     });
-                    return ids;
+                    return ids.filter(function(id) { return !isNaN(id) && id > 0; });
                 }
                 $('#manifestForm, #incomeForm').on('submit', function(e) {
                     e.preventDefault();

@@ -195,12 +195,24 @@
                                         @if ((float) ($booking['luggage_fee'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">luggage:</span> {{ $booking['luggage_fee'] }}</p>
                                         @endif
+                                        @if ((float) ($booking['service_fee'] ?? 0) > 0)
+                                        <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ $booking['service_fee'] }}</p>
+                                        @endif
+                                        @if ((float) ($booking['insurance'] ?? 0) > 0)
+                                        <p class="text-xs mb-0"><span class="font-weight-bold">insurance:</span> {{ $booking['insurance'] }}</p>
+                                        @endif
                                         <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ $booking['commision'] ?? 'N/A' }}</p>
+                                        @if ((float) ($booking['vendor_commission'] ?? 0) > 0)
+                                        <p class="text-xs mb-0"><span class="font-weight-bold">vendor share:</span> {{ $booking['vendor_commission'] }}</p>
+                                        @endif
                                         <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ $booking['gov_levy'] ?? '0' }}</p>
+                                        @if ((float) ($booking['gov_levy_service'] ?? 0) > 0)
+                                        <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy (service):</span> {{ $booking['gov_levy_service'] }}</p>
+                                        @endif
                                     </div>
                                 </td>
                                 <td>
-                                    <p class="text-xs mb-0 font-weight-bold" style="color: rgb(43, 163, 43);">Total fee: {{ $booking['total'] ?? 'N/A' }}</p>
+                                    <p class="text-xs mb-0 font-weight-bold" style="color: rgb(43, 163, 43);">Ticket total: {{ $booking['total'] ?? 'N/A' }}</p>
                                 </td>
                             </tr>
                         @endforeach
@@ -214,9 +226,14 @@
                     @php
                         $sumBusFare = collect($bookings)->sum(fn ($row) => (float) ($row['bus_fee'] ?? 0));
                         $sumLuggage = collect($bookings)->sum(fn ($row) => (float) ($row['luggage_fee'] ?? 0));
+                        $sumService = collect($bookings)->sum(fn ($row) => (float) ($row['service_fee'] ?? 0));
+                        $sumInsurance = collect($bookings)->sum(fn ($row) => (float) ($row['insurance'] ?? 0));
                         $sumCommission = collect($bookings)->sum(fn ($row) => (float) ($row['commision'] ?? 0));
+                        $sumVendorCommission = collect($bookings)->sum(fn ($row) => (float) ($row['vendor_commission'] ?? 0));
                         $sumGovLevy = collect($bookings)->sum(fn ($row) => (float) ($row['gov_levy'] ?? 0));
-                        $sumTotal = collect($bookings)->sum(fn ($row) => (float) ($row['total'] ?? 0));
+                        $sumGovLevyService = collect($bookings)->sum(fn ($row) => (float) ($row['gov_levy_service'] ?? 0));
+                        // Ticket earnings only (excludes luggage / service / insurance).
+                        $sumTotal = collect($bookings)->sum(fn ($row) => (float) ($row['total'] ?? $row['bus_fee'] ?? 0));
                     @endphp
                     <tfoot>
                         <tr>
@@ -226,11 +243,23 @@
                                 @if ($sumLuggage > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">luggage:</span> {{ number_format($sumLuggage, 2) }}</p>
                                 @endif
+                                @if ($sumService > 0)
+                                    <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ number_format($sumService, 2) }}</p>
+                                @endif
+                                @if ($sumInsurance > 0)
+                                    <p class="text-xs mb-0"><span class="font-weight-bold">insurance:</span> {{ number_format($sumInsurance, 2) }}</p>
+                                @endif
                                 <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ number_format($sumCommission, 2) }}</p>
+                                @if ($sumVendorCommission > 0)
+                                    <p class="text-xs mb-0"><span class="font-weight-bold">vendor share:</span> {{ number_format($sumVendorCommission, 2) }}</p>
+                                @endif
                                 <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ number_format($sumGovLevy, 2) }}</p>
+                                @if ($sumGovLevyService > 0)
+                                    <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy (service):</span> {{ number_format($sumGovLevyService, 2) }}</p>
+                                @endif
                             </td>
                             <td>
-                                <p class="text-xs mb-0 font-weight-bold" style="color: rgb(43, 163, 43);">Total fee: {{ number_format($sumTotal, 2) }}</p>
+                                <p class="text-xs mb-0 font-weight-bold" style="color: rgb(43, 163, 43);">Ticket total: {{ number_format($sumTotal, 2) }}</p>
                             </td>
                         </tr>
                     </tfoot>

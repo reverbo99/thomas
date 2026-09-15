@@ -190,7 +190,17 @@ class SystemController extends Controller
             (float) $this->commissionableParcelsQuery()->sum('amount_paid') * $parcelCommissionPercent / 100,
             2
         );
-        $balance = AdminWallet::sum('balance');
+        // Available Balance = admin_wallet (commission + service fee + luggage + other
+        // platform income − withdrawals). Paid insurance must not be included.
+        // Prefer subtracting only historically wallet-credited bima rows; until the
+        // strip migration adds that column, fall back to excluding all bima from display.
+        $balance = (float) AdminWallet::sum('balance');
+        if (Schema::hasColumn('bima', 'credited_to_admin_wallet')) {
+            $creditedBima = (float) Bima::where('credited_to_admin_wallet', true)->sum('amount');
+            $balance = max(0, $balance - $creditedBima);
+        } else {
+            $balance = max(0, $balance - (float) $bima);
+        }
         $cancelledAmount = CancelledBookings::get()->sum(fn ($row) => abs((float) $row->amount));
         $specialHireCommissionTotal = (float) SpecialHireOrder::where('payment_status', 'paid')->sum('platform_commission_amount');
         $govLevyTotals = $this->computeGovernmentLevyCategoryTotals(
