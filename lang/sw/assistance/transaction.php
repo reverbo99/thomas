@@ -51,6 +51,7 @@ return [
     'cash_wallet' => 'Pochi ya pesa taslimu',
     'cash_badge' => 'Taslimu',
     'payout_requests_hint' => 'Maombi ya malipo',
+    'commission_formula_hint' => '10% ya 5% ya nauli na ada za mizigo',
     'sell_cash_float' => 'Fedha ya mauzo kwa pesa taslimu',
     'wallet_split_not_active' => 'Haijawashwa kwenye seva hii',
     'awaiting_approval' => 'inasubiri idhini',

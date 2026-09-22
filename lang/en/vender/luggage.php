@@ -160,7 +160,7 @@ return [
     'escrow_balance_total' => 'Total luggage escrow balance',
     'escrow_balance_total_hint' => 'Passenger top-ups still due, plus luggage refunds awaiting administrator approval.',
     'total_luggage_balance' => 'Total luggage balance',
-    'total_luggage_balance_hint' => 'All excess-luggage payments collected from passengers (gross).',
+    'total_luggage_balance_hint' => 'Reconciled excess-luggage fees after weigh-in (actual weight). Over/under estimates use the corrected amount, not the original deposit.',
     'total_luggage_released' => 'Already released from escrow',
     'escrow_tracking_hint' => 'Funds stay in admin escrow until weigh-in is verified. Owner and government shares are released only after reconciliation.',
     'assign_escrow_blocked' => 'Luggage funds are still in escrow or extra payment is pending. Complete weigh-in and payment before loading on the bus.',

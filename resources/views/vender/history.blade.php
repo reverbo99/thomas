@@ -257,7 +257,7 @@
                                 </td>
                                 <td>
                                     @php
-                                        $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0) + ($booking->vender_service ?? 0);
+                                        $totalCommission = booking_fare_commission($booking);
                                         $rowTotal = round((float) ($booking->busFee ?: $booking->amount ?? 0));
                                     @endphp
                                     <span class="vendor-schedule-date__sub block">{{ __('vender/history.commission_total') }} {{ convert_money($totalCommission) }}</span>

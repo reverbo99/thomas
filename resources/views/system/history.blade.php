@@ -198,7 +198,7 @@
                                                 $rowGovLevyOnFare = booking_government_levy_on_fare($booking);
                                                 $rowGovLevyOnService = booking_government_levy_on_service($booking);
                                                 $rowTotalGovLevy = booking_total_government_levy($booking);
-                                                $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
+                                                $totalCommission = booking_gross_commission($booking);
                                             @endphp
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"

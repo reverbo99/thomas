@@ -4,6 +4,7 @@ return [
     'title' => 'Dashboard Overview',
     'overview' => 'Dashboard Overview',
     'todays_revenue' => "Today's Revenue",
+    'parcel_owner_share_included' => 'Includes parcel bus-owner share: :amount',
     'total_revenue' => 'Total Revenue',
     'insurance_amount' => 'Insurance Amount',
     'commission_fees' => 'Commission Fees',

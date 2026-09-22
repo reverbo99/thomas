@@ -208,13 +208,17 @@
                 </tr>
                 @php
                     extract(booking_payment_amounts($data ?? null));
+                    // customer_paid_total can still include the pre-weigh luggage deposit.
+                    // The service line must stay the booked service fee, not that leftover.
+                    $breakdownServiceFee = booking_service_fee($data ?? null);
                 @endphp
-                @if ($breakdownLuggageFee > 0)
+                @if (empty($hideLuggageAmount) && $breakdownLuggageFee > 0)
                 <tr>
                     <td>Luggage amount:</td>
                     <td>{{ number_format($breakdownLuggageFee, 2) }}</td>
                 </tr>
                 @endif
+                @if (empty($hideServiceFee))
                 <tr>
                     <td>Service Amount:</td>
                     <td>
@@ -223,6 +227,7 @@
                         @endphp
                     </td>
                 </tr>
+                @endif
             </table>
         </div>
 

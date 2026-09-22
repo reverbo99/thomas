@@ -61,8 +61,8 @@
                         <td class="px-4 py-3 whitespace-nowrap">{{ $key + 1 }}</td>
                         <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{{ $vendor->name }}</td>
                         <td class="px-4 py-3 whitespace-nowrap">{{ $vendor->contact }}</td>
-                        <td class="px-4 py-3 whitespace-nowrap amount" data-amount="{{ $vendor->VenderBalances->amount ?? 0 }}">
-                            {{ $currency }} {{ convert_money($vendor->VenderBalances->amount ?? 0) }}
+                        <td class="px-4 py-3 whitespace-nowrap amount" data-amount="{{ $vendor->display_balance ?? ($vendor->VenderBalances->amount ?? 0) }}">
+                            {{ $currency }} {{ convert_money($vendor->display_balance ?? ($vendor->VenderBalances->amount ?? 0)) }}
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">{{ $vendor->VenderAccount->work ?? __('system.common.na') }}</td>
                         <td class="px-4 py-3 whitespace-nowrap">
@@ -132,7 +132,7 @@
                         </span>
                     </p>
                     <p><span class="font-medium text-gray-700">{{ __('system.common.balance') }}:</span> 
-                        {{ $currency }} {{ convert_money($vendor->VenderBalances->amount ?? 0) }}
+                        {{ $currency }} {{ convert_money($vendor->display_balance ?? ($vendor->VenderBalances->amount ?? 0)) }}
                     </p>
                 </div>
             </div>

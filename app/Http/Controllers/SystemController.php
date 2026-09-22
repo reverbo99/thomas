@@ -63,6 +63,14 @@ class SystemController extends Controller
         // + paid parcels + paid special hire. All figures in TZS base.
         // Special hire stays offline Campany balance (platform commission only on SH wallets).
         $todayAmount = $this->sumCombinedPaidRevenue(Carbon::today(), Carbon::today()->endOfDay());
+        $todayParcelQuery = $this->commissionableParcelsQuery()
+            ->whereBetween('created_at', [Carbon::today(), Carbon::today()->endOfDay()]);
+        $todayParcelGross = (float) (clone $todayParcelQuery)->sum('amount_paid');
+        $todayParcelOwnerShare = round((float) (clone $todayParcelQuery)->get(['amount_paid', 'vender_id'])->sum(
+            fn ($parcel) => parcel_owner_share($parcel)
+        ), 2);
+        // Today's earnings count the bus-owner parcel share (fee minus the 5% commission pool).
+        $todayAmount = round($todayAmount - $todayParcelGross + $todayParcelOwnerShare, 2);
         $todayPaidCount = $this->countCombinedPaidTransactions(Carbon::today(), Carbon::today()->endOfDay());
 
         $totalAmount = $this->sumCombinedPaidRevenue(null, null);
@@ -180,16 +188,14 @@ class SystemController extends Controller
                 [$levyRate]
             )
             ->value('total');
-        // System income from luggage: admin share only after escrow release.
-        $luggageTotal = $this->sumReleasedLuggageAdminIncome();
+        // System luggage income is 5% of the reconciled excess-luggage charge.
+        $luggageTotal = $this->sumUpdatedLuggageAdminIncome();
         $luggageService = app(ExcessLuggageService::class);
         $escrowBalance = $luggageService->totalEscrowBalance();
         $luggageBalanceTotal = $luggageService->totalLuggageCollected();
-        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
-        $parcelCommissionTotal = round(
-            (float) $this->commissionableParcelsQuery()->sum('amount_paid') * $parcelCommissionPercent / 100,
-            2
-        );
+        $parcelCommissionTotal = round((float) $this->commissionableParcelsQuery()
+            ->get(['amount_paid', 'vender_id'])
+            ->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
         // Available Balance = admin_wallet (commission + service fee + luggage + other
         // platform income − withdrawals). Paid insurance must not be included.
         // Prefer subtracting only historically wallet-credited bima rows; until the
@@ -209,7 +215,7 @@ class SystemController extends Controller
         $totalGovernmentLevy = $govLevyTotals['grandTotalGovernmentLevy'];
 
         return view('system.dashboard', compact(
-            'bookings', 'todayAmount', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
+            'bookings', 'todayAmount', 'todayParcelOwnerShare', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
             'service', 'fees', 'luggageTotal', 'escrowBalance', 'luggageBalanceTotal', 'parcelCommissionTotal', 'bima', 'balance',
             'cancelledAmount', 'specialHireCommissionTotal', 'totalGovernmentLevy'
@@ -241,7 +247,7 @@ class SystemController extends Controller
             $legacyTopUpQ->whereBetween('created_at', [$from, $to]);
         }
 
-        $tickets = (float) $bookingQ->sum(DB::raw('COALESCE(customer_paid_total, amount)'));
+        $tickets = (float) $bookingQ->with('excessLuggageEscrow')->get()->sum(fn ($booking) => booking_reported_revenue($booking));
         $legacyTopUps = (float) $legacyTopUpQ->sum('luggage_refund_amount');
         $parcels = (float) $parcelQ->sum('amount_paid');
         $hire = (float) $hireQ->sum('total_amount');
@@ -1276,15 +1282,21 @@ class SystemController extends Controller
         $totalCommission = SystemBalance::where('campany_id', $campany->id)->sum('balance');
         $totalServiceFees = PaymentFees::where('campany_id', $campany->id)->sum('amount');
         $totalBookingsRevenue = Booking::where('campany_id', $campany->id)->where('payment_status', 'Paid')->sum(DB::raw('COALESCE(customer_paid_total, busFee, amount)'));
-        $totalLuggageRevenue = (float) Booking::where('campany_id', $campany->id)
+        $luggageBookings = Booking::where('campany_id', $campany->id)
+            ->with('excessLuggageEscrow')
             ->where('payment_status', 'Paid')
-            ->where('excess_luggage_fee', '>', 0)
-            ->sum('excess_luggage_fee');
-        $totalParcelRevenue = (float) $this->commissionableParcelsQuery()
+            ->where(function ($q) {
+                $q->where('excess_luggage_fee', '>', 0)
+                    ->orWhere('has_excess_luggage', 1)
+                    ->orWhereHas('excessLuggageEscrow', fn ($eq) => $eq->where('held_amount', '>', 0)->orWhere('actual_fee', '>', 0));
+            })
+            ->get();
+        $totalLuggageRevenue = (float) $luggageBookings->sum(fn ($b) => booking_luggage_fee($b));
+        $companyParcels = $this->commissionableParcelsQuery()
             ->whereHas('bus', fn ($q) => $q->where('campany_id', $campany->id))
-            ->sum('amount_paid');
-        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
-        $totalParcelCommission = round($totalParcelRevenue * $parcelCommissionPercent / 100, 2);
+            ->get(['amount_paid', 'vender_id']);
+        $totalParcelRevenue = (float) $companyParcels->sum('amount_paid');
+        $totalParcelCommission = round((float) $companyParcels->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
         $totalOperatorRevenue = round($totalBookingsRevenue + $totalParcelRevenue, 2);
 
         return view('system.campany_dashboard', compact(
@@ -1312,9 +1324,8 @@ class SystemController extends Controller
             return $payment;
         });
 
-        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
-        $parcels = $parcels->map(function ($parcel) use ($parcelCommissionPercent) {
-            $parcel->commission_amount = round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2);
+        $parcels = $parcels->map(function ($parcel) {
+            $parcel->commission_amount = parcel_admin_share($parcel);
 
             return $parcel;
         });
@@ -1418,7 +1429,7 @@ class SystemController extends Controller
                 $index + 1,
                 $booking->campany->name ?? '—',
                 $booking->booking_code ?? 'N/A',
-                booking_released_luggage_admin_fee($booking),
+                system_luggage_fee($booking),
                 $booking->created_at
             );
         });
@@ -1434,9 +1445,8 @@ class SystemController extends Controller
             );
         });
 
-        $parcelCommissionPercent = (float) (Setting::first()->parcel_commission_percentage ?? 0);
-        $parcelRows = $parcels->values()->map(function ($parcel, $index) use ($parcelCommissionPercent) {
-            $commission = round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2);
+        $parcelRows = $parcels->values()->map(function ($parcel, $index) {
+            $commission = parcel_admin_share($parcel);
 
             return $this->mapSystemIncomeRow(
                 __('system.pages.parcel_commission_fees'),
@@ -1461,9 +1471,9 @@ class SystemController extends Controller
 
         $commissionTotal = (float) $balances->sum('balance');
         $serviceFeeTotal = (float) $pays->sum(fn ($record) => $this->paymentFeeDisplayAmount($record, $bookingsByCode));
-        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => booking_released_luggage_admin_fee($booking));
+        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => system_luggage_fee($booking));
         $cancellationTotal = (float) $cancellations->sum('amount');
-        $parcelTotal = (float) $parcels->sum(fn ($parcel) => round((float) $parcel->amount_paid * $parcelCommissionPercent / 100, 2));
+        $parcelTotal = (float) $parcels->sum(fn ($parcel) => parcel_admin_share($parcel));
         $specialHireTotal = (float) $specialHireOrders->sum('platform_commission_amount');
         $combinedTotal = $commissionTotal + $serviceFeeTotal + $luggageTotal
             + $cancellationTotal + $parcelTotal + $specialHireTotal;
@@ -1503,25 +1513,11 @@ class SystemController extends Controller
             ->where('excess_luggage_fee', '>', 0);
     }
 
-    private function sumReleasedLuggageAdminIncome(): float
+    private function sumUpdatedLuggageAdminIncome(): float
     {
-        $fromEscrow = (float) ExcessLuggageEscrow::query()
-            ->whereIn('status', [
-                ExcessLuggageEscrow::STATUS_RELEASED,
-                ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
-                ExcessLuggageEscrow::STATUS_REFUNDED,
-            ])
-            ->sum('admin_share');
-
-        $escrowBookingIds = ExcessLuggageEscrow::query()->pluck('booking_id');
-        $legacy = (float) Booking::query()
-            ->where('payment_status', 'Paid')
-            ->where('excess_luggage_fee', '>', 0)
-            ->when($escrowBookingIds->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $escrowBookingIds))
+        return round((float) $this->paidLuggageBookingsQuery()
             ->get()
-            ->sum(fn ($booking) => system_luggage_fee($booking));
-
-        return round($fromEscrow + $legacy, 2);
+            ->sum(fn ($booking) => system_luggage_fee($booking)), 2);
     }
 
     /**
@@ -1802,9 +1798,7 @@ class SystemController extends Controller
         );
 
         $parcels = $this->buildGovernmentLevyParcelsQuery($request)->get();
-        $levyParcel = (float) $parcels->sum(
-            fn ($parcel) => government_levy_on_amount((float) $parcel->amount_paid)
-        );
+        $levyParcel = (float) $parcels->sum(fn ($parcel) => parcel_admin_share($parcel));
 
         $specialHireOrders = $this->buildGovernmentLevySpecialHireQuery($request)->get();
         $specialHireCommissionBase = (float) $specialHireOrders->sum('platform_commission_amount');
@@ -1813,7 +1807,7 @@ class SystemController extends Controller
         );
 
         $totalGovernmentLevy = round(
-            $levyCommission + $levyService + $levyLuggage + $levyCancellation + $levySpecialHire,
+            $levyCommission + $levyService + $levyLuggage + $levyCancellation + $levyParcel + $levySpecialHire,
             2
         );
         $totalBookingRowLevy = round($levyCommission + $levyFare + $levyService + $levyLuggage, 2);
@@ -1910,7 +1904,7 @@ class SystemController extends Controller
                 'category' => __('system.pages.total_gov_levy'),
                 'reference' => '—',
                 'date' => '—',
-                'detail' => 'commission + service + luggage + cancellation + special hire (parcel excluded)',
+                'detail' => 'commission + service + luggage + cancellation + parcel admin share + special hire',
                 'fee_base' => '',
                 'gov_levy' => number_format($totals['totalGovernmentLevy'], 2),
             ],
@@ -1952,7 +1946,7 @@ class SystemController extends Controller
                 'date' => optional($parcel->created_at)->format('Y-m-d H:i') ?? '—',
                 'detail' => optional(optional($parcel->bus)->campany)->name ?? '—',
                 'fee_base' => number_format($base, 2),
-                'gov_levy' => number_format(government_levy_on_amount($base), 2),
+                'gov_levy' => number_format(parcel_admin_share($parcel), 2),
             ];
         });
 
@@ -2263,7 +2257,11 @@ class SystemController extends Controller
     public function vender()
     {
         $this->requireAccess(Access::LINKS['VENDORS']);
-        $venders = User::where('role', 'vender')->get();
+        $venders = User::where('role', 'vender')->with(['VenderBalances', 'VenderAccount'])->get();
+        foreach ($venders as $vendor) {
+            $vendor->display_balance = sync_vendor_commission_wallet($vendor);
+        }
+
         return view('system.vender', compact('venders'));
     }
 
@@ -2275,6 +2273,9 @@ class SystemController extends Controller
             ->with(['VenderBalances', 'VenderAccount'])
             ->orderBy('name')
             ->get();
+        foreach ($venders as $vendor) {
+            $vendor->display_balance = sync_vendor_commission_wallet($vendor);
+        }
 
         $pdf = Pdf::loadView('print.vender_list', compact('venders'));
         return $pdf->download('vendors_' . now()->format('Ymd_His') . '.pdf');

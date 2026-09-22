@@ -4,6 +4,7 @@ return [
     'title' => 'Muhtasari wa Dashibodi',
     'overview' => 'Muhtasari wa Dashibodi',
     'todays_revenue' => 'Mapato ya Leo',
+    'parcel_owner_share_included' => 'Inajumuisha sehemu ya mwenye basi kwa mizigo: :amount',
     'total_revenue' => 'Jumla ya Mapato',
     'insurance_amount' => 'Kiasi cha Bima',
     'commission_fees' => 'Ada za Kamisheni',

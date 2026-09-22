@@ -51,7 +51,7 @@
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $b->customer_name }}</td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $from ?: '—' }} → {{ $to ?: '—' }}</td>
                     <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ $b->bus->bus_number ?? '—' }}</td>
-                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($b->excess_luggage_fee ?? 0) }}</td>
+                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money(booking_luggage_fee($b)) }}</td>
                     <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
                         @if($escrow)
                             @php $netEscrow = $luggageService->netEscrowAmount($escrow); @endphp

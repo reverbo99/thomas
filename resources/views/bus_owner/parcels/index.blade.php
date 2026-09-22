@@ -117,30 +117,30 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                                 {{ $currency }} {{ convert_money($parcel->amount_paid) }}
                             </td>
+                            @php
+                                $rowStatus = $flow->normalizeStatus($parcel);
+                                $rowClass = match ($rowStatus) {
+                                    'completed' => 'bg-green-100 text-green-800',
+                                    'cancelled' => 'bg-red-100 text-red-800',
+                                    'in_transit', 'arrived' => 'bg-blue-100 text-blue-800',
+                                    default => 'bg-yellow-100 text-yellow-800',
+                                };
+                            @endphp
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                    {{ $parcel->status === 'completed' ? 'bg-green-100 text-green-800' : '' }}
-                                    {{ $parcel->status === 'pending' ? 'bg-yellow-100 text-yellow-800' : '' }}
-                                    {{ $parcel->status === 'cancelled' ? 'bg-red-100 text-red-800' : '' }}">
-                                    @if($parcel->status === 'completed')
-                                        {{ __('vender/parcels.completed') }}
-                                    @elseif($parcel->status === 'pending')
-                                        {{ __('vender/parcels.pending') }}
-                                    @else
-                                        {{ __('vender/parcels.cancelled') }}
-                                    @endif
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $rowClass }}">
+                                    {{ $flow->statusLabel($rowStatus) }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                @if($parcel->status === 'completed')
+                                @if($rowStatus === 'completed')
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('vender/parcels.completed_status_locked') }}</span>
                                 @else
                                     <form action="{{ route('bus_owner.parcels.update_status', $parcel->id) }}" method="POST" class="flex items-center space-x-2">
                                         @csrf
                                         <select name="status" class="text-xs border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-100">
-                                            <option value="pending" {{ $parcel->status === 'pending' ? 'selected' : '' }}>{{ __('vender/parcels.pending') }}</option>
-                                            <option value="completed" {{ $parcel->status === 'completed' ? 'selected' : '' }}>{{ __('vender/parcels.completed') }}</option>
-                                            <option value="cancelled" {{ $parcel->status === 'cancelled' ? 'selected' : '' }}>{{ __('vender/parcels.cancelled') }}</option>
+                                            @foreach(['registered', 'received', 'in_transit', 'arrived', 'completed', 'cancelled'] as $choice)
+                                                <option value="{{ $choice }}" @selected($rowStatus === $choice)>{{ $flow->statusLabel($choice) }}</option>
+                                            @endforeach
                                         </select>
                                         <button type="submit" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs font-bold">{{ __('vender/parcels.update') }}</button>
                                     </form>

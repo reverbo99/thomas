@@ -97,6 +97,13 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'selcom' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/selcom.log'),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
+
         'sms' => [
             'driver' => 'single',
             'path' => storage_path('logs/sms.log'),

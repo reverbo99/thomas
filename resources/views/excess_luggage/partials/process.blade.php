@@ -9,7 +9,7 @@
     $currency = $currency ?? session('currency', 'TZS');
     $feePerKg = $luggageService->feePerKg();
     $estimatedWeightJs = $booking->estimated_weight !== null ? (float) $booking->estimated_weight : null;
-    $grossLuggageFee = (float) ($booking->excess_luggage_fee ?? 0);
+    $grossLuggageFee = booking_luggage_fee($booking);
     $measurementsSaved = !empty($booking->luggage_weighed_at);
     $defaultFee = $grossLuggageFee > 0
         ? $grossLuggageFee
@@ -92,7 +92,7 @@
                 {{ $luggageService->statusLabel($status) }}
             </span>
         </p>
-        <p class="mt-2 text-sm text-gray-600">{{ __('vender/luggage.fee') }}: {{ $currency }} {{ convert_money($booking->excess_luggage_fee ?? 0) }}</p>
+        <p class="mt-2 text-sm text-gray-600">{{ __('vender/luggage.fee') }}: {{ $currency }} {{ convert_money(booking_luggage_fee($booking)) }}</p>
         @if($escrow)
             <p class="mt-1 text-sm text-indigo-700 dark:text-indigo-300">
                 {{ __('vender/luggage.escrow_held') }}: {{ $currency }} {{ convert_money($escrow->held_amount ?? 0) }}

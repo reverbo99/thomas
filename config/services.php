@@ -57,6 +57,13 @@ return [
     ],
 
 
+    'selcom' => [
+        'base_url' => env('SELCOM_BASE_URL', 'https://apigw.selcommobile.com/v1'),
+        'api_key' => env('SELCOM_API_KEY'),
+        'api_secret' => env('SELCOM_API_SECRET'),
+        'vendor' => env('SELCOM_VENDOR'),
+    ],
+
     'airtel' => [
         'base_url' => env('AIRTEL_API_BASE_URL', 'https://openapi.airtel.africa'),
         'client_id' => env('AIRTEL_CLIENT_ID'),

@@ -29,6 +29,7 @@
                     </div>
                 </div>
                 <p class="text-xs text-teal-500 mt-2">{{ __('system.dashboard.paid_transactions_today', ['count' => $todayPaidCount]) }}</p>
+                <p class="text-xs text-teal-700 mt-1">{{ __('system.dashboard.parcel_owner_share_included', ['amount' => $currency . ' ' . convert_money($todayParcelOwnerShare ?? 0)]) }}</p>
             </div>
 
             <!-- Total Revenue (paid tickets + parcels + special hire) -->

@@ -460,10 +460,7 @@ class ParcelController extends Controller
             'status' => 'required|in:pending,registered,received,in_transit,arrived,completed,cancelled,awaiting_payment',
         ]);
 
-        if (
-            $this->isBusOwnerContext()
-            && $this->flow->normalizeStatus($parcel) === ParcelFlowService::STATUS_COMPLETED
-        ) {
+        if ($this->flow->normalizeStatus($parcel) === ParcelFlowService::STATUS_COMPLETED) {
             return back()->with('error', __('vender/parcels.completed_status_locked'));
         }
 

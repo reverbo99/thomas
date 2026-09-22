@@ -51,6 +51,7 @@ return [
     'cash_wallet' => 'Cash wallet',
     'cash_badge' => 'Cash',
     'payout_requests_hint' => 'Payout requests',
+    'commission_formula_hint' => '10% of 5% of ticket fares and parcel fees',
     'sell_cash_float' => 'Sell-in-cash float',
     'wallet_split_not_active' => 'Not active on this server',
     'awaiting_approval' => 'awaiting approval',

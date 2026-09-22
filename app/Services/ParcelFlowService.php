@@ -8,6 +8,7 @@ use App\Models\bus;
 use App\Models\Parcel;
 use App\Models\Setting;
 use App\Models\User;
+use App\Models\VenderAccount;
 use App\Models\VenderBalance;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,47 +38,80 @@ class ParcelFlowService
     public const VENDOR_REMAINDER_PERCENT = 25.0;
 
     /**
-     * Vendor % of (amount − system commission). Reads settings; falls back to VENDOR_REMAINDER_PERCENT.
+     * Parcel commission pool percent (settings), falling back to the ticket commission rate.
      */
-    public static function vendorRemainderPercent(?Setting $settings = null): float
+    public static function commissionPercent(?Setting $settings = null): float
     {
         $settings = $settings ?? Setting::first();
-        if ($settings === null) {
-            return self::VENDOR_REMAINDER_PERCENT;
+        $pct = $settings->parcel_commission_percentage ?? null;
+
+        if ($pct === null || $pct === '') {
+            return FareFormulaService::DEFAULT_COMMISSION_PERCENT;
         }
 
-        $pct = $settings->parcel_vendor_commission_percentage ?? null;
-
-        return $pct === null || $pct === ''
-            ? self::VENDOR_REMAINDER_PERCENT
-            : (float) $pct;
+        return max(0.0, (float) $pct);
     }
 
     /**
-     * Bus-owner wallet share of a paid parcel (same formula as confirmPayment).
+     * Vendor percent of the parcel commission pool. Same source as ticket commission:
+     * the vendor account percentage (default 10), not a cut of the bus-owner remainder.
+     */
+    public static function vendorPoolPercent($venderId): float
+    {
+        if (empty($venderId)) {
+            return 0.0;
+        }
+
+        $pct = VenderAccount::where('user_id', $venderId)->value('percentage');
+        if ($pct === null || $pct === '') {
+            return FareFormulaService::DEFAULT_VENDOR_PERCENT;
+        }
+
+        return min(100.0, max(0.0, (float) $pct));
+    }
+
+    /**
+     * Split a parcel fee.
+     * Pool = commission % of the fee (default 5%).
+     * Vendor = vendor % of that pool (default 10% of 5%) when a vendor registered it.
+     * Admin = the rest of the pool. Bus owner = fee minus the pool.
+     *
+     * @return array{pool: float, vendor: float, admin: float, owner: float}
+     */
+    public static function splitAmounts(
+        float $amountPaid,
+        bool $hasVendor,
+        float $commissionPercent = FareFormulaService::DEFAULT_COMMISSION_PERCENT,
+        float $vendorPercentOfPool = FareFormulaService::DEFAULT_VENDOR_PERCENT
+    ): array {
+        $amountPaid = max(0.0, $amountPaid);
+        $pool = round($amountPaid * max(0.0, $commissionPercent) / 100, 2);
+        $vendor = $hasVendor
+            ? round($pool * min(100.0, max(0.0, $vendorPercentOfPool)) / 100, 2)
+            : 0.0;
+        $admin = round($pool - $vendor, 2);
+        $owner = round($amountPaid - $pool, 2);
+
+        return [
+            'pool' => $pool,
+            'vendor' => $vendor,
+            'admin' => $admin,
+            'owner' => $owner,
+        ];
+    }
+
+    /**
+     * Bus-owner wallet share of a paid parcel (fee minus the commission pool).
      */
     public static function ownerShareAmount(float $amountPaid, $venderId = null, ?float $systemPct = null, ?float $vendorPct = null): float
     {
-        $settings = Setting::first();
+        $hasVendor = !empty($venderId);
+        $commission = $systemPct ?? self::commissionPercent();
+        $vendorOfPool = $hasVendor
+            ? ($vendorPct ?? self::vendorPoolPercent($venderId))
+            : 0.0;
 
-        if ($systemPct === null) {
-            $systemPct = (float) ($settings->parcel_commission_percentage ?? 0);
-        }
-
-        if ($vendorPct === null) {
-            $vendorPct = self::vendorRemainderPercent($settings);
-        }
-
-        $systemShare = round($amountPaid * $systemPct / 100, 2);
-        $remainder = round($amountPaid - $systemShare, 2);
-
-        if ($venderId) {
-            $vendorShare = round($remainder * $vendorPct / 100, 2);
-
-            return round($remainder - $vendorShare, 2);
-        }
-
-        return $remainder;
+        return self::splitAmounts($amountPaid, $hasVendor, $commission, $vendorOfPool)['owner'];
     }
 
     public function normalizeStatus(?Parcel $parcel): string
@@ -179,13 +213,16 @@ class ParcelFlowService
             }
 
             $amount = (float) $parcel->amount_paid;
-            $settings = Setting::first();
-            $systemPct = (float) ($settings->parcel_commission_percentage ?? 0);
-            $systemShare = round($amount * $systemPct / 100, 2);
-            $ownerShare = self::ownerShareAmount($amount, $parcel->vender_id, $systemPct);
-            $vendorShare = $parcel->vender_id
-                ? round(round($amount - $systemShare, 2) - $ownerShare, 2)
-                : 0.0;
+            $hasVendor = !empty($parcel->vender_id);
+            $split = self::splitAmounts(
+                $amount,
+                $hasVendor,
+                self::commissionPercent(),
+                $hasVendor ? self::vendorPoolPercent($parcel->vender_id) : 0.0
+            );
+            $systemShare = $split['admin'];
+            $ownerShare = $split['owner'];
+            $vendorShare = $split['vendor'];
 
             $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
             if (!$adminWallet) {
@@ -264,14 +301,23 @@ class ParcelFlowService
 
     public function assignReceivingAgent(Parcel $parcel, array $data, User $actor): Parcel
     {
-        $parcel->update([
-            'receiving_user_id' => $data['receiving_user_id'] ?? null,
-            'receiving_agent_name' => $data['receiving_agent_name'] ?? null,
-            'receiving_agent_phone' => $data['receiving_agent_phone'] ?? null,
-            'delivery_rider_name' => $data['delivery_rider_name'] ?? $parcel->delivery_rider_name,
-            'delivery_rider_phone' => $data['delivery_rider_phone'] ?? $parcel->delivery_rider_phone,
-            'bus_id' => $data['bus_id'] ?? $parcel->bus_id,
-        ]);
+        $payload = [];
+        foreach ([
+            'receiving_user_id',
+            'receiving_agent_name',
+            'receiving_agent_phone',
+            'delivery_rider_name',
+            'delivery_rider_phone',
+            'bus_id',
+        ] as $key) {
+            if (array_key_exists($key, $data)) {
+                $payload[$key] = $data[$key];
+            }
+        }
+
+        if ($payload !== []) {
+            $parcel->update($payload);
+        }
 
         return $parcel->fresh();
     }

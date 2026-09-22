@@ -5,7 +5,7 @@
 @php
     $vb = auth()->user()->VenderBalances;
     $vendorDualWallet = \Illuminate\Support\Facades\Schema::hasColumn('vender_balances', 'sell_cash_amount');
-    $commissionBalance = optional($vb)->amount ?? 0;
+    $commissionBalance = $commissionWallet ?? (optional($vb)->amount ?? 0);
     $cashBalance = $vendorDualWallet ? ($vb->sell_cash_amount ?? 0) : 0;
     $txCount = $coll->count();
     $vendorAccount = auth()->user()->VenderAccount;
@@ -58,7 +58,7 @@
             </div>
             <p class="vendor-kpi__label">{{ __('assistance/transaction.commission_wallet') }}</p>
             <p class="vendor-kpi__value">{{ convert_money($commissionBalance) }}</p>
-            <p class="vendor-kpi__hint">{{ $currency }} · {{ __('assistance/transaction.payout_requests_hint') }}</p>
+            <p class="vendor-kpi__hint">{{ __('assistance/transaction.commission_formula_hint') }}</p>
         </article>
 
         <article class="vendor-kpi vendor-kpi--cash">

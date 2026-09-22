@@ -68,7 +68,7 @@
                     <td>{{ $key + 1 }}</td>
                     <td>{{ $vendor->name }}</td>
                     <td>{{ $vendor->contact ?? '—' }}</td>
-                    <td>{{ number_format($vendor->VenderBalances->amount ?? 0, 2) }} TZS</td>
+                    <td>{{ number_format($vendor->display_balance ?? ($vendor->VenderBalances->amount ?? 0), 2) }} TZS</td>
                     <td>{{ $vendor->VenderAccount->work ?? __('system.common.na') }}</td>
                     <td>{{ $statusLabel }}</td>
                 </tr>

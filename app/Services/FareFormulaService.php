@@ -18,7 +18,8 @@ use App\Models\Setting;
  */
 class FareFormulaService
 {
-    private const DEFAULT_COMMISSION_PERCENT = 5.0;
+    /** Ticket commission shown on vendor history and admin commission prints: 5% of bus fare. */
+    public const DEFAULT_COMMISSION_PERCENT = 5.0;
 
     private const DEFAULT_SERVICE_PERCENT = 2.0;
 

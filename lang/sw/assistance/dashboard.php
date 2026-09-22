@@ -51,6 +51,8 @@ return [
     'total_collected' => 'Jumla iliyokusanywa',
     'total_cancelled' => 'Jumla iliyoghairiwa',
     'no_vendor_share' => 'Hakuna sehemu ya muuzaji',
+    'parcel_vendor_share_hint' => '10% ya kamisheni ya 5%',
+    'parcel_balance_hint' => '10% ya 5% ya ada ya mizigo',
     'collected' => 'Iliyokusanywa',
     'system_retained' => 'Iliyobaki kwa mfumo',
 ];

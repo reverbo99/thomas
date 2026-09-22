@@ -51,6 +51,8 @@ return [
     'total_collected' => 'Total collected',
     'total_cancelled' => 'Total cancelled',
     'no_vendor_share' => 'No vendor share',
+    'parcel_vendor_share_hint' => '10% of the 5% commission',
+    'parcel_balance_hint' => '10% of 5% of parcel fees',
     'collected' => 'Collected',
     'system_retained' => 'System retained',
 ];

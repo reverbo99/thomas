@@ -160,7 +160,7 @@ return [
     'escrow_balance_total' => 'Jumla ya salio la escrow ya mzigo',
     'escrow_balance_total_hint' => 'Malipo ya ziada ya abiria yanasubiri, pamoja na marejesho ya mzigo yanayosubiri idhini ya msimamizi.',
     'total_luggage_balance' => 'Jumla ya salio la mzigo wa ziada',
-    'total_luggage_balance_hint' => 'Malipo yote ya mzigo wa ziada yaliyokusanywa kutoka kwa abiria (jumla).',
+    'total_luggage_balance_hint' => 'Ada ya mzigo baada ya kupima (uzito halisi). Makadirio yaliyopungua/kuongezeka yanatumia kiasi kilichosahihishwa, si kiingizo cha awali.',
     'total_luggage_released' => 'Tayari imetolewa kutoka escrow',
     'escrow_tracking_hint' => 'Pesa zinabaki kwenye escrow ya admin hadi upimaji uthibitishwe. Sehemu za mmiliki wa basi na serikali zinatolewa baada ya upatanisho.',
     'assign_escrow_blocked' => 'Pesa za mzigo bado ziko escrow au malipo ya ziada yanasubiri. Kamilisha upimaji na malipo kabla ya kupakia kwenye basi.',

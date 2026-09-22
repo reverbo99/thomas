@@ -7,7 +7,7 @@
     $weekCount = $WeekBookings->count();
     $todayRevenue = $TodayBookings->sum('amount');
     $weekRevenue = $WeekBookings->sum('amount');
-    $balance = optional(auth()->user()->VenderBalances)->amount ?? 0;
+    $balance = $parcelVendorBalance ?? 0;
     $paidTotal = $bookings->where('payment_status', 'Paid')->count();
     $chartTotal = array_sum($monthlyData);
     $filters = [
@@ -76,7 +76,7 @@
             </div>
             <p class="vendor-kpi__label">{{ __('assistance/dashboard.available_balance') }}</p>
             <p class="vendor-kpi__value">{{ convert_money($balance) }}</p>
-            <p class="vendor-kpi__hint">{{ $paidTotal }} {{ strtolower(__('assistance/dashboard.bookings')) }} {{ strtolower(__('all.paid')) }}</p>
+            <p class="vendor-kpi__hint">{{ __('assistance/dashboard.parcel_balance_hint') }}</p>
         </article>
     </div>
 
@@ -122,7 +122,7 @@
                 </div>
                 <p class="vendor-kpi__label">{{ __('assistance/dashboard.vendor_parcel_fee') }}</p>
                 <p class="vendor-kpi__value">{{ convert_money($totalParcelFee) }}</p>
-                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.no_vendor_share') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($parcelCollected) }}</p>
+                <p class="vendor-kpi__hint">{{ __('assistance/dashboard.parcel_vendor_share_hint') }} · {{ __('assistance/dashboard.collected') }}: {{ convert_money($parcelCollected) }}</p>
             </article>
 
             {{-- Excess luggage: system cut + vendor ticket-% of remainder + owner --}}

@@ -63,6 +63,8 @@ class VenderController extends Controller
             ->get();
 
         $feeSummary = $this->buildVendorFeeSummary($venderId, $filter);
+        sync_vendor_commission_wallet(auth()->user());
+        $parcelVendorBalance = vendor_sales_share_totals($venderId)['parcel'];
         $totalVenderFee = $feeSummary['totalVenderFee'];
         $totalVenderService = $feeSummary['totalVenderService'];
         $totalParcelFee = $feeSummary['totalParcelFee'];
@@ -168,6 +170,7 @@ class VenderController extends Controller
             'totalVenderFee',
             'totalVenderService',
             'totalParcelFee',
+            'parcelVendorBalance',
             'totalExcessLuggageFee',
             'totalCancellationFee',
             'parcelCollected',
@@ -177,8 +180,7 @@ class VenderController extends Controller
     }
 
     /**
-     * Vendor fee cards: vender_fee / vender_service / luggage remainder-share credit the commission wallet.
-     * Parcel uses ParcelFlowService settlement (settings.parcel_vendor_commission_percentage of remainder); cancellation has no vendor share.
+     * Vendor fee cards. Parcel fee is 10% of the 5% parcel commission pool.
      */
     private function buildVendorFeeSummary(int $venderId, string $period = 'month', ?string $startDate = null, ?string $endDate = null): array
     {
@@ -189,19 +191,26 @@ class VenderController extends Controller
         $totalVenderFee = (float) (clone $paidQuery)->sum('vender_fee');
         $totalVenderService = (float) (clone $paidQuery)->sum('vender_service');
         $luggageBookings = (clone $paidQuery)
-            ->with('vender.VenderAccount')
+            ->with(['vender.VenderAccount', 'excessLuggageEscrow'])
             ->where(function ($q) {
                 $q->where('has_excess_luggage', 1)
-                    ->orWhere('excess_luggage_fee', '>', 0);
+                    ->orWhere('excess_luggage_fee', '>', 0)
+                    ->orWhereHas('excessLuggageEscrow', function ($eq) {
+                        $eq->where('actual_fee', '>', 0)
+                            ->orWhere('held_amount', '>', 0);
+                    });
             })
-            ->get(['id', 'has_excess_luggage', 'excess_luggage_fee', 'vender_id']);
+            ->get();
         $luggageCollected = (float) $luggageBookings->sum(fn ($b) => booking_luggage_fee($b));
         $totalExcessLuggageFee = (float) $luggageBookings->sum(fn ($b) => vendor_luggage_fee($b));
 
         $parcelQuery = Parcel::where('vender_id', $venderId)
-            ->where('status', '!=', 'cancelled');
+            ->where('status', '!=', 'cancelled')
+            ->where('payment_status', 'paid');
         $this->applyVendorFeePeriodFilter($parcelQuery, $period, $startDate, $endDate);
-        $parcelCollected = (float) $parcelQuery->sum('amount_paid');
+        $parcelRows = (clone $parcelQuery)->get(['amount_paid', 'vender_id']);
+        $parcelCollected = (float) $parcelRows->sum('amount_paid');
+        $totalParcelFee = (float) $parcelRows->sum(fn ($parcel) => parcel_vendor_share($parcel));
 
         $cancelQuery = CancelledBookings::query()
             ->whereHas('booking', function ($q) use ($venderId) {
@@ -213,8 +222,7 @@ class VenderController extends Controller
         return [
             'totalVenderFee' => $totalVenderFee,
             'totalVenderService' => $totalVenderService,
-            // Parcel wallet credit exists in ParcelFlowService; card still uses collected hint for now.
-            'totalParcelFee' => 0.0,
+            'totalParcelFee' => round($totalParcelFee, 2),
             'totalExcessLuggageFee' => $totalExcessLuggageFee,
             'totalCancellationFee' => 0.0,
             'parcelCollected' => $parcelCollected,
@@ -1118,6 +1126,7 @@ class VenderController extends Controller
         $startDate = $built['startDate'];
         $endDate = $built['endDate'];
         $coll = $built['query']->orderByDesc('created_at')->get();
+        $commissionWallet = sync_vendor_commission_wallet(auth()->user());
 
         // Calculate summary statistics
         $accept = Transaction::where('vender_id', auth()->user()->id)
@@ -1130,7 +1139,7 @@ class VenderController extends Controller
             ->where('status', 'Cancelled')
             ->sum('amount');
 
-        return view('vender.transaction', compact('coll', 'accept', 'pending', 'cancel', 'period', 'startDate', 'endDate'));
+        return view('vender.transaction', compact('coll', 'accept', 'pending', 'cancel', 'period', 'startDate', 'endDate', 'commissionWallet'));
     }
 
     public function transactionExportPdf(Request $request)
@@ -1274,8 +1283,8 @@ class VenderController extends Controller
             'payment_number' => ['required_unless:payment_method,bank', 'nullable', 'string', 'max:50'],
         ]);
 
-        // Check if the vendor commission balance is sufficient
-        if ($request->amount > $user->VenderBalances->amount) {
+        $commissionWallet = sync_vendor_commission_wallet($user);
+        if ($request->amount > $commissionWallet) {
             return back()->with('error', __('assistance/transaction.insufficient_balance'));
         }
 
@@ -1475,7 +1484,7 @@ class VenderController extends Controller
             'customer_name' => $row['customer_name'],
             'customer_phone' => $row['customer_phone'],
             'payment' => number_format($payment, 2),
-            'commission' => $row['commision'], // fee + vender_fee + vender_service
+            'commission' => $row['commision'], // fee + vender_fee (gross ticket commission)
             'discount' => $row['manifest_discount'],
             'vat' => is_numeric($row['vat']) ? number_format((float) $row['vat'], 2) : (string) $row['vat'],
             'total' => $row['total'], // ticket fare only (excludes luggage / service / insurance)
@@ -1670,7 +1679,10 @@ class VenderController extends Controller
     public function generatePDF($data)
     {
         //return $data;
-        $pdf = Pdf::loadView('print.report', ['bookings' => $data]);
+        $pdf = Pdf::loadView('print.report', [
+            'bookings' => $data,
+            'audience' => 'vendor',
+        ]);
 
         return $pdf->download('income-' . now() . '.pdf');
     }

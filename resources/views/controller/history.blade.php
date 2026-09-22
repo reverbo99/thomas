@@ -89,7 +89,7 @@
                                 @foreach ($bookings as $index => $booking)
                                     <tr class="border-b border-gray-200 hover:bg-gray-50 transition" data-booking-id="{{ $booking->id }}" data-created-at="{{ $booking->created_at->format('Y-m-d') }}"
                                         data-has-excess-luggage="{{ (int) ($booking->has_excess_luggage ?? 0) }}"
-                                        data-excess-luggage-fee="{{ (float) ($booking->excess_luggage_fee ?? 0) }}"
+                                        data-excess-luggage-fee="{{ booking_luggage_fee($booking) }}"
                                         data-excess-luggage-description="{{ e($booking->excess_luggage_description ?? '') }}"
                                         data-estimated-weight="{{ $booking->estimated_weight !== null ? (float) $booking->estimated_weight : '' }}"
                                         data-actual-weight="{{ $booking->actual_weight !== null ? (float) $booking->actual_weight : '' }}"
@@ -136,7 +136,7 @@
                                                     {{ $booking->pickup_point ?? __('vender/history.na') }}</p>
                                                 <p class="text-gray-500 dark:text-gray-400 mb-0">{{ __('vender/history.drop_point') }}
                                                     {{ $booking->dropping_point ?? __('vender/history.na') }}</p>
-                                                @if (($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0)
+                                                @if (booking_luggage_fee($booking) > 0)
                                                     <p class="mb-0 mt-1">
                                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-medium dark:bg-amber-900/40 dark:text-amber-200">
                                                             {{ __('vender/history.luggage_section') }}
@@ -162,8 +162,8 @@
                                         </td>
                                         <td class="py-2 px-4">
                                             @php
-                                                $hasLuggage = (bool) ($booking->has_excess_luggage ?? false) || (float) ($booking->excess_luggage_fee ?? 0) > 0;
-                                                $luggageGross = $hasLuggage ? (float) ($booking->excess_luggage_fee ?? 0) : 0;
+                                                $luggageGross = booking_luggage_fee($booking);
+                                                $hasLuggage = $luggageGross > 0;
                                                 $luggageAdminShare = $hasLuggage ? system_luggage_fee($booking) : 0;
                                                 $luggageGovShare = $hasLuggage ? government_luggage_fee($booking) : 0;
                                                 $luggageOwnerNet = $hasLuggage ? bus_owner_luggage_fee($booking) : 0;
@@ -206,7 +206,7 @@
                                         <td class="py-2 px-4">
                                             @php
                                                 $govLevyOnFare = booking_government_levy_on_fare($booking);
-                                                $totalCommission = ($booking->fee ?? 0) + ($booking->vender_fee ?? 0);
+                                                $totalCommission = booking_gross_commission($booking);
                                             @endphp
                                             <div class="flex flex-col commission-breakdown"
                                                 data-commission-total="{{ $totalCommission }}"

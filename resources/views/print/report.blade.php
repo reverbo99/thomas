@@ -190,24 +190,27 @@
                                     </div>
                                 </td>
                                 <td>
+                                    @php $hidePlatformFees = booking_report_hides_platform_fees($audience ?? null); @endphp
                                     <div class="d-flex flex-column">
                                         <p class="text-xs mb-0"><span class="font-weight-bold">bus fare:</span> {{ $booking['bus_fee'] ?? ($booking['amount'] ?? 'N/A') }}</p>
                                         @if ((float) ($booking['luggage_fee'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">luggage:</span> {{ $booking['luggage_fee'] }}</p>
                                         @endif
-                                        @if ((float) ($booking['service_fee'] ?? 0) > 0)
+                                        @if (booking_report_shows_service_fee($audience ?? null) && (float) ($booking['service_fee'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ $booking['service_fee'] }}</p>
                                         @endif
-                                        @if ((float) ($booking['insurance'] ?? 0) > 0)
+                                        @if (booking_report_shows_insurance($audience ?? null) && (float) ($booking['insurance'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">insurance:</span> {{ $booking['insurance'] }}</p>
                                         @endif
                                         <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ $booking['commision'] ?? 'N/A' }}</p>
-                                        @if ((float) ($booking['vendor_commission'] ?? 0) > 0)
+                                        @if (booking_report_shows_vendor_share($audience ?? null) && (float) ($booking['vendor_commission'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">vendor share:</span> {{ $booking['vendor_commission'] }}</p>
                                         @endif
+                                        @if (! $hidePlatformFees)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ $booking['gov_levy'] ?? '0' }}</p>
                                         @if ((float) ($booking['gov_levy_service'] ?? 0) > 0)
                                         <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy (service):</span> {{ $booking['gov_levy_service'] }}</p>
+                                        @endif
                                         @endif
                                     </div>
                                 </td>
@@ -224,6 +227,7 @@
                 </tbody>
                 @if (isset($bookings) && is_array($bookings) && count($bookings) > 0)
                     @php
+                        $hidePlatformFees = booking_report_hides_platform_fees($audience ?? null);
                         $sumBusFare = collect($bookings)->sum(fn ($row) => (float) ($row['bus_fee'] ?? 0));
                         $sumLuggage = collect($bookings)->sum(fn ($row) => (float) ($row['luggage_fee'] ?? 0));
                         $sumService = collect($bookings)->sum(fn ($row) => (float) ($row['service_fee'] ?? 0));
@@ -243,19 +247,21 @@
                                 @if ($sumLuggage > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">luggage:</span> {{ number_format($sumLuggage, 2) }}</p>
                                 @endif
-                                @if ($sumService > 0)
+                                @if (booking_report_shows_service_fee($audience ?? null) && $sumService > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">service fee:</span> {{ number_format($sumService, 2) }}</p>
                                 @endif
-                                @if ($sumInsurance > 0)
+                                @if (booking_report_shows_insurance($audience ?? null) && $sumInsurance > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">insurance:</span> {{ number_format($sumInsurance, 2) }}</p>
                                 @endif
                                 <p class="text-xs mb-0"><span class="font-weight-bold">commission:</span> {{ number_format($sumCommission, 2) }}</p>
-                                @if ($sumVendorCommission > 0)
+                                @if (booking_report_shows_vendor_share($audience ?? null) && $sumVendorCommission > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">vendor share:</span> {{ number_format($sumVendorCommission, 2) }}</p>
                                 @endif
+                                @if (! $hidePlatformFees)
                                 <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy:</span> {{ number_format($sumGovLevy, 2) }}</p>
                                 @if ($sumGovLevyService > 0)
                                     <p class="text-xs mb-0"><span class="font-weight-bold">gov. levy (service):</span> {{ number_format($sumGovLevyService, 2) }}</p>
+                                @endif
                                 @endif
                             </td>
                             <td>

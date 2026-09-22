@@ -1139,13 +1139,15 @@ $q->where('id', auth()->user()->campany->id);
             $statusLabel = match ($statusKey) {
                 ExcessLuggageEscrow::STATUS_RELEASED => __('vender/earning.luggage_status_released'),
                 ExcessLuggageEscrow::STATUS_SURPLUS_HELD => __('vender/earning.luggage_status_surplus_held'),
+                ExcessLuggageEscrow::STATUS_REFUND_PENDING => __('vender/earning.luggage_status_surplus_held'),
+                ExcessLuggageEscrow::STATUS_REFUNDED => __('vender/earning.luggage_status_released'),
                 ExcessLuggageEscrow::STATUS_HELD => __('vender/earning.luggage_status_held'),
                 ExcessLuggageEscrow::STATUS_AWAITING_TOPUP => __('vender/earning.luggage_status_awaiting_topup'),
                 default => e($statusKey !== '' ? $statusKey : __('vender/earning.na')),
             };
             $statusClass = match ($statusKey) {
-                ExcessLuggageEscrow::STATUS_RELEASED => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
-                ExcessLuggageEscrow::STATUS_SURPLUS_HELD => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+                ExcessLuggageEscrow::STATUS_RELEASED, ExcessLuggageEscrow::STATUS_REFUNDED => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+                ExcessLuggageEscrow::STATUS_SURPLUS_HELD, ExcessLuggageEscrow::STATUS_REFUND_PENDING => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
                 ExcessLuggageEscrow::STATUS_HELD => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
                 ExcessLuggageEscrow::STATUS_AWAITING_TOPUP => 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
                 default => 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-200',
@@ -1462,7 +1464,10 @@ $q->where('id', auth()->user()->campany->id);
             $data = [];
         }
         
-        $pdf = Pdf::loadView('print.report', ['bookings' => $data]);
+        $pdf = Pdf::loadView('print.report', [
+            'bookings' => $data,
+            'audience' => 'bus_owner',
+        ]);
 
         return $pdf->download('income-' . now() . '.pdf');
     }
@@ -1882,7 +1887,14 @@ $q->where('id', auth()->user()->campany->id);
 
         $data->qrcode = $qrCode;
 
-        $pdf = Pdf::loadView('print.service', ['data' => $data]);
+        $user = Auth::user();
+        $isBusOwner = $user && ($user->isBusCampany() || $user->isLocalBusOwner());
+
+        $pdf = Pdf::loadView('print.service', [
+            'data' => $data,
+            'hideLuggageAmount' => true,
+            'hideServiceFee' => $isBusOwner,
+        ]);
 
         $pdf->setPaper([0, 0, 4 * 72, 10 * 72], 'portrait');
 
@@ -2525,8 +2537,9 @@ $q->where('id', auth()->user()->campany->id);
                  ->with('bus')
                  ->latest()
                  ->paginate(15);
-     
-             return view('bus_owner.parcels.index', compact('buses', 'parcels'));
+             $flow = app(ParcelFlowService::class);
+
+             return view('bus_owner.parcels.index', compact('buses', 'parcels', 'flow'));
         } else {
              return back()->with('error', __('vender/earning.no_company_account'));
         }

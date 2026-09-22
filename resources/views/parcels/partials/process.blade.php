@@ -10,6 +10,15 @@
     $addressLabel = $isCollection
         ? __('vender/parcels.receiver_collection_address')
         : __('vender/parcels.receiver_delivery_address');
+    $isBusOwnerView = request()->routeIs('bus_owner.*');
+    $companyBuses = collect();
+    if ($isBusOwnerView && auth()->user()?->campany) {
+        $companyBuses = \App\Models\bus::query()
+            ->where('campany_id', auth()->user()->campany->id)
+            ->orderBy('bus_number')
+            ->get(['id', 'bus_number']);
+    }
+    $statusChoices = ['registered', 'received', 'in_transit', 'arrived', 'completed', 'cancelled'];
 @endphp
 
 @if(session('success'))
@@ -60,6 +69,36 @@
             {{ $isCollection ? __('vender/parcels.instructions_collection') : __('vender/parcels.instructions_delivery') }}
         </p>
         <p><strong>{{ __('vender/parcels.weight_kg') }}:</strong> {{ $parcel->weight ?? '—' }}</p>
+        @if($parcel->length || $parcel->height || $parcel->width)
+            <p><strong>{{ __('vender/parcels.dimensions_weight') }}:</strong>
+                {{ $parcel->length ?: '—' }} × {{ $parcel->width ?: '—' }} × {{ $parcel->height ?: '—' }} cm
+            </p>
+        @endif
+        @if(filled($parcel->description))
+            <p><strong>{{ __('vender/parcels.description') }}:</strong> {{ $parcel->description }}</p>
+        @endif
+        @php
+            $parcelSplit = parcel_share_split($parcel);
+        @endphp
+        @if($isBusOwnerView)
+            <p><strong>{{ __('vender/parcels.your_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['owner']) }}</p>
+            @if($parcelSplit['vendor'] > 0)
+                <p><strong>{{ __('vender/parcels.vendor_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['vendor']) }}</p>
+            @endif
+        @else
+            <p><strong>{{ __('vender/parcels.your_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['vendor']) }}</p>
+            <p><strong>{{ __('vender/parcels.bus_owner_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['owner']) }}</p>
+        @endif
+        <p><strong>{{ __('vender/parcels.admin_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['admin']) }}</p>
+        <p class="text-xs text-gray-500">{{ __('vender/parcels.share_formula') }}</p>
+        <div class="pt-2 text-xs text-gray-600 space-y-1">
+            <p class="font-semibold text-gray-800">{{ __('vender/parcels.timeline') }}</p>
+            <p>{{ __('vender/parcels.paid_at') }}: {{ $parcel->settled_at ? $parcel->settled_at->format('d M Y H:i') : '—' }}</p>
+            <p>{{ __('vender/parcels.received_at') }}: {{ $parcel->received_at ? $parcel->received_at->format('d M Y H:i') : '—' }}</p>
+            <p>{{ __('vender/parcels.departed_at') }}: {{ $parcel->departed_at ? $parcel->departed_at->format('d M Y H:i') : '—' }}</p>
+            <p>{{ __('vender/parcels.arrived_at') }}: {{ $parcel->arrived_at ? $parcel->arrived_at->format('d M Y H:i') : '—' }}</p>
+            <p>{{ __('vender/parcels.collected_at') }}: {{ $parcel->collected_at ? $parcel->collected_at->format('d M Y H:i') : '—' }}</p>
+        </div>
         @if(!$isCollection)
             <p><strong>{{ __('vender/parcels.receiving_agent_name') }}:</strong> {{ $parcel->receiving_agent_name ?? '—' }} {{ $parcel->receiving_agent_phone }}</p>
         @endif
@@ -130,6 +169,36 @@
         </div>
         @endif
 
+        @if($isBusOwnerView && $companyBuses->isNotEmpty() && !in_array($status, ['completed', 'cancelled'], true))
+        <div class="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 class="font-semibold mb-2">{{ __('vender/parcels.assign_bus') }}</h2>
+            <form method="POST" action="{{ route($showPrefix.'.assign', $parcel->id) }}" class="flex flex-wrap items-center gap-2">
+                @csrf
+                <select name="bus_id" class="rounded-lg border-gray-300 text-sm">
+                    @foreach($companyBuses as $companyBus)
+                        <option value="{{ $companyBus->id }}" @selected((int) $companyBus->id === (int) $parcel->bus_id)>{{ $companyBus->bus_number }}</option>
+                    @endforeach
+                </select>
+                <button class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white">{{ __('vender/parcels.save_bus') }}</button>
+            </form>
+        </div>
+        @endif
+
+        @if($isBusOwnerView && $status !== 'completed')
+        <div class="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 class="font-semibold mb-2">{{ __('vender/parcels.update_status') }}</h2>
+            <form method="POST" action="{{ route($showPrefix.'.update_status', $parcel->id) }}" class="flex flex-wrap items-center gap-2">
+                @csrf
+                <select name="status" class="rounded-lg border-gray-300 text-sm">
+                    @foreach($statusChoices as $choice)
+                        <option value="{{ $choice }}" @selected($status === $choice)>{{ $flow->statusLabel($choice) }}</option>
+                    @endforeach
+                </select>
+                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">{{ __('vender/parcels.update') }}</button>
+            </form>
+        </div>
+        @endif
+
         <div class="rounded-xl border bg-white p-5 shadow-sm flex flex-wrap gap-2">
             <form method="POST" action="{{ route($showPrefix.'.receive', $parcel->id) }}">@csrf
                 <button class="rounded-lg bg-green-600 px-3 py-2 text-sm text-white" @if($status !== 'registered' || ($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_received') }}</button>
@@ -141,6 +210,14 @@
                 <button class="rounded-lg bg-purple-600 px-3 py-2 text-sm text-white" @if($status !== 'in_transit') disabled @endif>{{ __('vender/parcels.mark_arrived') }}</button>
             </form>
         </div>
+
+        @if(!in_array($status, ['completed', 'cancelled'], true))
+        <form method="POST" action="{{ route($showPrefix.'.update_status', $parcel->id) }}" onsubmit="return confirm(@json(__('vender/parcels.cancel_confirm')))">
+            @csrf
+            <input type="hidden" name="status" value="cancelled">
+            <button class="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700">{{ __('vender/parcels.cancel_parcel') }}</button>
+        </form>
+        @endif
 
         @if(in_array($status, ['in_transit', 'arrived'], true))
         <div class="rounded-xl border bg-white p-5 shadow-sm">

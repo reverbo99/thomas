@@ -191,6 +191,10 @@ Route::get('/campany/id', [RouteController::class, 'bus_name'])->name('busname')
 Route::get('/dpo/callback', [PDOController::class, 'handleCallback'])->name('dpo.callback');
 Route::get('/dpo/cancel', [PDOController::class, 'handleCallback'])->name('dpo.cancel');
 
+// Selcom webhook — public URL to register in the Selcom merchant portal.
+Route::match(['get', 'post'], '/selcom/callback', [SelcomController::class, 'handleCallback'])->name('selcom.callback');
+Route::match(['get', 'post'], '/selcom/webhook', [SelcomController::class, 'handleCallback'])->name('selcom.webhook');
+
 // ClickPesa callback routes
 Route::get('/clickpesa/callback', [ClickPesaController::class, 'handleCallback'])->name('clickpesa.callback');
 Route::get('/clickpesa/cancel', [ClickPesaController::class, 'handleCallback'])->name('clickpesa.cancel');
@@ -695,6 +699,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/find-bus', [ParcelController::class, 'searchBus'])->name('find_bus');
             Route::get('/create/{bus_id}', [ParcelController::class, 'create'])->name('create');
             Route::post('/store', [ParcelController::class, 'store'])->name('store');
+            Route::post('/update-status/{id}', [ParcelController::class, 'updateStatus'])->name('update_status');
             Route::get('/{id}', [ParcelController::class, 'show'])->name('show');
             Route::post('/{id}/pay', [ParcelController::class, 'pay'])->name('pay');
             Route::post('/{id}/assign', [ParcelController::class, 'assign'])->name('assign');

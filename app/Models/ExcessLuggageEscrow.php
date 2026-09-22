@@ -72,9 +72,12 @@ class ExcessLuggageEscrow extends Model
 
     public function isAssignable(): bool
     {
+        // Fee shares are already reconciled for surplus / pending passenger refund.
+        // Operator may assign while admin refund approval is still outstanding.
         return in_array($this->status, [
             self::STATUS_RELEASED,
             self::STATUS_SURPLUS_HELD,
+            self::STATUS_REFUND_PENDING,
             self::STATUS_REFUNDED,
         ], true);
     }

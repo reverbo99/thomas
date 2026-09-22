@@ -582,12 +582,54 @@ if (!function_exists('group_ticket_list_rows')) {
 
 if (!function_exists('booking_luggage_fee')) {
     /**
-     * Gross excess luggage fee charged on the booking (before any wallet splits).
+     * Gross excess luggage fee for reporting, KPIs and %-splits.
+     *
+     * After weigh-in (overestimated / underestimated / correct), prefer the
+     * reconciled actual fee so admin/bus-owner cards never stay on the old
+     * estimated deposit (e.g. 20,000 → 15,000 or 25,000).
+     * Before weigh-in, falls back to bookings.excess_luggage_fee.
      */
     function booking_luggage_fee($booking): float
     {
+        if (!is_object($booking)) {
+            return 0.0;
+        }
+
+        if (method_exists($booking, 'loadMissing')) {
+            $booking->loadMissing('excessLuggageEscrow');
+        }
+
+        $escrow = $booking->excessLuggageEscrow ?? null;
+        $bookingActualWeight = isset($booking->actual_weight) ? $booking->actual_weight : null;
+        $weighed = !empty($booking->luggage_weighed_at)
+            || !empty($booking->luggage_weight_verdict)
+            || ($bookingActualWeight !== null && (float) $bookingActualWeight > 0);
+
+        // After weigh-in the booking column is the reconciled charge. Prefer it over
+        // an escrow deposit that can still hold the pre-weigh estimate.
+        if ($weighed && (float) ($booking->excess_luggage_fee ?? 0) > 0) {
+            return round((float) $booking->excess_luggage_fee, 2);
+        }
+
+        if ($escrow) {
+            if ((float) ($escrow->actual_fee ?? 0) > 0) {
+                return round((float) $escrow->actual_fee, 2);
+            }
+            if ((float) ($escrow->released_fee ?? 0) > 0) {
+                return round((float) $escrow->released_fee, 2);
+            }
+        }
+
+        $actualWeight = $bookingActualWeight ?? (isset($escrow->actual_weight) ? $escrow->actual_weight : null);
+        if ($actualWeight !== null && (float) $actualWeight > 0) {
+            $rate = excess_luggage_fee_per_kg();
+            if ($rate > 0) {
+                return round((float) $actualWeight * $rate, 2);
+            }
+        }
+
         if ((int) ($booking->has_excess_luggage ?? 0) === 1 || (float) ($booking->excess_luggage_fee ?? 0) > 0) {
-            return (float) ($booking->excess_luggage_fee ?? 0);
+            return round((float) ($booking->excess_luggage_fee ?? 0), 2);
         }
 
         return 0.0;
@@ -672,6 +714,7 @@ if (!function_exists('system_luggage_fee')) {
 if (!function_exists('booking_released_luggage_admin_fee')) {
     /**
      * Admin luggage income credited after escrow release (or legacy immediate settlement).
+     * Includes surplus_held / refund_pending — admin share is already on the actual fee.
      */
     function booking_released_luggage_admin_fee($booking): float
     {
@@ -679,13 +722,15 @@ if (!function_exists('booking_released_luggage_admin_fee')) {
         if ($escrow && in_array($escrow->status, [
             \App\Models\ExcessLuggageEscrow::STATUS_RELEASED,
             \App\Models\ExcessLuggageEscrow::STATUS_SURPLUS_HELD,
+            \App\Models\ExcessLuggageEscrow::STATUS_REFUND_PENDING,
             \App\Models\ExcessLuggageEscrow::STATUS_REFUNDED,
         ], true)) {
             return (float) ($escrow->admin_share ?? 0);
         }
 
         if ($escrow) {
-            return 0.0;
+            // Awaiting top-up / still held: report %-share of reconciled gross for KPIs.
+            return system_luggage_fee($booking);
         }
 
         return system_luggage_fee($booking);
@@ -748,44 +793,34 @@ if (!function_exists('booking_actual_luggage_gross')) {
     /**
      * Gross excess-luggage fee from verified/actual details when available,
      * otherwise the paid/estimated booking luggage fee.
+     * Alias of booking_luggage_fee (single source of truth for KPIs).
      */
     function booking_actual_luggage_gross($booking): float
     {
-        if (is_object($booking) && method_exists($booking, 'loadMissing')) {
-            $booking->loadMissing('excessLuggageEscrow');
-        }
-
-        $escrow = is_object($booking) ? ($booking->excessLuggageEscrow ?? null) : null;
-        if ($escrow) {
-            if ((float) ($escrow->actual_fee ?? 0) > 0) {
-                return round((float) $escrow->actual_fee, 2);
-            }
-            if ((float) ($escrow->released_fee ?? 0) > 0) {
-                return round((float) $escrow->released_fee, 2);
-            }
-        }
-
-        $actualWeight = $booking->actual_weight ?? ($escrow->actual_weight ?? null);
-        if ($actualWeight !== null && (float) $actualWeight > 0) {
-            $rate = excess_luggage_fee_per_kg();
-            if ($rate > 0) {
-                return round((float) $actualWeight * $rate, 2);
-            }
-        }
-
         return booking_luggage_fee($booking);
     }
 }
 
 if (!function_exists('bus_owner_actual_luggage_share')) {
     /**
-     * Bus-owner luggage earnings from actual excess-luggage details.
-     * Prefers escrow.owner_share (wallet credit) when present.
+     * Bus-owner luggage earnings for KPIs / earnings cards.
+     *
+     * After weigh-in: always 90% of the reconciled actual gross (so Overestimated
+     * 15,000 → 13,500 and Underestimated 25,000 → 22,500), not the pre-weigh deposit.
+     * Before weigh-in: prefer escrow.owner_share already credited at deposit.
      */
     function bus_owner_actual_luggage_share($booking): float
     {
         if (is_object($booking) && method_exists($booking, 'loadMissing')) {
             $booking->loadMissing('excessLuggageEscrow');
+        }
+
+        $weighed = !empty($booking->luggage_weighed_at)
+            || !empty($booking->luggage_weight_verdict)
+            || ($booking->actual_weight !== null && (float) $booking->actual_weight > 0);
+
+        if ($weighed) {
+            return split_luggage_fee_amount(booking_actual_luggage_gross($booking))['owner'];
         }
 
         $escrow = is_object($booking) ? ($booking->excessLuggageEscrow ?? null) : null;
@@ -912,6 +947,167 @@ if (!function_exists('booking_gross_commission')) {
     function booking_gross_commission($booking): float
     {
         return max(0.0, (float) ($booking->fee ?? 0) + (float) ($booking->vender_fee ?? 0));
+    }
+}
+
+if (!function_exists('booking_fare_commission')) {
+    /**
+     * Commission displayed on vendor history and admin commission prints.
+     * Always 5% of the bus fare, not fee + vender_fee + vender_service.
+     */
+    function booking_fare_commission($booking): float
+    {
+        $fare = max(0.0, (float) ($booking->busFee ?? 0));
+
+        return round($fare * \App\Services\FareFormulaService::DEFAULT_COMMISSION_PERCENT / 100, 2);
+    }
+}
+
+if (!function_exists('parcel_share_split')) {
+    /**
+     * Parcel fee split: vendor is 10% (account percentage) of the 5% commission pool.
+     *
+     * @return array{pool: float, vendor: float, admin: float, owner: float}
+     */
+    function parcel_share_split($parcel): array
+    {
+        $amount = max(0.0, (float) ($parcel->amount_paid ?? 0));
+        $venderId = $parcel->vender_id ?? null;
+        $hasVendor = !empty($venderId);
+
+        return \App\Services\ParcelFlowService::splitAmounts(
+            $amount,
+            $hasVendor,
+            \App\Services\ParcelFlowService::commissionPercent(),
+            $hasVendor ? \App\Services\ParcelFlowService::vendorPoolPercent($venderId) : 0.0
+        );
+    }
+}
+
+if (!function_exists('parcel_vendor_share')) {
+    function parcel_vendor_share($parcel): float
+    {
+        return parcel_share_split($parcel)['vendor'];
+    }
+}
+
+if (!function_exists('parcel_admin_share')) {
+    /** Platform share of the parcel commission pool (pool minus the vendor's 10% of that pool). */
+    function parcel_admin_share($parcel): float
+    {
+        return parcel_share_split($parcel)['admin'];
+    }
+}
+
+if (!function_exists('parcel_owner_share')) {
+    /** Bus-owner share of a parcel fee (fee minus the commission pool). */
+    function parcel_owner_share($parcel): float
+    {
+        return parcel_share_split($parcel)['owner'];
+    }
+}
+
+if (!function_exists('vendor_sales_share_totals')) {
+    /**
+     * Vendor commission from sales: 10% of the 5% pool on ticket fares and on parcel fees.
+     *
+     * @return array{ticket: float, parcel: float, gross: float, withdrawn: float, wallet: float}
+     */
+    function vendor_sales_share_totals(int $venderId): array
+    {
+        $vendorPercent = \App\Services\ParcelFlowService::vendorPoolPercent($venderId);
+        $commissionPercent = \App\Services\ParcelFlowService::commissionPercent();
+        $ticket = 0.0;
+
+        $bookings = \App\Models\Booking::query()
+            ->where('vender_id', $venderId)
+            ->where('payment_status', 'Paid')
+            ->get(['busFee']);
+
+        foreach ($bookings as $booking) {
+            $fare = max(0.0, (float) ($booking->busFee ?? 0));
+            $ticket += round($fare * $commissionPercent / 100 * $vendorPercent / 100, 2);
+        }
+
+        $parcel = 0.0;
+        $parcels = \App\Models\Parcel::query()
+            ->where('vender_id', $venderId)
+            ->where('payment_status', 'paid')
+            ->where('status', '!=', 'cancelled')
+            ->get(['amount_paid']);
+
+        foreach ($parcels as $row) {
+            $parcel += \App\Services\ParcelFlowService::splitAmounts(
+                (float) $row->amount_paid,
+                true,
+                $commissionPercent,
+                $vendorPercent
+            )['vendor'];
+        }
+
+        $withdrawn = (float) \App\Models\Transaction::query()
+            ->where('vender_id', $venderId)
+            ->where('status', 'Completed')
+            ->sum('amount');
+
+        $gross = round($ticket + $parcel, 2);
+
+        return [
+            'ticket' => round($ticket, 2),
+            'parcel' => round($parcel, 2),
+            'gross' => $gross,
+            'withdrawn' => round($withdrawn, 2),
+            'wallet' => round(max(0, $gross - $withdrawn), 2),
+        ];
+    }
+}
+
+if (!function_exists('sync_vendor_commission_wallet')) {
+    /**
+     * Store the commission wallet as 10% of 5% of ticket fares plus parcel fees, minus payouts.
+     */
+    function sync_vendor_commission_wallet($user): float
+    {
+        $wallet = vendor_sales_share_totals((int) $user->id)['wallet'];
+        $stored = (int) round($wallet);
+        $balance = $user->VenderBalances;
+
+        if (!$balance) {
+            $balance = \App\Models\VenderBalance::firstOrCreate(
+                ['user_id' => $user->id],
+                ['amount' => 0]
+            );
+            $user->setRelation('VenderBalances', $balance);
+        }
+
+        if ((int) $balance->amount !== $stored) {
+            $balance->amount = $stored;
+            $balance->save();
+        }
+
+        return (float) $stored;
+    }
+}
+
+if (!function_exists('booking_reported_revenue')) {
+    /**
+     * Collected ticket value for admin revenue cards.
+     * Luggage uses the reconciled fee, so a weigh-in change is included immediately.
+     */
+    function booking_reported_revenue($booking): float
+    {
+        $fare = max(0.0, (float) ($booking->busFee ?? 0));
+        if ($fare <= 0) {
+            $fare = max(0.0, (float) ($booking->amount ?? 0));
+        }
+
+        return round(
+            $fare
+            + booking_luggage_fee($booking)
+            + booking_service_fee($booking)
+            + (float) ($booking->bima_amount ?? 0),
+            2
+        );
     }
 }
 
@@ -1415,8 +1611,8 @@ if (!function_exists('booking_to_report_row')) {
         $ticketFareOnly = round(max(0, $busFee));
         $paidFare = $ticketFareOnly;
         $rowTotal = $ticketFareOnly;
-        // Platform cash fee + vendor fare share + vendor service share (matches history commission).
-        $commissionTotal = round($systemFee + $vendorFee + $vendorService);
+        // Commission prints and income rows show 5% of bus fare.
+        $commissionTotal = booking_fare_commission($booking);
 
         $travelDateRaw = $booking->travel_date
             ? \Carbon\Carbon::parse($booking->travel_date)
@@ -1498,6 +1694,37 @@ if (!function_exists('booking_to_report_row')) {
             'excess_luggage_description' => $booking->excess_luggage_description ?? null,
             'excess_luggage_fee' => $luggageFee > 0 ? (string) round($luggageFee) : null,
         ];
+    }
+}
+
+if (!function_exists('booking_report_hides_platform_fees')) {
+    /**
+     * Vendor income PDFs omit service, insurance, and government levy.
+     */
+    function booking_report_hides_platform_fees(?string $audience = null): bool
+    {
+        return $audience === 'vendor';
+    }
+}
+
+if (!function_exists('booking_report_shows_service_fee')) {
+    function booking_report_shows_service_fee(?string $audience = null): bool
+    {
+        return ! in_array($audience, ['vendor', 'bus_owner'], true);
+    }
+}
+
+if (!function_exists('booking_report_shows_insurance')) {
+    function booking_report_shows_insurance(?string $audience = null): bool
+    {
+        return ! in_array($audience, ['vendor', 'bus_owner'], true);
+    }
+}
+
+if (!function_exists('booking_report_shows_vendor_share')) {
+    function booking_report_shows_vendor_share(?string $audience = null): bool
+    {
+        return $audience !== 'bus_owner';
     }
 }
 

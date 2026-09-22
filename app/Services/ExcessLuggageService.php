@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Log;
  * Extra collect (positive luggage_refund_amount) settles via ClickPesa;
  * refunds (negative) are requested by staff and approved by system admin
  * via luggage_payment_status (refund_noted → refund_pending → refunded).
+ *
+ * On weigh-in, overestimated/underestimated bookings store the actual
+ * weight-based fee on bookings.excess_luggage_fee immediately (before
+ * admin refund approval or passenger top-up settlement). Correct keeps the paid fee.
  */
 class ExcessLuggageService
 {
@@ -380,12 +384,26 @@ class ExcessLuggageService
     }
 
     /**
-     * Gross luggage payments deposited into escrow (all bookings, incl. released/refunded).
+     * Gross luggage fee total for admin KPI cards.
+     * Uses reconciled actual/released fee after weigh-in (not raw held deposits),
+     * so Overestimated 20k→15k and Underestimated 20k→25k are reflected immediately.
      */
     public function totalLuggageCollected(): float
     {
-        return round((float) ExcessLuggageEscrow::query()
-            ->sum('held_amount'), 2);
+        return round((float) Booking::query()
+            ->with('excessLuggageEscrow')
+            ->where('payment_status', 'Paid')
+            ->where(function ($q) {
+                $q->where('has_excess_luggage', 1)
+                    ->orWhere('excess_luggage_fee', '>', 0)
+                    ->orWhereNotNull('luggage_weighed_at')
+                    ->orWhereHas('excessLuggageEscrow', function ($escrow) {
+                        $escrow->where('actual_fee', '>', 0)
+                            ->orWhere('held_amount', '>', 0);
+                    });
+            })
+            ->get()
+            ->sum(fn (Booking $booking) => booking_luggage_fee($booking)), 2);
     }
 
     /**
@@ -578,9 +596,30 @@ class ExcessLuggageService
     }
 
     /**
+     * Gross luggage fee implied by weigh-in reconciliation (actual weight × rate).
+     * Falls back to paid + delta when rate/weight are unavailable.
+     */
+    public function resolvedActualFee(array $calc, float $paidFee): float
+    {
+        $actualWeight = $calc['actual_weight'] ?? null;
+        $feePerKg = (float) ($calc['fee_per_kg'] ?? 0);
+        $delta = (float) ($calc['delta'] ?? 0);
+
+        if ($actualWeight !== null && $feePerKg > 0) {
+            return round((float) $actualWeight * $feePerKg, 2);
+        }
+
+        return max(0.0, round($paidFee + $delta, 2));
+    }
+
+    /**
      * Record weigh-in measurements and fee reconciliation.
      * Verdict + luggage_refund_amount are computed automatically from actual vs estimated weight.
      * Positive delta → awaiting ClickPesa; negative → refund_noted (staff may request admin refund); zero → ready.
+     *
+     * Overestimated / underestimated: booking.excess_luggage_fee is updated to the
+     * actual weight-based fee immediately (before admin refund approval or top-up settlement).
+     * Correct: fee stays as paid/estimated.
      */
     public function weighIn(Booking $booking, array $data, User $actor): Booking
     {
@@ -588,16 +627,35 @@ class ExcessLuggageService
             throw new \RuntimeException(__('vender/luggage.weigh_in_already_saved'));
         }
 
-        $fee = (float) ($data['excess_luggage_fee'] ?? $booking->excess_luggage_fee ?? 0);
+        $formFee = (float) ($data['excess_luggage_fee'] ?? $booking->excess_luggage_fee ?? 0);
+
+        // Paid basis = what the passenger already settled at booking (escrow deposit),
+        // not a manually edited form value. Form fee is only a fallback when no escrow yet.
+        $escrowBefore = $this->escrowFor($booking);
+        $paidFee = $formFee;
+        if ($escrowBefore) {
+            if ((float) ($escrowBefore->estimated_fee ?? 0) > 0) {
+                $paidFee = (float) $escrowBefore->estimated_fee;
+            } elseif ((float) ($escrowBefore->held_amount ?? 0) > 0
+                && in_array($escrowBefore->status, [self::ESCROW_HELD, self::ESCROW_AWAITING_TOPUP], true)
+            ) {
+                $paidFee = (float) $escrowBefore->held_amount;
+            }
+        }
 
         $calc = $this->computeWeighInReconciliation(
             $booking,
             $data['actual_weight'] ?? null,
-            $fee
+            $paidFee
         );
 
         $delta = $calc['delta'];
         $verdict = $calc['verdict'];
+
+        // Over/under: reflect actual fee everywhere right away. Correct: keep paid fee.
+        $storedFee = $verdict === 'correct'
+            ? $paidFee
+            : $this->resolvedActualFee($calc, $paidFee);
 
         $status = self::STATUS_READY;
         $paymentStatus = self::PAYMENT_NONE;
@@ -611,7 +669,7 @@ class ExcessLuggageService
 
         $booking->update([
             'has_excess_luggage' => 1,
-            'excess_luggage_fee' => $fee,
+            'excess_luggage_fee' => $storedFee,
             'excess_luggage_description' => $data['excess_luggage_description'] ?? $booking->excess_luggage_description,
             'actual_weight' => $data['actual_weight'] ?? null,
             'actual_length' => $data['actual_length'] ?? null,
@@ -634,6 +692,14 @@ class ExcessLuggageService
         ]);
 
         $this->releaseAfterWeighIn($booking->fresh(), $calc);
+
+        Log::info('Excess luggage weigh-in fee reconciled', [
+            'booking_id' => $booking->id,
+            'verdict' => $verdict,
+            'paid_fee' => $paidFee,
+            'stored_fee' => $storedFee,
+            'delta' => $delta,
+        ]);
 
         return $booking->fresh();
     }
@@ -803,6 +869,9 @@ class ExcessLuggageService
     /**
      * System admin approves a pending luggage refund: reduce escrow surplus and
      * mark payment status refunded. Surplus was held in escrow and never distributed.
+     *
+     * Booking fee is already the actual (post weigh-in) amount — do not subtract
+     * the refund from excess_luggage_fee again. Only clear surplus + customer_paid_total.
      */
     public function approveRefund(Booking $booking, User $actor): Booking
     {
@@ -850,9 +919,17 @@ class ExcessLuggageService
                 );
             }
 
-            $newFee = max(0.0, round((float) ($booking->excess_luggage_fee ?? 0) - $refund, 2));
+            // Fee already reflects actual weight after weigh-in. Keep it aligned with escrow.
+            $actualFee = null;
+            if ($escrow) {
+                $actualFee = (float) ($escrow->actual_fee ?? $escrow->released_fee ?? 0);
+            }
+            if ($actualFee === null || $actualFee <= 0) {
+                $actualFee = (float) ($booking->excess_luggage_fee ?? 0);
+            }
+
             $payload = [
-                'excess_luggage_fee' => $newFee,
+                'excess_luggage_fee' => round($actualFee, 2),
                 'luggage_payment_status' => self::PAYMENT_REFUNDED,
             ];
             if ($booking->customer_paid_total !== null) {
@@ -867,6 +944,7 @@ class ExcessLuggageService
             Log::info('Excess luggage surplus refund approved', [
                 'booking_id' => $booking->id,
                 'refund' => $refund,
+                'excess_luggage_fee' => $payload['excess_luggage_fee'],
                 'actor_id' => $actor->id,
                 'reference' => $booking->luggage_payment_ref,
             ]);
@@ -975,8 +1053,21 @@ class ExcessLuggageService
 
             $this->addTopUp($booking, $extra, $reference);
 
+            // Weigh-in already stores the actual fee for underestimated cases.
+            // Prefer escrow.actual_fee so we never double-add the top-up onto the fee.
+            $escrow = ExcessLuggageEscrow::query()
+                ->where('booking_id', $booking->id)
+                ->lockForUpdate()
+                ->first();
+            $currentFee = (float) ($booking->excess_luggage_fee ?? 0);
+            $actualFee = (float) ($escrow->actual_fee ?? $escrow->released_fee ?? 0);
+            if ($actualFee <= 0) {
+                // Legacy rows weighed before fee was written at weigh-in.
+                $actualFee = round($currentFee + $extra, 2);
+            }
+
             $payload = [
-                'excess_luggage_fee' => (float) ($booking->excess_luggage_fee ?? 0) + $extra,
+                'excess_luggage_fee' => $actualFee,
                 'luggage_payment_status' => self::PAYMENT_PAID,
                 'luggage_status' => self::STATUS_READY,
                 'luggage_payment_ref' => $reference,
@@ -990,6 +1081,7 @@ class ExcessLuggageService
             Log::info('Excess luggage top-up settled via escrow', [
                 'booking_id' => $booking->id,
                 'extra' => $extra,
+                'excess_luggage_fee' => $actualFee,
                 'customer_paid_total' => $payload['customer_paid_total'] ?? null,
                 'reference' => $reference,
             ]);
