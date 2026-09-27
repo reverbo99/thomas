@@ -132,6 +132,7 @@
                 <p class="text-xs text-red-500 mt-2">{{ __('system.dashboard.total_cancelled_amount') }}</p>
             </div>
 
+            <a href="{{ route('system.payments') }}#income-luggage" class="no-underline">
             <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 border border-cyan-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-cyan-200">
                 <div class="flex items-center justify-between">
                     <div>
@@ -152,6 +153,7 @@
                     <p class="text-xs text-cyan-700 dark:text-cyan-300 mt-0.5">{{ __('vender/luggage.total_luggage_balance') }}: {{ $currency }} {{ convert_money($luggageBalanceTotal) }}</p>
                 @endisset
             </div>
+            </a>
 
             <a href="{{ route('system.payments') }}#income-parcel" class="no-underline">
                 <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-100 rounded-xl p-6 transition-all hover:shadow-md hover:border-purple-200">
@@ -167,6 +169,8 @@
                         </div>
                     </div>
                     <p class="text-xs text-purple-500 mt-2">{{ __('system.dashboard.view_parcel_details') }}</p>
+                    <p class="text-xs text-green-700 dark:text-green-300 mt-1">{{ __('system.dashboard.parcel_government_levy', ['percent' => government_levy_percent()]) }}: {{ $currency }} {{ convert_money($parcelGovernmentLevyTotal ?? 0) }}</p>
+                    <p class="text-xs text-purple-700 dark:text-purple-300 mt-0.5">{{ __('system.dashboard.parcel_fees_total') }}: {{ $currency }} {{ convert_money($parcelFeesTotal ?? 0) }}</p>
                 </div>
             </a>
 

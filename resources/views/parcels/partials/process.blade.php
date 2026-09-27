@@ -90,6 +90,7 @@
             <p><strong>{{ __('vender/parcels.bus_owner_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['owner']) }}</p>
         @endif
         <p><strong>{{ __('vender/parcels.admin_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['admin']) }}</p>
+        <p><strong>{{ __('vender/parcels.government_levy_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['government']) }}</p>
         <p class="text-xs text-gray-500">{{ __('vender/parcels.share_formula') }}</p>
         <div class="pt-2 text-xs text-gray-600 space-y-1">
             <p class="font-semibold text-gray-800">{{ __('vender/parcels.timeline') }}</p>

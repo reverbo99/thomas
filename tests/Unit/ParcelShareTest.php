@@ -14,7 +14,8 @@ class ParcelShareTest extends TestCase
         $this->assertSame(1750.0, $split['pool']);
         $this->assertSame(175.0, $split['vendor']);
         $this->assertSame(1575.0, $split['admin']);
-        $this->assertSame(33250.0, $split['owner']);
+        $this->assertSame(1750.0, $split['government']);
+        $this->assertSame(31500.0, $split['owner']);
     }
 
     public function test_parcel_without_vendor_keeps_the_full_commission_pool_for_admin(): void
@@ -23,6 +24,7 @@ class ParcelShareTest extends TestCase
 
         $this->assertSame(0.0, $split['vendor']);
         $this->assertSame(500.0, $split['admin']);
-        $this->assertSame(9500.0, $split['owner']);
+        $this->assertSame(500.0, $split['government']);
+        $this->assertSame(9000.0, $split['owner']);
     }
 }

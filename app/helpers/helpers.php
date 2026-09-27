@@ -605,19 +605,19 @@ if (!function_exists('booking_luggage_fee')) {
             || !empty($booking->luggage_weight_verdict)
             || ($bookingActualWeight !== null && (float) $bookingActualWeight > 0);
 
-        // After weigh-in the booking column is the reconciled charge. Prefer it over
-        // an escrow deposit that can still hold the pre-weigh estimate.
-        if ($weighed && (float) ($booking->excess_luggage_fee ?? 0) > 0) {
-            return round((float) $booking->excess_luggage_fee, 2);
-        }
-
-        if ($escrow) {
+        // Escrow actual_fee is the verified weigh-in charge; bookings weighed before the
+        // column was synced at weigh-in can still carry the declared fee in excess_luggage_fee.
+        if ($escrow && $escrow->status !== \App\Models\ExcessLuggageEscrow::STATUS_CANCELLED) {
             if ((float) ($escrow->actual_fee ?? 0) > 0) {
                 return round((float) $escrow->actual_fee, 2);
             }
             if ((float) ($escrow->released_fee ?? 0) > 0) {
                 return round((float) $escrow->released_fee, 2);
             }
+        }
+
+        if ($weighed && (float) ($booking->excess_luggage_fee ?? 0) > 0) {
+            return round((float) $booking->excess_luggage_fee, 2);
         }
 
         $actualWeight = $bookingActualWeight ?? (isset($escrow->actual_weight) ? $escrow->actual_weight : null);
@@ -708,6 +708,31 @@ if (!function_exists('system_luggage_fee')) {
     function system_luggage_fee($booking): float
     {
         return split_luggage_fee_amount(booking_luggage_fee($booking), null)['system'];
+    }
+}
+
+if (!function_exists('admin_luggage_income')) {
+    /**
+     * Luggage income actually credited to the admin wallet for a booking:
+     * escrow admin_share (5% of the paid fee, adjusted to the verified fee after
+     * weigh-in / top-up), or the 5% split for bookings settled before escrow existed.
+     */
+    function admin_luggage_income($booking): float
+    {
+        if (method_exists($booking, 'loadMissing')) {
+            $booking->loadMissing('excessLuggageEscrow');
+        }
+
+        $escrow = $booking->excessLuggageEscrow ?? null;
+        if ($escrow) {
+            if ($escrow->status === \App\Models\ExcessLuggageEscrow::STATUS_CANCELLED) {
+                return 0.0;
+            }
+
+            return round((float) ($escrow->admin_share ?? 0), 2);
+        }
+
+        return system_luggage_fee($booking);
     }
 }
 
@@ -922,12 +947,11 @@ if (!function_exists('booking_total_government_levy')) {
 }
 
 if (!function_exists('booking_row_total_government_levy')) {
-    /** Sum of all levy columns shown on the government levy booking row. */
+    /** Sum of levy columns shown on the government levy booking row (fare + service + luggage). */
     function booking_row_total_government_levy($booking): float
     {
         return round(
-            booking_government_levy_on_commission($booking)
-            + booking_government_levy_on_fare($booking)
+            booking_government_levy_on_fare($booking)
             + booking_government_levy_on_service($booking)
             + booking_government_levy_on_luggage($booking),
             2
@@ -965,22 +989,42 @@ if (!function_exists('booking_fare_commission')) {
 
 if (!function_exists('parcel_share_split')) {
     /**
-     * Parcel fee split: vendor is 10% (account percentage) of the 5% commission pool.
+     * Parcel fee split: admin 5% pool (vendor gets its account % of that pool),
+     * government levy 5%, bus owner the rest. Uses the split stored at settlement.
      *
-     * @return array{pool: float, vendor: float, admin: float, owner: float}
+     * @return array{pool: float, vendor: float, admin: float, government: float, owner: float}
      */
     function parcel_share_split($parcel): array
     {
-        $amount = max(0.0, (float) ($parcel->amount_paid ?? 0));
-        $venderId = $parcel->vender_id ?? null;
-        $hasVendor = !empty($venderId);
+        return \App\Services\ParcelFlowService::splitForParcel($parcel);
+    }
+}
 
-        return \App\Services\ParcelFlowService::splitAmounts(
-            $amount,
-            $hasVendor,
-            \App\Services\ParcelFlowService::commissionPercent(),
-            $hasVendor ? \App\Services\ParcelFlowService::vendorPoolPercent($venderId) : 0.0
-        );
+if (!function_exists('parcel_government_levy')) {
+    /**
+     * Government levy on a parcel fee (default 5% of amount_paid).
+     * Uses the amount stored at settlement when present; for paid parcels settled
+     * before levy was recorded, reports the statutory levy on the fee (not admin commission).
+     */
+    function parcel_government_levy($parcel): float
+    {
+        $amount = max(0.0, (float) ($parcel->amount_paid ?? 0));
+        if ($amount <= 0) {
+            return 0.0;
+        }
+
+        if (isset($parcel->government_levy) && $parcel->government_levy !== null && $parcel->government_levy !== '') {
+            $stored = round((float) $parcel->government_levy, 2);
+            if ($stored > 0) {
+                return $stored;
+            }
+        }
+
+        if (strcasecmp((string) ($parcel->payment_status ?? ''), 'paid') === 0) {
+            return government_levy_on_amount($amount);
+        }
+
+        return round((float) (parcel_share_split($parcel)['government'] ?? 0), 2);
     }
 }
 
@@ -1108,13 +1152,6 @@ if (!function_exists('booking_reported_revenue')) {
             + (float) ($booking->bima_amount ?? 0),
             2
         );
-    }
-}
-
-if (!function_exists('booking_government_levy_on_commission')) {
-    function booking_government_levy_on_commission($booking): float
-    {
-        return government_levy_on_amount(booking_gross_commission($booking));
     }
 }
 

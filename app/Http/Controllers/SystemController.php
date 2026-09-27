@@ -66,7 +66,7 @@ class SystemController extends Controller
         $todayParcelQuery = $this->commissionableParcelsQuery()
             ->whereBetween('created_at', [Carbon::today(), Carbon::today()->endOfDay()]);
         $todayParcelGross = (float) (clone $todayParcelQuery)->sum('amount_paid');
-        $todayParcelOwnerShare = round((float) (clone $todayParcelQuery)->get(['amount_paid', 'vender_id'])->sum(
+        $todayParcelOwnerShare = round((float) (clone $todayParcelQuery)->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share'])->sum(
             fn ($parcel) => parcel_owner_share($parcel)
         ), 2);
         // Today's earnings count the bus-owner parcel share (fee minus the 5% commission pool).
@@ -193,9 +193,11 @@ class SystemController extends Controller
         $luggageService = app(ExcessLuggageService::class);
         $escrowBalance = $luggageService->totalEscrowBalance();
         $luggageBalanceTotal = $luggageService->totalLuggageCollected();
-        $parcelCommissionTotal = round((float) $this->commissionableParcelsQuery()
-            ->get(['amount_paid', 'vender_id'])
-            ->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
+        $paidParcels = $this->commissionableParcelsQuery()
+            ->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
+        $parcelCommissionTotal = round((float) $paidParcels->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
+        $parcelGovernmentLevyTotal = round((float) $paidParcels->sum(fn ($parcel) => parcel_government_levy($parcel)), 2);
+        $parcelFeesTotal = round((float) $paidParcels->sum('amount_paid'), 2);
         // Available Balance = admin_wallet (commission + service fee + luggage + other
         // platform income − withdrawals). Paid insurance must not be included.
         // Prefer subtracting only historically wallet-credited bima rows; until the
@@ -217,42 +219,33 @@ class SystemController extends Controller
         return view('system.dashboard', compact(
             'bookings', 'todayAmount', 'todayParcelOwnerShare', 'todayPaidCount', 'totalAmount', 'totalPaidCount',
             'weeklyAmounts', 'weeklyAmountsMonth', 'weeklyAmountsYear', 'recentActivity',
-            'service', 'fees', 'luggageTotal', 'escrowBalance', 'luggageBalanceTotal', 'parcelCommissionTotal', 'bima', 'balance',
+            'service', 'fees', 'luggageTotal', 'escrowBalance', 'luggageBalanceTotal', 'parcelCommissionTotal', 'parcelGovernmentLevyTotal', 'parcelFeesTotal', 'bima', 'balance',
             'cancelledAmount', 'specialHireCommissionTotal', 'totalGovernmentLevy'
         ));
     }
 
     /**
      * Combined GMV for admin dashboard: paid tickets + paid parcels + paid special hire (TZS).
-     * Ticket gross prefers customer_paid_total (checkout total + synced luggage top-ups).
-     * Top-ups are folded into customer_paid_total in ExcessLuggageService::confirmTopUpPayment
-     * so they are not added again here (no double-count). Legacy paid top-ups on bookings
-     * still missing customer_paid_total are added once via luggage_refund_amount.
+     * Ticket luggage uses booking_luggage_fee(): the paid fee until weigh-in, then the
+     * actual weighed fee (top-ups and refunds already included), so nothing is added on top.
      */
     private function sumCombinedPaidRevenue(?Carbon $from, ?Carbon $to): float
     {
         $bookingQ = Booking::query()->where('payment_status', 'Paid');
         $parcelQ = $this->commissionableParcelsQuery();
         $hireQ = SpecialHireOrder::query()->where('payment_status', 'paid');
-        $legacyTopUpQ = Booking::query()
-            ->where('payment_status', 'Paid')
-            ->where('luggage_payment_status', 'paid')
-            ->whereNull('customer_paid_total')
-            ->where('luggage_refund_amount', '>', 0);
 
         if ($from && $to) {
             $bookingQ->whereBetween('created_at', [$from, $to]);
             $parcelQ->whereBetween('created_at', [$from, $to]);
             $hireQ->whereBetween('created_at', [$from, $to]);
-            $legacyTopUpQ->whereBetween('created_at', [$from, $to]);
         }
 
         $tickets = (float) $bookingQ->with('excessLuggageEscrow')->get()->sum(fn ($booking) => booking_reported_revenue($booking));
-        $legacyTopUps = (float) $legacyTopUpQ->sum('luggage_refund_amount');
         $parcels = (float) $parcelQ->sum('amount_paid');
         $hire = (float) $hireQ->sum('total_amount');
 
-        return round($tickets + $legacyTopUps + $parcels + $hire, 2);
+        return round($tickets + $parcels + $hire, 2);
     }
 
     private function countCombinedPaidTransactions(?Carbon $from, ?Carbon $to): int
@@ -1264,10 +1257,16 @@ class SystemController extends Controller
         $bookingsChart = Booking::where('campany_id', $campany->id)
             ->where('payment_status', 'Paid')
             ->where('created_at', '>=', Carbon::now()->subDays(14))
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count, SUM(COALESCE(customer_paid_total, busFee, amount)) as total')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
+            ->with('excessLuggageEscrow')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy(fn ($b) => $b->created_at->toDateString())
+            ->map(fn ($rows, $date) => (object) [
+                'date' => $date,
+                'count' => $rows->count(),
+                'total' => round($rows->sum(fn ($b) => booking_reported_revenue($b)), 2),
+            ])
+            ->values();
 
         $schedules = Schedule::whereIn('bus_id', $busIds)
             ->with(['bus', 'route'])
@@ -1281,7 +1280,11 @@ class SystemController extends Controller
 
         $totalCommission = SystemBalance::where('campany_id', $campany->id)->sum('balance');
         $totalServiceFees = PaymentFees::where('campany_id', $campany->id)->sum('amount');
-        $totalBookingsRevenue = Booking::where('campany_id', $campany->id)->where('payment_status', 'Paid')->sum(DB::raw('COALESCE(customer_paid_total, busFee, amount)'));
+        $totalBookingsRevenue = round((float) Booking::where('campany_id', $campany->id)
+            ->where('payment_status', 'Paid')
+            ->with('excessLuggageEscrow')
+            ->get()
+            ->sum(fn ($b) => booking_reported_revenue($b)), 2);
         $luggageBookings = Booking::where('campany_id', $campany->id)
             ->with('excessLuggageEscrow')
             ->where('payment_status', 'Paid')
@@ -1294,7 +1297,7 @@ class SystemController extends Controller
         $totalLuggageRevenue = (float) $luggageBookings->sum(fn ($b) => booking_luggage_fee($b));
         $companyParcels = $this->commissionableParcelsQuery()
             ->whereHas('bus', fn ($q) => $q->where('campany_id', $campany->id))
-            ->get(['amount_paid', 'vender_id']);
+            ->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
         $totalParcelRevenue = (float) $companyParcels->sum('amount_paid');
         $totalParcelCommission = round((float) $companyParcels->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
         $totalOperatorRevenue = round($totalBookingsRevenue + $totalParcelRevenue, 2);
@@ -1325,7 +1328,11 @@ class SystemController extends Controller
         });
 
         $parcels = $parcels->map(function ($parcel) {
-            $parcel->commission_amount = parcel_admin_share($parcel);
+            $split = parcel_share_split($parcel);
+            $parcel->commission_amount = $split['admin'];
+            $parcel->vendor_amount = $split['vendor'];
+            $parcel->government_levy_amount = $split['government'];
+            $parcel->owner_amount = $split['owner'];
 
             return $parcel;
         });
@@ -1429,7 +1436,7 @@ class SystemController extends Controller
                 $index + 1,
                 $booking->campany->name ?? '—',
                 $booking->booking_code ?? 'N/A',
-                system_luggage_fee($booking),
+                admin_luggage_income($booking),
                 $booking->created_at
             );
         });
@@ -1471,7 +1478,7 @@ class SystemController extends Controller
 
         $commissionTotal = (float) $balances->sum('balance');
         $serviceFeeTotal = (float) $pays->sum(fn ($record) => $this->paymentFeeDisplayAmount($record, $bookingsByCode));
-        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => system_luggage_fee($booking));
+        $luggageTotal = (float) $luggageBookings->sum(fn ($booking) => admin_luggage_income($booking));
         $cancellationTotal = (float) $cancellations->sum('amount');
         $parcelTotal = (float) $parcels->sum(fn ($parcel) => parcel_admin_share($parcel));
         $specialHireTotal = (float) $specialHireOrders->sum('platform_commission_amount');
@@ -1517,7 +1524,7 @@ class SystemController extends Controller
     {
         return round((float) $this->paidLuggageBookingsQuery()
             ->get()
-            ->sum(fn ($booking) => system_luggage_fee($booking)), 2);
+            ->sum(fn ($booking) => admin_luggage_income($booking)), 2);
     }
 
     /**
@@ -1716,7 +1723,7 @@ class SystemController extends Controller
     {
         $query = Booking::query()
             ->where('payment_status', 'Paid')
-            ->with(['campany', 'route', 'vender', 'governmentLeviesOnService']);
+            ->with(['campany', 'route', 'vender', 'governmentLeviesOnService', 'excessLuggageEscrow']);
 
         $this->applyGovernmentLevyPeriodFilter($query, $request);
 
@@ -1775,7 +1782,7 @@ class SystemController extends Controller
     }
 
     /**
-     * Six levy categories + fare/service reconciliation totals for booking history parity.
+     * Levy categories: fare, service, luggage, cancellation, parcel, special hire.
      */
     private function computeGovernmentLevyCategoryTotals(Request $request): array
     {
@@ -1783,10 +1790,10 @@ class SystemController extends Controller
             ->get([
                 'id', 'booking_code', 'amount', 'customer_paid_total', 'vat', 'busFee',
                 'fee', 'vender_fee', 'service', 'vender_service', 'system_service_fee',
-                'government_levy', 'excess_luggage_fee', 'has_excess_luggage', 'created_at',
+                'government_levy', 'excess_luggage_fee', 'has_excess_luggage',
+                'actual_weight', 'luggage_weighed_at', 'luggage_weight_verdict', 'created_at',
             ]);
 
-        $levyCommission = (float) $bookings->sum(fn ($b) => booking_government_levy_on_commission($b));
         $levyService = (float) $bookings->sum(fn ($b) => booking_government_levy_on_service($b));
         $levyLuggage = (float) $bookings->sum(fn ($b) => booking_government_levy_on_luggage($b));
         $levyFare = (float) $bookings->sum(fn ($b) => booking_government_levy_on_fare($b));
@@ -1798,7 +1805,7 @@ class SystemController extends Controller
         );
 
         $parcels = $this->buildGovernmentLevyParcelsQuery($request)->get();
-        $levyParcel = (float) $parcels->sum(fn ($parcel) => parcel_admin_share($parcel));
+        $levyParcel = (float) $parcels->sum(fn ($parcel) => parcel_government_levy($parcel));
 
         $specialHireOrders = $this->buildGovernmentLevySpecialHireQuery($request)->get();
         $specialHireCommissionBase = (float) $specialHireOrders->sum('platform_commission_amount');
@@ -1807,11 +1814,11 @@ class SystemController extends Controller
         );
 
         $totalGovernmentLevy = round(
-            $levyCommission + $levyService + $levyLuggage + $levyCancellation + $levyParcel + $levySpecialHire,
+            $levyFare + $levyService + $levyLuggage + $levyCancellation + $levyParcel + $levySpecialHire,
             2
         );
-        $totalBookingRowLevy = round($levyCommission + $levyFare + $levyService + $levyLuggage, 2);
-        $grandTotalGovernmentLevy = round($levyFare + $totalGovernmentLevy, 2);
+        $totalBookingRowLevy = round($levyFare + $levyService + $levyLuggage, 2);
+        $grandTotalGovernmentLevy = $totalGovernmentLevy;
 
         return [
             'totalPaidAmount' => (float) $bookings->sum(fn ($b) => (float) ($b->customer_paid_total ?? $b->amount ?? 0)),
@@ -1820,11 +1827,11 @@ class SystemController extends Controller
             'totalGovLevyOnFare' => $levyFare,
             'totalGovLevyOnService' => $levyService,
             'farePlusServiceLevy' => $farePlusService,
-            'levyCommission' => round($levyCommission, 2),
             'levyService' => round($levyService, 2),
             'levyLuggage' => round($levyLuggage, 2),
             'levyCancellation' => round($levyCancellation, 2),
             'levyParcel' => round($levyParcel, 2),
+            'parcelFeesBase' => round((float) $parcels->sum('amount_paid'), 2),
             'levySpecialHire' => round($levySpecialHire, 2),
             'specialHireCommissionBase' => round($specialHireCommissionBase, 2),
             'specialHireLevyTotal' => round($levySpecialHire, 2),
@@ -1853,12 +1860,12 @@ class SystemController extends Controller
 
         $categoryRows = collect([
             [
-                'category' => __('system.pages.levy_cat_commission'),
+                'category' => __('system.pages.gov_levy_fare'),
                 'reference' => '—',
                 'date' => '—',
-                'detail' => 'fee + vender_fee',
-                'fee_base' => number_format((float) $bookings->sum(fn ($b) => booking_gross_commission($b)), 2),
-                'gov_levy' => number_format($totals['levyCommission'], 2),
+                'detail' => 'busFee',
+                'fee_base' => number_format((float) $bookings->sum(fn ($b) => (float) ($b->busFee ?? 0)), 2),
+                'gov_levy' => number_format($totals['totalGovLevyOnFare'], 2),
             ],
             [
                 'category' => __('system.pages.levy_cat_service'),
@@ -1904,7 +1911,7 @@ class SystemController extends Controller
                 'category' => __('system.pages.total_gov_levy'),
                 'reference' => '—',
                 'date' => '—',
-                'detail' => 'commission + service + luggage + cancellation + parcel admin share + special hire',
+                'detail' => 'fare + service + luggage + cancellation + parcel + special hire',
                 'fee_base' => '',
                 'gov_levy' => number_format($totals['totalGovernmentLevy'], 2),
             ],
@@ -1917,7 +1924,6 @@ class SystemController extends Controller
                 'date' => optional($booking->created_at)->format('Y-m-d H:i') ?? '—',
                 'detail' => 'fare=' . number_format(booking_government_levy_on_fare($booking), 2)
                     . '; service=' . number_format(booking_government_levy_on_service($booking), 2)
-                    . '; commission=' . number_format(booking_government_levy_on_commission($booking), 2)
                     . '; luggage=' . number_format(booking_government_levy_on_luggage($booking), 2),
                 'fee_base' => number_format(booking_gross_service_fee($booking), 2),
                 'gov_levy' => number_format(booking_row_total_government_levy($booking), 2),
@@ -1946,7 +1952,7 @@ class SystemController extends Controller
                 'date' => optional($parcel->created_at)->format('Y-m-d H:i') ?? '—',
                 'detail' => optional(optional($parcel->bus)->campany)->name ?? '—',
                 'fee_base' => number_format($base, 2),
-                'gov_levy' => number_format(parcel_admin_share($parcel), 2),
+                'gov_levy' => number_format(parcel_government_levy($parcel), 2),
             ];
         });
 
@@ -2003,7 +2009,6 @@ class SystemController extends Controller
         $govLevyOnFare = booking_government_levy_on_fare($booking);
         $govLevyOnService = booking_government_levy_on_service($booking);
         $rowTotalLevy = booking_row_total_government_levy($booking);
-        $commissionLevy = booking_government_levy_on_commission($booking);
         $luggageLevy = booking_government_levy_on_luggage($booking);
         $paidAmount = (float) ($booking->customer_paid_total ?? $booking->amount ?? 0);
 
@@ -2017,7 +2022,6 @@ class SystemController extends Controller
             'vat' => number_format((float) ($booking->vat ?? 0), 2),
             'gov_levy_fare' => number_format($govLevyOnFare, 2),
             'gov_levy_service' => number_format($govLevyOnService, 2),
-            'gov_levy_commission' => number_format($commissionLevy, 2),
             'gov_levy_luggage' => number_format($luggageLevy, 2),
             'total_gov_levy' => number_format($rowTotalLevy, 2),
             'fee_base' => number_format(booking_gross_service_fee($booking), 2),
@@ -2373,6 +2377,22 @@ class SystemController extends Controller
         }
     }
 
+    public function destroy_cities(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:cities,id',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $validated['ids'])));
+        $deleted = City::query()->whereIn('id', $ids)->delete();
+
+        if ($deleted < 1) {
+            return back()->with('error', __('system.messages.city_delete_none'));
+        }
+
+        return back()->with('success', __('system.messages.cities_deleted', ['count' => $deleted]));
+    }
 
     public function discount()
     {

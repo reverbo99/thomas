@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Controllers\SmsController;
 use App\Models\AdminWallet;
 use App\Models\bus;
+use App\Models\GovernmentLevy;
 use App\Models\Parcel;
 use App\Models\Setting;
 use App\Models\User;
@@ -74,34 +75,78 @@ class ParcelFlowService
      * Split a parcel fee.
      * Pool = commission % of the fee (default 5%).
      * Vendor = vendor % of that pool (default 10% of 5%) when a vendor registered it.
-     * Admin = the rest of the pool. Bus owner = fee minus the pool.
+     * Admin = the rest of the pool.
+     * Government levy = levy % of the fee (default 5%).
+     * Bus owner = fee minus the pool minus the government levy.
      *
-     * @return array{pool: float, vendor: float, admin: float, owner: float}
+     * @return array{pool: float, vendor: float, admin: float, government: float, owner: float}
      */
     public static function splitAmounts(
         float $amountPaid,
         bool $hasVendor,
         float $commissionPercent = FareFormulaService::DEFAULT_COMMISSION_PERCENT,
-        float $vendorPercentOfPool = FareFormulaService::DEFAULT_VENDOR_PERCENT
+        float $vendorPercentOfPool = FareFormulaService::DEFAULT_VENDOR_PERCENT,
+        ?float $governmentPercent = null
     ): array {
         $amountPaid = max(0.0, $amountPaid);
+        $governmentPercent = $governmentPercent ?? government_levy_percent();
         $pool = round($amountPaid * max(0.0, $commissionPercent) / 100, 2);
         $vendor = $hasVendor
             ? round($pool * min(100.0, max(0.0, $vendorPercentOfPool)) / 100, 2)
             : 0.0;
         $admin = round($pool - $vendor, 2);
-        $owner = round($amountPaid - $pool, 2);
+        $government = round($amountPaid * max(0.0, $governmentPercent) / 100, 2);
+        $owner = round(max(0.0, $amountPaid - $pool - $government), 2);
 
         return [
             'pool' => $pool,
             'vendor' => $vendor,
             'admin' => $admin,
+            'government' => $government,
             'owner' => $owner,
         ];
     }
 
     /**
-     * Bus-owner wallet share of a paid parcel (fee minus the commission pool).
+     * Split for an existing parcel: the amounts stored at settlement when present,
+     * otherwise the current formula (unpaid parcels / previews).
+     *
+     * @return array{pool: float, vendor: float, admin: float, government: float, owner: float}
+     */
+    public static function splitForParcel($parcel): array
+    {
+        if (isset($parcel->owner_share) && $parcel->owner_share !== null) {
+            $amount = max(0.0, round((float) ($parcel->amount_paid ?? 0), 2));
+            $admin = round((float) ($parcel->admin_share ?? 0), 2);
+            $vendor = round((float) ($parcel->vendor_share ?? 0), 2);
+            $government = round((float) ($parcel->government_levy ?? 0), 2);
+            if ($government <= 0 && $amount > 0 && strcasecmp((string) ($parcel->payment_status ?? ''), 'paid') === 0) {
+                $government = government_levy_on_amount($amount);
+            }
+            $owner = round(max(0.0, $amount - $admin - $vendor - $government), 2);
+
+            return [
+                'pool' => round($admin + $vendor, 2),
+                'vendor' => $vendor,
+                'admin' => $admin,
+                'government' => $government,
+                'owner' => $owner,
+            ];
+        }
+
+        $venderId = $parcel->vender_id ?? null;
+        $hasVendor = !empty($venderId);
+
+        return self::splitAmounts(
+            (float) ($parcel->amount_paid ?? 0),
+            $hasVendor,
+            self::commissionPercent(),
+            $hasVendor ? self::vendorPoolPercent($venderId) : 0.0
+        );
+    }
+
+    /**
+     * Bus-owner wallet share of a paid parcel (fee minus commission pool and government levy).
      */
     public static function ownerShareAmount(float $amountPaid, $venderId = null, ?float $systemPct = null, ?float $vendorPct = null): float
     {
@@ -223,6 +268,7 @@ class ParcelFlowService
             $systemShare = $split['admin'];
             $ownerShare = $split['owner'];
             $vendorShare = $split['vendor'];
+            $governmentLevy = $split['government'];
 
             $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
             if (!$adminWallet) {
@@ -251,6 +297,14 @@ class ParcelFlowService
                 $campany->balance->increment('amount', $ownerShare);
             }
 
+            if ($campany && $governmentLevy > 0) {
+                GovernmentLevy::create([
+                    'campany_id' => $campany->id,
+                    'booking_id' => $parcel->parcel_number,
+                    'amount' => $governmentLevy,
+                ]);
+            }
+
             if ($parcel->vender_id && $vendorShare > 0) {
                 $vb = VenderBalance::firstOrCreate(
                     ['user_id' => $parcel->vender_id],
@@ -268,6 +322,10 @@ class ParcelFlowService
                 'payment_ref' => $reference,
                 'status' => self::STATUS_REGISTERED,
                 'settled_at' => now(),
+                'admin_share' => $systemShare,
+                'vendor_share' => $vendorShare,
+                'government_levy' => $governmentLevy,
+                'owner_share' => $ownerShare,
             ]);
 
             Log::info('Parcel payment settled', [
@@ -276,6 +334,7 @@ class ParcelFlowService
                 'system' => $systemShare,
                 'owner' => $ownerShare,
                 'vendor' => $vendorShare,
+                'government_levy' => $governmentLevy,
                 'reference' => $reference,
             ]);
 

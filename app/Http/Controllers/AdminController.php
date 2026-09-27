@@ -246,15 +246,7 @@ class AdminController extends Controller
             apply_bus_relation_column_filters($query, $request);
         }
 
-        $systemPct = (float) (Setting::first()->parcel_commission_percentage ?? 0);
-
-        return (float) $query->get(['amount_paid', 'vender_id'])->sum(
-            fn ($parcel) => ParcelFlowService::ownerShareAmount(
-                (float) ($parcel->amount_paid ?? 0),
-                $parcel->vender_id,
-                $systemPct
-            )
-        );
+        return (float) $query->get()->sum(fn ($parcel) => parcel_owner_share($parcel));
     }
 
     private function earningsFilterInputs(Request $request): array
@@ -1241,14 +1233,8 @@ $q->where('id', auth()->user()->campany->id);
 
         $parcels = $filteredQuery->skip($offset)->take($length)->get();
         $currency = session('currency', 'Tzs');
-        $systemPct = (float) (Setting::first()->parcel_commission_percentage ?? 0);
-
-        $data = $parcels->map(function ($parcel) use ($currency, $systemPct) {
-            $ownerShare = ParcelFlowService::ownerShareAmount(
-                (float) ($parcel->amount_paid ?? 0),
-                $parcel->vender_id,
-                $systemPct
-            );
+        $data = $parcels->map(function ($parcel) use ($currency) {
+            $ownerShare = parcel_owner_share($parcel);
 
             return [
                 'parcel_number' => e($parcel->parcel_number ?? __('vender/earning.na')),

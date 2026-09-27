@@ -93,9 +93,10 @@ class BookingReportRowTest extends TestCase
         $booking->luggage_weight_verdict = 'overestimated';
         $booking->actual_weight = 6;
         $booking->excessLuggageEscrow = (object) [
-            'actual_fee' => 25000,
-            'held_amount' => 25000,
-            'admin_share' => 1250,
+            'actual_fee' => 15000,
+            'held_amount' => 20000,
+            'admin_share' => 750,
+            'status' => 'released',
         ];
 
         $this->assertSame(15000.0, booking_luggage_fee($booking));

@@ -570,12 +570,38 @@ class ParcelController extends Controller
             });
         }
 
+        $statusCounts = (clone $query)->reorder()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $paidParcels = (clone $query)->reorder()
+            ->where('payment_status', ParcelFlowService::PAY_PAID)
+            ->where('status', '!=', ParcelFlowService::STATUS_CANCELLED)
+            ->get(['id', 'amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
+
+        $breakdown = ['fees' => 0.0, 'admin' => 0.0, 'vendor' => 0.0, 'government' => 0.0, 'owner' => 0.0];
+        foreach ($paidParcels as $paid) {
+            $split = parcel_share_split($paid);
+            $breakdown['fees'] += (float) $paid->amount_paid;
+            $breakdown['admin'] += $split['admin'];
+            $breakdown['vendor'] += $split['vendor'];
+            $breakdown['government'] += $split['government'];
+            $breakdown['owner'] += $split['owner'];
+        }
+        $breakdown = array_map(fn ($value) => round($value, 2), $breakdown);
+        $breakdown['paid_count'] = $paidParcels->count();
+
         $parcels = $query->paginate(25)->withQueryString();
 
         return view('system.parcels.index', [
             'parcels' => $parcels,
             'flow' => $this->flow,
             'filters' => ['status' => $status ?? '', 'q' => $q ?? ''],
+            'breakdown' => $breakdown,
+            'statusCounts' => $statusCounts,
+            'commissionPercent' => ParcelFlowService::commissionPercent(),
+            'levyPercent' => government_levy_percent(),
         ]);
     }
 

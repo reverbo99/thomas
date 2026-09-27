@@ -208,7 +208,7 @@ class VenderController extends Controller
             ->where('status', '!=', 'cancelled')
             ->where('payment_status', 'paid');
         $this->applyVendorFeePeriodFilter($parcelQuery, $period, $startDate, $endDate);
-        $parcelRows = (clone $parcelQuery)->get(['amount_paid', 'vender_id']);
+        $parcelRows = (clone $parcelQuery)->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
         $parcelCollected = (float) $parcelRows->sum('amount_paid');
         $totalParcelFee = (float) $parcelRows->sum(fn ($parcel) => parcel_vendor_share($parcel));
 

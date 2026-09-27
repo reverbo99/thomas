@@ -270,11 +270,7 @@
 
                     if (!isNaN(actualRaw)) {
                         if (feePerKg > 0) {
-                            if (estimatedWeight !== null && estimatedWeight !== undefined) {
-                                delta = round2((actualRaw - estimatedWeight) * feePerKg);
-                            } else {
-                                delta = round2((actualRaw * feePerKg) - (isNaN(paid) ? 0 : paid));
-                            }
+                            delta = round2((actualRaw * feePerKg) - (isNaN(paid) ? 0 : paid));
                         } else if (estimatedWeight && estimatedWeight > 0 && !isNaN(paid) && paid > 0) {
                             delta = round2(paid * ((actualRaw - estimatedWeight) / estimatedWeight));
                         }

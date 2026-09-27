@@ -19,6 +19,8 @@ return [
     'view_special_hire_details' => 'Ona akaunti za kukodi maalum',
     'parcel_commission' => 'Kamisheni ya Mizigo',
     'view_parcel_details' => 'Ona mapato ya mfumo · mizigo',
+    'parcel_government_levy' => 'Tozo ya serikali kwa vifurushi (:percent%)',
+    'parcel_fees_total' => 'Jumla ya ada za vifurushi zilizolipwa',
     'total_government_levy' => 'Jumla ya Ushuru wa Serikali',
     'view_government_levy_report' => 'Ona ripoti ya ushuru wa serikali (muda wote)',
     'paid_bookings_today' => ':count :label zilizolipwa leo',

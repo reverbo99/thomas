@@ -33,7 +33,7 @@
 
     <div class="summary">
         <strong>{{ __('system.pages.levy_six_categories_label') }}</strong>
-        <span>{{ __('system.pages.levy_cat_commission') }}: {{ number_format($totals['levyCommission'] ?? 0, 2) }}</span>
+        <span>{{ __('system.pages.gov_levy_fare') }}: {{ number_format($totals['totalGovLevyOnFare'] ?? 0, 2) }}</span>
         <span>{{ __('system.pages.levy_cat_service') }}: {{ number_format($totals['levyService'] ?? 0, 2) }}</span>
         <span>{{ __('system.pages.levy_cat_luggage') }}: {{ number_format($totals['levyLuggage'] ?? 0, 2) }}</span>
         <span>{{ __('system.pages.levy_cat_cancellation') }}: {{ number_format($totals['levyCancellation'] ?? 0, 2) }}</span>
@@ -44,12 +44,6 @@
     <div class="summary">
         <strong>{{ __('system.pages.grand_total_government_levy') }}</strong>
         <span><strong>{{ number_format($totals['grandTotalGovernmentLevy'] ?? 0, 2) }}</strong></span>
-    </div>
-    <div class="summary">
-        <strong>{{ __('system.pages.levy_history_parity_label') }}</strong>
-        <span>{{ __('system.pages.levy_fare_short') }}: {{ number_format($totals['totalGovLevyOnFare'] ?? 0, 2) }}</span>
-        <span>{{ __('system.pages.levy_service_short') }}: {{ number_format($totals['totalGovLevyOnService'] ?? 0, 2) }}</span>
-        <span>{{ __('system.pages.levy_fare_plus_service') }}: {{ number_format($totals['farePlusServiceLevy'] ?? 0, 2) }}</span>
     </div>
 
     <div class="section-title">{{ __('system.pages.category_summary') }}</div>
@@ -82,7 +76,6 @@
                 <th>{{ __('system.pages.vendor_involvement') }}</th>
                 <th class="text-right">{{ __('system.pages.paid_amount') }}</th>
                 <th class="text-right">{{ __('system.pages.bus_fee') }}</th>
-                <th class="text-right">{{ __('system.pages.commission_levy') }}</th>
                 <th class="text-right">{{ __('system.pages.gov_levy_fare') }}</th>
                 <th class="text-right">{{ __('system.pages.gov_levy_service') }}</th>
                 <th class="text-right">{{ __('system.pages.luggage_levy') }}</th>
@@ -98,7 +91,6 @@
                     <td>{{ $row['vendor'] }}</td>
                     <td class="text-right">{{ $row['paid_amount'] }}</td>
                     <td class="text-right">{{ $row['bus_fee'] ?? '0.00' }}</td>
-                    <td class="text-right">{{ $row['gov_levy_commission'] ?? '0.00' }}</td>
                     <td class="text-right">{{ $row['gov_levy_fare'] }}</td>
                     <td class="text-right">{{ $row['gov_levy_service'] }}</td>
                     <td class="text-right">{{ $row['gov_levy_luggage'] ?? '0.00' }}</td>
@@ -110,7 +102,6 @@
             <tr>
                 <td colspan="5" class="text-right">{{ __('system.pages.subtotal_total_levy') }}</td>
                 <td class="text-right">{{ number_format($totals['totalBusFee'] ?? 0, 2) }}</td>
-                <td class="text-right">{{ number_format($totals['levyCommission'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['totalGovLevyOnFare'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['totalGovLevyOnService'] ?? 0, 2) }}</td>
                 <td class="text-right">{{ number_format($totals['levyLuggage'] ?? 0, 2) }}</td>

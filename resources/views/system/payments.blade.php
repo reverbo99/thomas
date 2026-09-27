@@ -10,9 +10,16 @@
         $totalCommissionBalance = (float) $balances->sum('balance');
         $totalServiceFees = (float) $pays->sum(fn ($payment) => (float) ($payment->display_amount ?? $payment->amount));
         $systemLuggagePercent = system_luggage_percent();
-        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => system_luggage_fee($booking));
+        $totalLuggageFees = (float) $luggageBookings->sum(fn ($booking) => admin_luggage_income($booking));
         $totalCancellationFees = (float) $cancellations->sum('amount');
         $totalParcelCommission = (float) $parcels->sum(fn ($parcel) => (float) $parcel->commission_amount);
+        $parcelBreakdown = [
+            ['label' => __('system.pages.parcel_breakdown_fees'), 'value' => (float) $parcels->sum('amount_paid'), 'tone' => 'text-gray-900 dark:text-gray-100'],
+            ['label' => __('system.pages.parcel_breakdown_admin'), 'value' => $totalParcelCommission, 'tone' => 'text-purple-700 dark:text-purple-300'],
+            ['label' => __('system.pages.parcel_breakdown_vendor'), 'value' => (float) $parcels->sum('vendor_amount'), 'tone' => 'text-yellow-700 dark:text-yellow-300'],
+            ['label' => __('system.pages.parcel_breakdown_levy'), 'value' => (float) $parcels->sum('government_levy_amount'), 'tone' => 'text-green-700 dark:text-green-300'],
+            ['label' => __('system.pages.parcel_breakdown_owner'), 'value' => (float) $parcels->sum('owner_amount'), 'tone' => 'text-blue-700 dark:text-blue-300'],
+        ];
         $totalSpecialHireCommission = (float) $specialHireOrders->sum('platform_commission_amount');
         $combinedIncome = $totalCommissionBalance + $totalServiceFees + $totalLuggageFees
             + $totalCancellationFees + $totalParcelCommission + $totalSpecialHireCommission;
@@ -323,7 +330,7 @@
                                 @php $lg = 1; @endphp
                                 @if($luggageBookings->count() > 0)
                                     @foreach ($luggageBookings as $booking)
-                                        @php $luggageAmount = system_luggage_fee($booking); @endphp
+                                        @php $luggageAmount = admin_luggage_income($booking); @endphp
                                         <tr class="hover:bg-cyan-50 transition-colors">
                                             <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $lg++ }}</td>
                                             <td class="py-2.5 px-4 font-medium text-gray-900">{{ $booking->campany->name ?? '—' }}</td>
@@ -445,6 +452,14 @@
                     </div>
                 </div>
                 <div class="p-4 sm:p-6">
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                        @foreach ($parcelBreakdown as $item)
+                            <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ $item['label'] }}</p>
+                                <p class="mt-1 text-sm sm:text-base font-bold tabular-nums {{ $item['tone'] }}">{{ $currency }} {{ convert_money($item['value']) }}</p>
+                            </div>
+                        @endforeach
+                    </div>
                     <div class="flex flex-col lg:flex-row gap-4 mb-4 bg-gray-50 rounded-lg border border-gray-100 p-4">
                         <div class="w-full lg:w-64">
                             <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{{ __('system.pages.period') }}</label>
@@ -502,7 +517,10 @@
                                             <td class="py-2.5 px-4 text-gray-500 tabular-nums">{{ $pc++ }}</td>
                                             <td class="py-2.5 px-4 font-medium text-gray-900">{{ $parcel->bus->campany->name ?? '—' }}</td>
                                             <td class="py-2.5 px-4 font-mono text-xs text-gray-800">{{ $parcel->parcel_number ?? 'N/A' }}</td>
-                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $parcel->commission_amount }}">{{ $currency }} {{ convert_money($parcel->commission_amount) }}</td>
+                                            <td class="py-2.5 px-4 text-right font-semibold tabular-nums amount" data-amount="{{ $parcel->commission_amount }}">
+                                                {{ $currency }} {{ convert_money($parcel->commission_amount) }}
+                                                <span class="block text-xs font-normal text-gray-500 dark:text-gray-400">{{ __('system.pages.parcel_row_breakdown', ['fee' => convert_money($parcel->amount_paid), 'levy' => convert_money($parcel->government_levy_amount)]) }}</span>
+                                            </td>
                                             <td class="py-2.5 px-4 whitespace-nowrap text-gray-600" data-date="{{ $parcel->created_at->format('Y-m-d') }}">{{ $parcel->created_at->format('d M Y') }}</td>
                                         </tr>
                                     @endforeach

@@ -570,6 +570,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/cities', [SystemController::class, 'cities'])->name('system.cities');
         Route::post('/cities', [SystemController::class, 'store_city'])->name('system.city.store');
+        Route::delete('/cities', [SystemController::class, 'destroy_cities'])->name('system.city.destroy');
 
         Route::get('discount', [SystemController::class, 'discount'])->name('system.discount');
         Route::post('add-coupon', [SystemController::class, 'add_coupon'])->name('system.add.coupon');

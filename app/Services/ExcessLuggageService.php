@@ -124,7 +124,8 @@ class ExcessLuggageService
 
     /**
      * Hold the full excess-luggage payment in admin escrow at booking settlement.
-     * Owner/government/admin shares are released only after weigh-in reconciliation.
+     * Owner and admin shares are credited on the estimated fee at settlement and
+     * adjusted to the actual fee at weigh-in; the government share waits for weigh-in.
      */
     public function depositFromBooking(Booking $booking, float $amount): ?ExcessLuggageEscrow
     {
@@ -158,6 +159,54 @@ class ExcessLuggageService
             ]);
 
             return $escrow->fresh();
+        });
+    }
+
+    /**
+     * Paid bookings settled before escrow existed had admin, government and owner
+     * luggage shares credited directly at settlement. Record them as already
+     * credited so weigh-in only posts the difference to the actual fee.
+     */
+    public function adoptLegacyEscrow(Booking $booking): ?ExcessLuggageEscrow
+    {
+        $paidFee = round((float) ($booking->excess_luggage_fee ?? 0), 2);
+        if ($paidFee <= 0 || strcasecmp((string) $booking->payment_status, 'Paid') !== 0) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($booking, $paidFee) {
+            $existing = ExcessLuggageEscrow::query()->where('booking_id', $booking->id)->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            $split = split_luggage_fee_amount($paidFee);
+            $escrow = ExcessLuggageEscrow::query()->create([
+                'booking_id' => $booking->id,
+                'booking_code' => $booking->booking_code,
+                'estimated_weight' => $booking->estimated_weight,
+                'estimated_fee' => $paidFee,
+                'held_amount' => $paidFee,
+                'admin_share' => $split['system'],
+                'government_share' => $split['government'],
+                'owner_share' => $split['owner'],
+                'status' => self::ESCROW_HELD,
+            ]);
+
+            $this->recordEscrowTransaction(
+                $escrow,
+                ExcessLuggageEscrowTransaction::TYPE_DEPOSIT,
+                $paidFee,
+                (string) $booking->booking_code,
+                ['source' => 'legacy_settlement_adopted']
+            );
+
+            Log::info('Excess luggage legacy escrow adopted', [
+                'booking_id' => $booking->id,
+                'paid_fee' => $paidFee,
+            ]);
+
+            return $escrow;
         });
     }
 
@@ -223,6 +272,52 @@ class ExcessLuggageService
     }
 
     /**
+     * Credit (or claw back) the admin luggage share into admin_wallet.balance.
+     * Tracks cumulative admin_share on escrow so weigh-in releases only adjust the delta.
+     */
+    public function creditAdminShare(Booking $booking, ExcessLuggageEscrow $escrow, float $targetAdminShare): void
+    {
+        $targetAdminShare = max(0.0, round($targetAdminShare, 2));
+        $alreadyCredited = (float) ($escrow->admin_share ?? 0);
+        $delta = round($targetAdminShare - $alreadyCredited, 2);
+        if (abs($delta) < 0.005) {
+            return;
+        }
+
+        $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
+        if (!$adminWallet) {
+            $adminWallet = AdminWallet::create([
+                'service_balance' => 0,
+                'commision_balance' => 0,
+                'balance' => 0,
+                'vat' => 0,
+            ]);
+        }
+
+        if ($delta > 0) {
+            $adminWallet->increment('balance', $delta);
+        } else {
+            $adminWallet->decrement('balance', abs($delta));
+        }
+
+        $escrow->update(['admin_share' => $targetAdminShare]);
+
+        $this->recordEscrowTransaction(
+            $escrow,
+            ExcessLuggageEscrowTransaction::TYPE_RELEASE_ADMIN,
+            abs($delta),
+            null,
+            ['target_admin_share' => $targetAdminShare, 'delta' => $delta]
+        );
+
+        Log::info('Excess luggage admin share credited to wallet', [
+            'booking_id' => $booking->id,
+            'delta' => $delta,
+            'target_admin_share' => $targetAdminShare,
+        ]);
+    }
+
+    /**
      * After weigh-in, release verified shares or hold surplus / await top-up.
      *
      * @param  array{delta: float, verdict: string, fee_per_kg: float, actual_weight: ?float, estimated_weight: ?float, paid_fee: float}  $calc
@@ -237,7 +332,7 @@ class ExcessLuggageService
                 ->first();
 
             if (!$escrow) {
-                $held = (float) ($booking->excess_luggage_fee ?? 0);
+                $held = (float) ($calc['paid_fee'] ?? $booking->excess_luggage_fee ?? 0);
                 if ($held > 0) {
                     $escrow = $this->depositFromBooking($booking, $held);
                 } else {
@@ -444,39 +539,23 @@ class ExcessLuggageService
         $governmentShare = $split['government'];
         $ownerShare = $split['owner'];
 
-        $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
-        if (!$adminWallet) {
-            $adminWallet = AdminWallet::create([
-                'service_balance' => 0,
-                'commision_balance' => 0,
-                'balance' => 0,
-                'vat' => 0,
-            ]);
-        }
-        if ($systemShare > 0) {
-            $adminWallet->increment('balance', $systemShare);
-            $this->recordEscrowTransaction(
-                $escrow,
-                ExcessLuggageEscrowTransaction::TYPE_RELEASE_ADMIN,
-                $systemShare,
-                null,
-                ['released_fee' => $releasedFee]
-            );
-        }
+        // Admin share was credited on the estimated fee at settlement; adjust to actual.
+        $this->creditAdminShare($booking, $escrow, $systemShare);
 
         $bus = $booking->bus;
-        if ($governmentShare > 0 && $bus && $bus->campany) {
+        $governmentDelta = round($governmentShare - (float) ($escrow->government_share ?? 0), 2);
+        if (abs($governmentDelta) >= 0.005 && $bus && $bus->campany) {
             \App\Models\GovernmentLevy::create([
                 'campany_id' => $bus->campany->id,
                 'booking_id' => $booking->booking_code,
-                'amount' => $governmentShare,
+                'amount' => $governmentDelta,
             ]);
             $this->recordEscrowTransaction(
                 $escrow,
                 ExcessLuggageEscrowTransaction::TYPE_RELEASE_GOVERNMENT,
-                $governmentShare,
+                abs($governmentDelta),
                 null,
-                ['released_fee' => $releasedFee]
+                ['released_fee' => $releasedFee, 'delta' => $governmentDelta]
             );
         }
 
@@ -530,9 +609,9 @@ class ExcessLuggageService
      * against actual weight using the same rate when available.
      *
      * Formula (weight-based, preferred when settings.excess_luggage_fee_per_kg > 0):
-     *   delta = round((actual_weight - estimated_weight) × fee_per_kg, 2)
-     * When estimated_weight is missing:
      *   delta = round(actual_weight × fee_per_kg - paid_fee, 2)
+     * so paid fee + delta always equals the actual fee, even when the paid fee
+     * differs from estimated_weight × fee_per_kg (discounts, rate changes).
      * Fallback when fee_per_kg is 0 but estimated_weight > 0 (proportional to paid fee):
      *   delta = round(paid_fee × (actual_weight - estimated_weight) / estimated_weight, 2)
      *
@@ -563,11 +642,7 @@ class ExcessLuggageService
 
         if ($actual !== null) {
             if ($feePerKg > 0) {
-                if ($estimated !== null) {
-                    $delta = round(($actual - $estimated) * $feePerKg, 2);
-                } else {
-                    $delta = round(($actual * $feePerKg) - $paid, 2);
-                }
+                $delta = round(($actual * $feePerKg) - $paid, 2);
             } elseif ($estimated !== null && $estimated > 0 && $paid > 0) {
                 $delta = round($paid * (($actual - $estimated) / $estimated), 2);
             }
@@ -632,6 +707,9 @@ class ExcessLuggageService
         // Paid basis = what the passenger already settled at booking (escrow deposit),
         // not a manually edited form value. Form fee is only a fallback when no escrow yet.
         $escrowBefore = $this->escrowFor($booking);
+        if (!$escrowBefore) {
+            $escrowBefore = $this->adoptLegacyEscrow($booking);
+        }
         $paidFee = $formFee;
         if ($escrowBefore) {
             if ((float) ($escrowBefore->estimated_fee ?? 0) > 0) {
@@ -712,6 +790,7 @@ class ExcessLuggageService
             self::ESCROW_REFUNDED,
             self::ESCROW_CANCELLED,
         ], true)) {
+            $this->creditAdminShare($booking, $escrow, 0.0);
             $escrow->update(['status' => self::ESCROW_CANCELLED]);
         }
 

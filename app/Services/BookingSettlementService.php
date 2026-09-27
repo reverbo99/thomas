@@ -283,6 +283,9 @@ class BookingSettlementService
             if ($escrow && $busOwnerLuggageShare > 0) {
                 $luggageService->creditOwnerShareAtDeposit($booking->fresh(), $escrow, $busOwnerLuggageShare);
             }
+            if ($escrow && $systemLuggageShare > 0) {
+                $luggageService->creditAdminShare($booking->fresh(), $escrow->fresh(), $systemLuggageShare);
+            }
         }
 
         return [
