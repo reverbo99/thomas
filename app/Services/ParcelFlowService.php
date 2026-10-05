@@ -527,6 +527,53 @@ class ParcelFlowService
         return $parcel->fresh();
     }
 
+    /**
+     * Stages where the physical parcel is no longer with the vendor: it has been
+     * handed over and is in the bus owner's custody. Legacy aliases are mapped so
+     * un-migrated rows behave the same.
+     *
+     * @return list<string>
+     */
+    public static function custodyStages(): array
+    {
+        return [
+            self::STATUS_IN_STORE,
+            self::STATUS_LOADED,
+            self::STATUS_RECEIVED,
+            self::STATUS_IN_TRANSIT, // legacy alias for loaded
+            self::STATUS_ARRIVED,    // legacy alias for received
+        ];
+    }
+
+    /**
+     * True when the parcel has been handed over and is in the bus owner's custody.
+     */
+    public function inCustody(?string $status): bool
+    {
+        return in_array($status ?: self::STATUS_PENDING, self::custodyStages(), true);
+    }
+
+    /**
+     * Who may cancel a parcel in a given stage.
+     * Rule: once the parcel has been handed over (in the bus owner's custody),
+     * only the bus owner manages its lifecycle — the vendor can no longer cancel.
+     * Nobody may cancel an already completed parcel.
+     */
+    public function actorMayCancel(?string $status, bool $isBusOwner): bool
+    {
+        $status = $status ?: self::STATUS_PENDING;
+
+        if ($status === self::STATUS_COMPLETED) {
+            return false;
+        }
+
+        if ($isBusOwner) {
+            return true;
+        }
+
+        return !$this->inCustody($status);
+    }
+
     public function statusLabel(?string $status): string
     {
         $status = $status ?: 'pending';

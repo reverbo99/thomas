@@ -340,6 +340,19 @@ class ParcelController extends Controller
     {
         $parcel = $this->findAuthorizedParcel($id);
 
+        // Once handed over, the bus owner controls the parcel: the vendor may no
+        // longer change which bus carries it or who receives it. Closed parcels
+        // (completed) are frozen for everyone.
+        $status = $this->flow->normalizeStatus($parcel);
+
+        if ($status === ParcelFlowService::STATUS_COMPLETED) {
+            return back()->with('error', __('vender/parcels.completed_status_locked'));
+        }
+
+        if (!$this->isBusOwnerContext() && $this->flow->inCustody($status)) {
+            return back()->with('error', __('vender/parcels.assignment_locked_after_handover'));
+        }
+
         if (($parcel->parcel_instructions ?? '') === 'collection') {
             // Collection: agent/rider assignment is not used.
             $data = $request->validate([
@@ -500,8 +513,14 @@ class ParcelController extends Controller
             'status' => 'required|in:cancelled',
         ]);
 
-        if ($this->flow->normalizeStatus($parcel) === ParcelFlowService::STATUS_COMPLETED) {
-            return back()->with('error', __('vender/parcels.completed_status_locked'));
+        $status = $this->flow->normalizeStatus($parcel);
+
+        if (!$this->flow->actorMayCancel($status, $this->isBusOwnerContext())) {
+            $message = $status === ParcelFlowService::STATUS_COMPLETED
+                ? __('vender/parcels.completed_status_locked')
+                : __('vender/parcels.cancel_after_handover_blocked');
+
+            return back()->with('error', $message);
         }
 
         $parcel->update(['status' => ParcelFlowService::STATUS_CANCELLED]);
