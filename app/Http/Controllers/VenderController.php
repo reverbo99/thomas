@@ -1470,8 +1470,9 @@ class VenderController extends Controller
     private function mapVendorBookingHistoryExportRow(Booking $booking): array
     {
         $row = booking_to_report_row($booking);
-        // Seat payment = ticket nauli (busFee). Post-settlement `amount` is bus-owner share.
-        $payment = (float) ($booking->busFee ?? 0);
+        // Seat payment = reconciled customer total (fare + verified actual luggage + service
+        // + insurance). Never customer_paid_total, which keeps the declared/estimated luggage.
+        $payment = booking_reconciled_customer_total($booking);
 
         return [
             'booking_code' => $row['booking_code'],

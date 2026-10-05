@@ -338,6 +338,14 @@ class AdminController extends Controller
                 ->where('payment_status', 'Paid')
         );
 
+        // Today's earnings also include the bus-owner parcel share for the same day,
+        // so the dashboard card matches the earnings page (tickets + luggage + parcels).
+        $earnings += $this->sumBusOwnerParcelEarnings(
+            $bus_ids,
+            $date->copy()->startOfDay(),
+            $date->copy()->endOfDay()
+        );
+
         return 'Tsh ' . number_format($earnings, 0, '.', ',');
     }
 
@@ -347,11 +355,19 @@ class AdminController extends Controller
             Booking::whereDate('travel_date', $today)
                 ->whereIn('bus_id', $bus_ids)
                 ->where('payment_status', 'Paid')
+        ) + $this->sumBusOwnerParcelEarnings(
+            $bus_ids,
+            $today->copy()->startOfDay(),
+            $today->copy()->endOfDay()
         );
         $yesterdayEarnings = $this->sumBusOwnerBookingEarnings(
             Booking::whereDate('travel_date', $today->copy()->subDay())
                 ->whereIn('bus_id', $bus_ids)
                 ->where('payment_status', 'Paid')
+        ) + $this->sumBusOwnerParcelEarnings(
+            $bus_ids,
+            $today->copy()->subDay()->startOfDay(),
+            $today->copy()->subDay()->endOfDay()
         );
 
         if ($yesterdayEarnings == 0) {

@@ -16,20 +16,29 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Parcel lifecycle: awaiting_payment → registered → received → in_transit → arrived → completed.
- * ClickPesa settles wallets (system / owner / vendor), then TRA + notifications run.
+ * Parcel movement lifecycle:
+ *   awaiting_payment → registered → in_store → loaded → received → completed.
+ * "received" now means received AT THE DESTINATION; the origin office intake is
+ * "in_store". ClickPesa settles wallets (system / owner / vendor), then TRA + notifications run.
  */
 class ParcelFlowService
 {
     public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
     public const STATUS_REGISTERED = 'registered';
+    /** Received at the origin office / store, not yet on the bus. */
+    public const STATUS_IN_STORE = 'in_store';
+    /** Loaded on the bus; conductor details captured. */
+    public const STATUS_LOADED = 'loaded';
+    /** Received at the destination office. */
     public const STATUS_RECEIVED = 'received';
-    public const STATUS_IN_TRANSIT = 'in_transit';
-    public const STATUS_ARRIVED = 'arrived';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
     /** @deprecated legacy alias for registered */
     public const STATUS_PENDING = 'pending';
+    /** @deprecated legacy stage folded into STATUS_LOADED */
+    public const STATUS_IN_TRANSIT = 'in_transit';
+    /** @deprecated legacy stage folded into STATUS_RECEIVED */
+    public const STATUS_ARRIVED = 'arrived';
 
     public const PAY_UNPAID = 'unpaid';
     public const PAY_PENDING = 'pending';
@@ -381,21 +390,20 @@ class ParcelFlowService
         return $parcel->fresh();
     }
 
-    public function markReceived(Parcel $parcel): Parcel
+    /**
+     * Origin office records that the parcel is kept in the store (not loaded yet).
+     */
+    public function markInStore(Parcel $parcel): Parcel
     {
-        $status = $this->normalizeStatus($parcel);
-        if ($status !== self::STATUS_REGISTERED) {
-            throw new \RuntimeException(__('vender/parcels.cannot_receive'));
+        if ($this->normalizeStatus($parcel) !== self::STATUS_REGISTERED) {
+            throw new \RuntimeException(__('vender/parcels.cannot_store'));
         }
 
         if (($parcel->payment_status ?? null) !== self::PAY_PAID) {
             throw new \RuntimeException(__('vender/parcels.cannot_receive_unpaid'));
         }
 
-        $parcel->update([
-            'status' => self::STATUS_RECEIVED,
-            'received_at' => now(),
-        ]);
+        $parcel->update(['status' => self::STATUS_IN_STORE]);
 
         $parcel = $parcel->fresh(['bus.campany', 'bus.route']);
         $this->notifyRegistered($parcel);
@@ -403,41 +411,57 @@ class ParcelFlowService
         return $parcel;
     }
 
-    public function markDeparted(Parcel $parcel): Parcel
+    /**
+     * Load onto the bus and capture the conductor who takes custody of it.
+     */
+    public function markLoaded(Parcel $parcel, string $conductorName, string $conductorPhone, ?User $actor = null): Parcel
     {
         $status = $this->normalizeStatus($parcel);
-        if ($status !== self::STATUS_RECEIVED) {
-            throw new \RuntimeException(__('vender/parcels.cannot_depart'));
+        if (!in_array($status, [self::STATUS_REGISTERED, self::STATUS_IN_STORE], true)) {
+            throw new \RuntimeException(__('vender/parcels.cannot_load'));
         }
 
-        $parcel->loadMissing('bus');
-        $driver = $parcel->bus->driver_name ?? 'N/A';
-        $driverPhone = $parcel->bus->driver_contact ?? 'N/A';
-        $company = optional($parcel->bus->campany)->name ?? 'Highlink';
+        if (($parcel->payment_status ?? null) !== self::PAY_PAID) {
+            throw new \RuntimeException(__('vender/parcels.cannot_load_unpaid'));
+        }
 
-        $msg = "Mzigo {$parcel->parcel_number} umeondoka ({$company}). Dereva: {$driver}, simu: {$driverPhone}.";
+        $parcel->loadMissing('bus.campany', 'bus.route');
+
+        $parcel->update([
+            'status' => self::STATUS_LOADED,
+            'loaded_at' => now(),
+            'loaded_by_user_id' => $actor?->id,
+            'conductor_name' => $conductorName,
+            'conductor_phone' => $conductorPhone,
+        ]);
+
+        $parcel = $parcel->fresh(['bus.campany', 'bus.route']);
+
+        $company = optional($parcel->bus->campany)->name ?? 'Highlink';
+        $msg = "Mzigo {$parcel->parcel_number} umepakiwa kwenye basi ({$company}). Konda: {$conductorName}, simu: {$conductorPhone}.";
         $this->smsSafe($parcel->receiver_contact_1, $msg, $parcel->id);
         $this->smsSafe($parcel->sender_contact, $msg, $parcel->id);
 
-        $parcel->update([
-            'status' => self::STATUS_IN_TRANSIT,
-            'departed_at' => now(),
-        ]);
-
-        return $parcel->fresh();
+        return $parcel;
     }
 
-    public function markArrived(Parcel $parcel): Parcel
+    /**
+     * Destination office confirms the parcel has arrived and been received.
+     */
+    public function markReceived(Parcel $parcel, ?User $actor = null): Parcel
     {
-        if ($this->normalizeStatus($parcel) !== self::STATUS_IN_TRANSIT) {
+        $status = $this->normalizeStatus($parcel);
+        if (!in_array($status, [self::STATUS_LOADED, self::STATUS_IN_TRANSIT], true)) {
             throw new \RuntimeException(__('vender/parcels.cannot_arrive'));
         }
 
         $parcel->update([
-            'status' => self::STATUS_ARRIVED,
-            'arrived_at' => now(),
+            'status' => self::STATUS_RECEIVED,
+            'received_at' => now(),
+            'receiving_user_id' => $actor?->id,
         ]);
-        $parcel = $parcel->fresh();
+
+        $parcel = $parcel->fresh(['bus.campany', 'bus.route']);
 
         $company = optional($parcel->bus->campany)->name ?? 'Highlink';
         $agent = $parcel->receiving_agent_name ?: $company;
@@ -463,10 +487,16 @@ class ParcelFlowService
         return $parcel;
     }
 
-    public function collect(Parcel $parcel, string $trackingNumber, User $actor): Parcel
+    /**
+     * Hand the parcel to the person who came to collect it, capturing their
+     * name, phone and signature before closing the movement.
+     *
+     * @param  array{name?: ?string, phone?: ?string, signature?: ?string}  $collector
+     */
+    public function collect(Parcel $parcel, string $trackingNumber, ?User $actor = null, array $collector = []): Parcel
     {
         $status = $this->normalizeStatus($parcel);
-        if (!in_array($status, [self::STATUS_ARRIVED, self::STATUS_IN_TRANSIT], true)) {
+        if (!in_array($status, [self::STATUS_RECEIVED, self::STATUS_ARRIVED], true)) {
             throw new \RuntimeException(__('vender/parcels.cannot_collect'));
         }
 
@@ -476,14 +506,21 @@ class ParcelFlowService
             throw new \RuntimeException(__('vender/parcels.tracking_mismatch'));
         }
 
+        $collectorName = trim((string) ($collector['name'] ?? '')) ?: null;
+        $collectorPhone = trim((string) ($collector['phone'] ?? '')) ?: null;
+
         $parcel->update([
             'status' => self::STATUS_COMPLETED,
             'collected_at' => now(),
+            'collector_name' => $collectorName,
+            'collector_phone' => $collectorPhone,
+            'collector_signature' => $collector['signature'] ?? null,
+            'collected_by_user_id' => $actor?->id,
         ]);
 
         $this->smsSafe(
             $parcel->sender_contact,
-            "Mzigo {$parcel->parcel_number} umepokelewa na {$parcel->receiver_name}.",
+            "Mzigo {$parcel->parcel_number} umepokelewa na " . ($collectorName ?: $parcel->receiver_name) . ".",
             $parcel->id
         );
 

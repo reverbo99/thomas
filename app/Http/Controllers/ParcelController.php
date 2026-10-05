@@ -39,9 +39,10 @@ class ParcelController extends Controller
             'today' => Parcel::where('vender_id', $venderId)->whereDate('created_at', today())->count(),
             'assigned' => Parcel::where('vender_id', $venderId)->whereIn('status', [
                 ParcelFlowService::STATUS_REGISTERED,
+                ParcelFlowService::STATUS_IN_STORE,
+                ParcelFlowService::STATUS_LOADED,
                 ParcelFlowService::STATUS_RECEIVED,
                 ParcelFlowService::STATUS_PENDING,
-                ParcelFlowService::STATUS_IN_TRANSIT,
             ])->count(),
         ];
 
@@ -374,11 +375,59 @@ class ParcelController extends Controller
         return back()->with('success', __('vender/parcels.assigned_success'));
     }
 
+    /**
+     * Origin office intake: keep the parcel in the store (not loaded yet).
+     */
+    public function storeInStore(Request $request, $id)
+    {
+        $this->assertBusOwner();
+        $parcel = $this->findAuthorizedParcel($id);
+
+        try {
+            $this->flow->markInStore($parcel);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('vender/parcels.in_store_success'));
+    }
+
+    /**
+     * Load the parcel onto the bus, capturing the conductor on duty.
+     */
+    public function load(Request $request, $id)
+    {
+        $this->assertBusOwner();
+        $parcel = $this->findAuthorizedParcel($id);
+
+        $this->normalizeOptionalPhoneInputs($request, ['conductor_phone']);
+        $data = $request->validate([
+            'conductor_name' => 'required|string|max:150',
+            'conductor_phone' => $this->phoneValidationRules(required: true),
+        ], [
+            'conductor_phone.regex' => __('vender/parcels.contact_must_be_phone'),
+            'conductor_phone.not_in' => __('vender/parcels.contact_placeholder_not_allowed'),
+        ]);
+
+        try {
+            $this->flow->markLoaded($parcel, $data['conductor_name'], $data['conductor_phone'], Auth::user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', __('vender/parcels.loaded_success'));
+    }
+
+    /**
+     * Destination office: confirm the parcel has arrived and been received.
+     */
     public function receive(Request $request, $id)
     {
+        $this->assertBusOwner();
         $parcel = $this->findAuthorizedParcel($id);
+
         try {
-            $this->flow->markReceived($parcel);
+            $this->flow->markReceived($parcel, Auth::user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -386,39 +435,28 @@ class ParcelController extends Controller
         return back()->with('success', __('vender/parcels.received_success'));
     }
 
-    public function depart(Request $request, $id)
-    {
-        $parcel = $this->findAuthorizedParcel($id);
-        try {
-            $this->flow->markDeparted($parcel);
-        } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
-        }
-
-        return back()->with('success', __('vender/parcels.departed_success'));
-    }
-
-    public function arrive(Request $request, $id)
-    {
-        $parcel = $this->findAuthorizedParcel($id);
-        try {
-            $this->flow->markArrived($parcel);
-        } catch (\RuntimeException $e) {
-            return back()->with('error', $e->getMessage());
-        }
-
-        return back()->with('success', __('vender/parcels.arrived_success'));
-    }
-
     public function collect(Request $request, $id)
     {
+        $this->assertBusOwner();
         $parcel = $this->findAuthorizedParcel($id);
-        $request->validate([
+
+        $this->normalizeOptionalPhoneInputs($request, ['collector_phone']);
+        $data = $request->validate([
             'tracking_number' => 'required|string|max:100',
+            'collector_name' => 'required|string|max:150',
+            'collector_phone' => $this->phoneValidationRules(required: false),
+            'collector_signature' => 'nullable|string',
+        ], [
+            'collector_phone.regex' => __('vender/parcels.contact_must_be_phone'),
+            'collector_phone.not_in' => __('vender/parcels.contact_placeholder_not_allowed'),
         ]);
 
         try {
-            $this->flow->collect($parcel, $request->tracking_number, Auth::user());
+            $this->flow->collect($parcel, $data['tracking_number'], Auth::user(), [
+                'name' => $data['collector_name'],
+                'phone' => $data['collector_phone'] ?? null,
+                'signature' => $data['collector_signature'] ?? null,
+            ]);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -456,20 +494,17 @@ class ParcelController extends Controller
     {
         $parcel = $this->findAuthorizedParcel($id);
 
+        // Movement stages are driven only by the dedicated actions (store/load/
+        // receive/collect). This endpoint is kept for cancelling a parcel.
         $request->validate([
-            'status' => 'required|in:pending,registered,received,in_transit,arrived,completed,cancelled,awaiting_payment',
+            'status' => 'required|in:cancelled',
         ]);
 
         if ($this->flow->normalizeStatus($parcel) === ParcelFlowService::STATUS_COMPLETED) {
             return back()->with('error', __('vender/parcels.completed_status_locked'));
         }
 
-        // Prefer dedicated lifecycle actions; keep for simple cancel.
-        if ($request->status === 'cancelled') {
-            $parcel->update(['status' => ParcelFlowService::STATUS_CANCELLED]);
-        } else {
-            $parcel->update(['status' => $request->status]);
-        }
+        $parcel->update(['status' => ParcelFlowService::STATUS_CANCELLED]);
 
         return back()->with('success', __('vender/parcels.parcel_status_updated'));
     }
@@ -832,6 +867,9 @@ class ParcelController extends Controller
             'discount_code' => '2026_08_08_000001_extend_discounts_for_multi_product.php',
             'discount_amount' => '2026_08_08_000001_extend_discounts_for_multi_product.php',
             'amount_before_discount' => '2026_08_08_000001_extend_discounts_for_multi_product.php',
+            'conductor_name' => '2026_10_05_000001_add_parcel_movement_fields.php',
+            'collector_name' => '2026_10_05_000001_add_parcel_movement_fields.php',
+            'loaded_at' => '2026_10_05_000001_add_parcel_movement_fields.php',
         ];
         $missing = [];
         foreach ($needed as $col => $migration) {

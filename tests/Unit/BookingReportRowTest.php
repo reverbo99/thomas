@@ -103,4 +103,32 @@ class BookingReportRowTest extends TestCase
         $this->assertSame(750.0, system_luggage_fee($booking));
         $this->assertSame(750.0, government_luggage_fee($booking));
     }
+
+    public function test_reconciled_customer_total_uses_actual_luggage_not_estimated(): void
+    {
+        $booking = $this->vendorBooking();
+        // customer_paid_total is the checkout snapshot and still holds the declared deposit.
+        $booking->customer_paid_total = 60000;
+        $booking->has_excess_luggage = 1;
+        $booking->estimated_weight = 10;
+        $booking->excess_luggage_fee = 15000;
+        $booking->actual_weight = 6;
+        $booking->luggage_weighed_at = '2026-09-22 10:00:00';
+        $booking->luggage_weight_verdict = 'overestimated';
+        $booking->excessLuggageEscrow = (object) [
+            'actual_fee' => 15000,
+            'released_fee' => 15000,
+            'held_amount' => 25000,
+            'admin_share' => 750,
+            'owner_share' => 13500,
+            'status' => 'released',
+        ];
+
+        // fare 40,000 + actual luggage 15,000 + service 900 + insurance 0
+        $this->assertSame(55900.0, booking_reconciled_customer_total($booking));
+        // Revenue cards must agree with the history total.
+        $this->assertSame(55900.0, booking_reported_revenue($booking));
+        // Must never fall back to the stale estimated checkout snapshot.
+        $this->assertNotSame(60000.0, booking_reconciled_customer_total($booking));
+    }
 }

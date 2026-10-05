@@ -114,7 +114,7 @@ class SystemController extends Controller
 
         // Recent activity: paid bookings, parcels, special hire + cancellations
         $recentBookings = Booking::where('payment_status', 'Paid')
-            ->with(['campany', 'route'])
+            ->with(['campany', 'route', 'excessLuggageEscrow'])
             ->latest('created_at')
             ->take(4)
             ->get();
@@ -138,7 +138,9 @@ class SystemController extends Controller
                 'type' => 'booking',
                 'message' => __('system.dashboard.new_booking_confirmed'),
                 'detail' => 'Booking ' . ($b->booking_code ?? '') . ' for ' . ($b->campany->name ?? '') . ' – ' . ($b->route->from ?? '') . ' to ' . ($b->route->to ?? ''),
-                'amount' => (float) ($b->customer_paid_total ?? $b->amount),
+                // Reconciled total (fare + actual weighed luggage + service + insurance), so the
+                // activity feed never quotes the pre-weigh estimated deposit.
+                'amount' => booking_reconciled_customer_total($b),
                 'time' => $b->created_at,
             ]);
         }
@@ -1789,8 +1791,8 @@ class SystemController extends Controller
         $bookings = $this->buildGovernmentLevyBookingsQuery($request)
             ->get([
                 'id', 'booking_code', 'amount', 'customer_paid_total', 'vat', 'busFee',
-                'fee', 'vender_fee', 'service', 'vender_service', 'system_service_fee',
-                'government_levy', 'excess_luggage_fee', 'has_excess_luggage',
+                'fee', 'vender_fee', 'service', 'vender_service', 'system_service_fee', 'service_vat',
+                'bima_amount', 'government_levy', 'excess_luggage_fee', 'has_excess_luggage',
                 'actual_weight', 'luggage_weighed_at', 'luggage_weight_verdict', 'created_at',
             ]);
 
@@ -1821,7 +1823,9 @@ class SystemController extends Controller
         $grandTotalGovernmentLevy = $totalGovernmentLevy;
 
         return [
-            'totalPaidAmount' => (float) $bookings->sum(fn ($b) => (float) ($b->customer_paid_total ?? $b->amount ?? 0)),
+            // Reconciled customer total, so the "paid amount" KPI reflects weighed luggage,
+            // not the pre-weigh estimated deposit still sitting in customer_paid_total.
+            'totalPaidAmount' => (float) $bookings->sum(fn ($b) => booking_reconciled_customer_total($b)),
             'totalBusFee' => (float) $bookings->sum(fn ($b) => (float) ($b->busFee ?? 0)),
             'totalVat' => (float) $bookings->sum('vat'),
             'totalGovLevyOnFare' => $levyFare,
@@ -2010,7 +2014,8 @@ class SystemController extends Controller
         $govLevyOnService = booking_government_levy_on_service($booking);
         $rowTotalLevy = booking_row_total_government_levy($booking);
         $luggageLevy = booking_government_levy_on_luggage($booking);
-        $paidAmount = (float) ($booking->customer_paid_total ?? $booking->amount ?? 0);
+        // Reconciled total so the report's paid-amount column uses actual weighed luggage.
+        $paidAmount = booking_reconciled_customer_total($booking);
 
         return [
             'booking_code' => $booking->booking_code ?? 'N/A',
@@ -2073,7 +2078,10 @@ class SystemController extends Controller
 
         $bookings = $query->where('payment_status', 'Paid')->latest()->get();
 
-        $totalPayment = $bookings->sum(fn ($b) => (float) ($b->customer_paid_total ?? 0));
+        // Total Payment uses the reconciled customer total (fare + actual luggage + service
+        // + insurance) rather than customer_paid_total, so the declared/estimated luggage
+        // deposit is replaced by the verified weigh-in amount immediately.
+        $totalPayment = $bookings->sum(fn ($b) => booking_reconciled_customer_total($b));
         $totalDiscount = $bookings->sum('discount_amount');
         $totalVAT = $bookings->sum('vat');
         $totalGovLevy = $bookings->sum(fn ($b) => booking_total_government_levy($b));

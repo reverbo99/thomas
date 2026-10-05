@@ -18,7 +18,6 @@
             ->orderBy('bus_number')
             ->get(['id', 'bus_number']);
     }
-    $statusChoices = ['registered', 'received', 'in_transit', 'arrived', 'completed', 'cancelled'];
 @endphp
 
 @if(session('success'))
@@ -95,13 +94,18 @@
         <div class="pt-2 text-xs text-gray-600 space-y-1">
             <p class="font-semibold text-gray-800">{{ __('vender/parcels.timeline') }}</p>
             <p>{{ __('vender/parcels.paid_at') }}: {{ $parcel->settled_at ? $parcel->settled_at->format('d M Y H:i') : '—' }}</p>
+            <p>{{ __('vender/parcels.loaded_at') }}: {{ $parcel->loaded_at ? $parcel->loaded_at->format('d M Y H:i') : '—' }}</p>
             <p>{{ __('vender/parcels.received_at') }}: {{ $parcel->received_at ? $parcel->received_at->format('d M Y H:i') : '—' }}</p>
-            <p>{{ __('vender/parcels.departed_at') }}: {{ $parcel->departed_at ? $parcel->departed_at->format('d M Y H:i') : '—' }}</p>
-            <p>{{ __('vender/parcels.arrived_at') }}: {{ $parcel->arrived_at ? $parcel->arrived_at->format('d M Y H:i') : '—' }}</p>
             <p>{{ __('vender/parcels.collected_at') }}: {{ $parcel->collected_at ? $parcel->collected_at->format('d M Y H:i') : '—' }}</p>
         </div>
         @if(!$isCollection)
             <p><strong>{{ __('vender/parcels.receiving_agent_name') }}:</strong> {{ $parcel->receiving_agent_name ?? '—' }} {{ $parcel->receiving_agent_phone }}</p>
+        @endif
+        @if(filled($parcel->conductor_name) || filled($parcel->conductor_phone))
+            <p><strong>{{ __('vender/parcels.conductor_name') }}:</strong> {{ $parcel->conductor_name ?? '—' }} {{ $parcel->conductor_phone }}</p>
+        @endif
+        @if(filled($parcel->collector_name) || filled($parcel->collector_phone))
+            <p><strong>{{ __('vender/parcels.collector_name') }}:</strong> {{ $parcel->collector_name ?? '—' }} {{ $parcel->collector_phone }}</p>
         @endif
     </div>
 
@@ -185,32 +189,63 @@
         </div>
         @endif
 
-        @if($isBusOwnerView && $status !== 'completed')
-        <div class="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 class="font-semibold mb-2">{{ __('vender/parcels.update_status') }}</h2>
-            <form method="POST" action="{{ route($showPrefix.'.update_status', $parcel->id) }}" class="flex flex-wrap items-center gap-2">
+        @if($isBusOwnerView && !in_array($status, ['completed', 'cancelled'], true))
+        <div class="rounded-xl border bg-white p-5 shadow-sm space-y-4 dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="font-semibold text-gray-800 dark:text-gray-100">{{ __('vender/parcels.movement_actions') }}</h2>
+
+            @if(in_array($status, ['registered', 'in_store'], true))
+                <form method="POST" action="{{ route($showPrefix.'.store_state', $parcel->id) }}">
+                    @csrf
+                    <button class="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white" @if(($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_in_store') }}</button>
+                </form>
+
+                <form method="POST" action="{{ route($showPrefix.'.load', $parcel->id) }}" class="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-slate-600">
+                    @csrf
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('vender/parcels.mark_loaded') }}</p>
+                    <input type="text" name="conductor_name" required value="{{ old('conductor_name') }}" placeholder="{{ __('vender/parcels.conductor_name') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
+                    <input type="tel" name="conductor_phone" required value="{{ old('conductor_phone') }}" placeholder="{{ __('vender/parcels.conductor_phone') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
+                    <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white" @if(($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_loaded') }}</button>
+                    @if(($parcel->payment_status ?? '') !== 'paid')
+                        <p class="text-xs text-red-600">{{ __('vender/parcels.cannot_load_unpaid') }}</p>
+                    @endif
+                </form>
+            @endif
+
+            @if($status === 'loaded')
+                <form method="POST" action="{{ route($showPrefix.'.receive', $parcel->id) }}">
+                    @csrf
+                    <button class="rounded-lg bg-green-600 px-3 py-2 text-sm text-white">{{ __('vender/parcels.mark_received_destination') }}</button>
+                </form>
+            @endif
+        </div>
+        @endif
+
+        @if($isBusOwnerView && $status === 'received')
+        <div class="rounded-xl border bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="font-semibold mb-2 text-gray-800 dark:text-gray-100">{{ __('vender/parcels.collect_verify') }}</h2>
+            <p class="text-xs text-gray-500 mb-2 dark:text-gray-400">{{ __('vender/parcels.collect_hint') }}</p>
+            <form id="parcel-collect-form" method="POST" action="{{ route($showPrefix.'.collect', $parcel->id) }}" class="space-y-2">
                 @csrf
-                <select name="status" class="rounded-lg border-gray-300 text-sm">
-                    @foreach($statusChoices as $choice)
-                        <option value="{{ $choice }}" @selected($status === $choice)>{{ $flow->statusLabel($choice) }}</option>
-                    @endforeach
-                </select>
-                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">{{ __('vender/parcels.update') }}</button>
+                <input type="text" name="tracking_number" required placeholder="{{ __('vender/parcels.parcel_number') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
+                <input type="text" name="collector_name" required value="{{ old('collector_name', $parcel->receiver_name) }}" placeholder="{{ __('vender/parcels.collector_name') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
+                <input type="tel" name="collector_phone" value="{{ old('collector_phone', $parcel->receiver_contact_1) }}" placeholder="{{ __('vender/parcels.collector_phone') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300" for="parcel-signature-pad">{{ __('vender/parcels.collector_signature') }}</label>
+                    <canvas id="parcel-signature-pad" width="420" height="140" class="w-full touch-none rounded-lg border border-gray-300 bg-white"></canvas>
+                    <input type="hidden" name="collector_signature" id="parcel-signature-input">
+                    <button type="button" id="parcel-signature-clear" class="mt-1 text-xs text-gray-500 underline dark:text-gray-400">{{ __('vender/parcels.signature_clear') }}</button>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('vender/parcels.signature_hint') }}</p>
+                </div>
+                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">{{ __('vender/parcels.mark_collected') }}</button>
             </form>
         </div>
         @endif
 
-        <div class="rounded-xl border bg-white p-5 shadow-sm flex flex-wrap gap-2">
-            <form method="POST" action="{{ route($showPrefix.'.receive', $parcel->id) }}">@csrf
-                <button class="rounded-lg bg-green-600 px-3 py-2 text-sm text-white" @if($status !== 'registered' || ($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_received') }}</button>
-            </form>
-            <form method="POST" action="{{ route($showPrefix.'.depart', $parcel->id) }}">@csrf
-                <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white" @if($status !== 'received') disabled @endif>{{ __('vender/parcels.mark_departed') }}</button>
-            </form>
-            <form method="POST" action="{{ route($showPrefix.'.arrive', $parcel->id) }}">@csrf
-                <button class="rounded-lg bg-purple-600 px-3 py-2 text-sm text-white" @if($status !== 'in_transit') disabled @endif>{{ __('vender/parcels.mark_arrived') }}</button>
-            </form>
+        @if(!$isBusOwnerView && !in_array($status, ['completed', 'cancelled'], true))
+        <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-300">
+            {{ __('vender/parcels.handover_hint') }}
         </div>
+        @endif
 
         @if(!in_array($status, ['completed', 'cancelled'], true))
         <form method="POST" action="{{ route($showPrefix.'.update_status', $parcel->id) }}" onsubmit="return confirm(@json(__('vender/parcels.cancel_confirm')))">
@@ -219,17 +254,70 @@
             <button class="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-700">{{ __('vender/parcels.cancel_parcel') }}</button>
         </form>
         @endif
-
-        @if(in_array($status, ['in_transit', 'arrived'], true))
-        <div class="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 class="font-semibold mb-2">{{ __('vender/parcels.collect_verify') }}</h2>
-            <p class="text-xs text-gray-500 mb-2">{{ __('vender/parcels.collect_hint') }}</p>
-            <form method="POST" action="{{ route($showPrefix.'.collect', $parcel->id) }}" class="flex gap-2">
-                @csrf
-                <input type="text" name="tracking_number" required placeholder="{{ __('vender/parcels.parcel_number') }}" class="flex-1 rounded-lg border-gray-300 text-sm">
-                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">{{ __('vender/parcels.mark_collected') }}</button>
-            </form>
-        </div>
-        @endif
     </div>
 </div>
+
+@if($isBusOwnerView && $status === 'received')
+<script>
+(function () {
+    var canvas = document.getElementById('parcel-signature-pad');
+    var input = document.getElementById('parcel-signature-input');
+    var clearBtn = document.getElementById('parcel-signature-clear');
+    var form = document.getElementById('parcel-collect-form');
+    if (!canvas) return;
+
+    var ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#111827';
+
+    var drawing = false;
+    var drew = false;
+
+    function point(e) {
+        var rect = canvas.getBoundingClientRect();
+        var p = e.touches ? e.touches[0] : e;
+        return {
+            x: (p.clientX - rect.left) * (canvas.width / rect.width),
+            y: (p.clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+    function start(e) {
+        drawing = true;
+        drew = true;
+        var p = point(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        if (e.cancelable) e.preventDefault();
+    }
+    function move(e) {
+        if (!drawing) return;
+        var p = point(e);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        if (e.cancelable) e.preventDefault();
+    }
+    function end() { drawing = false; }
+
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', end);
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drew = false;
+            if (input) input.value = '';
+        });
+    }
+    if (form && input) {
+        form.addEventListener('submit', function () {
+            input.value = drew ? canvas.toDataURL('image/png') : '';
+        });
+    }
+})();
+</script>
+@endif

@@ -147,7 +147,9 @@
                                 $govLevyOnService = booking_government_levy_on_service($booking);
                                 $luggageLevy = booking_government_levy_on_luggage($booking);
                                 $rowTotalLevy = booking_row_total_government_levy($booking);
-                                $paidAmount = (float) ($booking->customer_paid_total ?? $booking->amount ?? 0);
+                                // Reconciled total (fare + actual weighed luggage + service + insurance),
+                                // never customer_paid_total which keeps the estimated deposit.
+                                $paidAmount = booking_reconciled_customer_total($booking);
                                 $busFee = (float) ($booking->busFee ?? 0);
                             @endphp
                             <tr class="hover:bg-slate-50 dark:hover:bg-slate-700 transition">

@@ -243,8 +243,14 @@
                                     <span class="vendor-schedule-date__sub block">{{ $booking->customer_phone ?? __('vender/history.na') }}</span>
                                 </td>
                                 <td>
+                                    @php
+                                        // Seats Payment uses the reconciled customer total (fare + verified
+                                        // actual luggage + service + insurance), never customer_paid_total
+                                        // which keeps the declared/estimated luggage deposit.
+                                        $rowCustomerTotal = booking_reconciled_customer_total($booking);
+                                    @endphp
                                     <span class="vendor-tx-amount payment-amount"
-                                        data-amount="{{ $booking->busFee ?? 0 }}"
+                                        data-amount="{{ $rowCustomerTotal }}"
                                         data-vat="{{ $booking->vat ?? 0 }}"
                                         data-discount="{{ $booking->discount_amount ?? 0 }}"
                                         data-fee="{{ $booking->fee ?? 0 }}"
@@ -252,7 +258,7 @@
                                         data-fee_vat="{{ $booking->fee_vat ?? 0 }}"
                                         data-service="{{ $booking->service ?? 0 }}"
                                         data-vender_service="{{ $booking->vender_service ?? 0 }}">
-                                        {{ $currency }} {{ convert_money(($booking->busFee ?? 0) + ($booking->vat ?? 0)) }}
+                                        {{ $currency }} {{ convert_money($rowCustomerTotal) }}
                                     </span>
                                 </td>
                                 <td>
@@ -396,7 +402,8 @@
                         const rowNode = this.node();
                         const paymentEl = $(rowNode).find('.payment-amount');
                         const totalEl = $(rowNode).find('.total-amount');
-                        totalPayment += (parseFloat(paymentEl.data('amount')) || 0) + (parseFloat(paymentEl.data('vat')) || 0);
+                        // data-amount is the reconciled customer total (actual luggage); VAT is shown separately.
+                        totalPayment += parseFloat(paymentEl.data('amount')) || 0;
                         totalDiscount += parseFloat(paymentEl.data('discount')) || 0;
                         totalVAT += parseFloat(paymentEl.data('vat')) || 0;
                         grandTotal += parseFloat(totalEl.data('total')) || 0;

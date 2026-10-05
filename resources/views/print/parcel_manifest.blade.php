@@ -22,8 +22,11 @@
                 <th>Bus</th>
                 <th>Sender</th>
                 <th>Receiver</th>
+                <th>Conductor</th>
+                <th>Loaded</th>
                 <th>Weight</th>
                 <th>Instr.</th>
+                <th>Collector</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -35,8 +38,11 @@
                     <td>{{ $p->bus->bus_number ?? '—' }}</td>
                     <td>{{ $p->sender_name }}</td>
                     <td>{{ $p->receiver_name }}</td>
+                    <td>{{ $p->conductor_name ?? '—' }}{{ $p->conductor_phone ? ' · ' . $p->conductor_phone : '' }}</td>
+                    <td>{{ $p->loaded_at ? $p->loaded_at->format('Y-m-d H:i') : '—' }}</td>
                     <td>{{ $p->weight ?? '—' }}</td>
                     <td>{{ $p->parcel_instructions }}</td>
+                    <td>{{ $p->collector_name ?? '—' }}{{ $p->collector_phone ? ' · ' . $p->collector_phone : '' }}</td>
                     <td>{{ $p->status }}</td>
                 </tr>
             @endforeach

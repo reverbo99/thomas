@@ -19,9 +19,9 @@
     $statusTones = [
         'awaiting_payment' => 'owner',
         'registered' => 'admin',
+        'in_store' => 'cyan',
+        'loaded' => 'vendor',
         'received' => 'info',
-        'in_transit' => 'vendor',
-        'arrived' => 'cyan',
         'completed' => 'gov',
         'cancelled' => 'danger',
     ];

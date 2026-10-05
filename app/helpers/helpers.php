@@ -1133,12 +1133,20 @@ if (!function_exists('sync_vendor_commission_wallet')) {
     }
 }
 
-if (!function_exists('booking_reported_revenue')) {
+if (!function_exists('booking_reconciled_customer_total')) {
     /**
-     * Collected ticket value for admin revenue cards.
-     * Luggage uses the reconciled fee, so a weigh-in change is included immediately.
+     * Customer-facing booking total built from the reconciled fee lines:
+     * fare (busFee) + actual excess luggage + service fee + insurance.
+     *
+     * Unlike bookings.customer_paid_total (the checkout snapshot, which keeps the
+     * declared/estimated luggage deposit), this always reflects the verified
+     * weigh-in luggage amount, so overestimated/underestimated bookings show the
+     * new value immediately — before admin refund approval or top-up settlement.
+     *
+     * Used by booking-history "Total Payment" / "Seats Payment" KPIs and the
+     * admin revenue cards, so every surface agrees on one figure.
      */
-    function booking_reported_revenue($booking): float
+    function booking_reconciled_customer_total($booking): float
     {
         $fare = max(0.0, (float) ($booking->busFee ?? 0));
         if ($fare <= 0) {
@@ -1152,6 +1160,20 @@ if (!function_exists('booking_reported_revenue')) {
             + (float) ($booking->bima_amount ?? 0),
             2
         );
+    }
+}
+
+if (!function_exists('booking_reported_revenue')) {
+    /**
+     * Collected ticket value for admin revenue cards.
+     * Luggage uses the reconciled fee, so a weigh-in change is included immediately.
+     *
+     * Delegates to booking_reconciled_customer_total() so the history KPIs and the
+     * dashboard revenue cards can never drift apart.
+     */
+    function booking_reported_revenue($booking): float
+    {
+        return booking_reconciled_customer_total($booking);
     }
 }
 

@@ -150,7 +150,7 @@
                                         data-excess-luggage-fee="{{ booking_luggage_fee($booking) }}"
                                         data-bus-fee="{{ (float) ($booking->busFee ?? 0) }}"
                                         data-service-fee="{{ booking_service_fee($booking) }}"
-                                        data-customer-total="{{ (float) ($booking->customer_paid_total ?? 0) }}"
+                                        data-customer-total="{{ booking_reconciled_customer_total($booking) }}"
                                         data-gender="{{ $booking->gender ?? 'N/A' }}"
                                         data-age="{{ $booking->age ?? 'N/A' }}"
                                         data-age-group="{{ $booking->age_group ?? 'N/A' }}"
@@ -188,8 +188,14 @@
                                         </td>
                                         <td class="py-2 px-4">
                                             <div class="flex flex-col">
-                                                <p class="text-gray-500 mb-0 payment-amount" data-amount="{{ (float) ($booking->customer_paid_total ?? 0) }}" data-vat="{{ $booking->vat ?? '0' }}" data-discount="{{ $booking->discount_amount ?? '0' }}" data-fee="{{ $booking->fee ?? '0' }}" data-vender_fee="{{ $booking->vender_fee ?? '0' }}" data-fee_vat="{{ $booking->fee_vat ?? '0' }}">
-                                                    {{ $currency }} {{ convert_money((float) ($booking->customer_paid_total ?? 0)) }}
+                                                @php
+                                                    // Reconciled total: fare + verified (actual) excess luggage +
+                                                    // service fee + insurance. Never customer_paid_total, which keeps
+                                                    // the declared/estimated luggage deposit from checkout.
+                                                    $rowCustomerTotal = booking_reconciled_customer_total($booking);
+                                                @endphp
+                                                <p class="text-gray-500 mb-0 payment-amount" data-amount="{{ $rowCustomerTotal }}" data-vat="{{ $booking->vat ?? '0' }}" data-discount="{{ $booking->discount_amount ?? '0' }}" data-fee="{{ $booking->fee ?? '0' }}" data-vender_fee="{{ $booking->vender_fee ?? '0' }}" data-fee_vat="{{ $booking->fee_vat ?? '0' }}">
+                                                    {{ $currency }} {{ convert_money($rowCustomerTotal) }}
                                                 </p>
                                             </div>
                                         </td>
