@@ -43,6 +43,15 @@ class ParcelFlowService
     public const PAY_UNPAID = 'unpaid';
     public const PAY_PENDING = 'pending';
     public const PAY_PAID = 'paid';
+    /** A deposit was collected; a balance is still due at the destination. */
+    public const PAY_PARTIAL = 'partial';
+    /** Cash on delivery: nothing collected yet, the full fee is due on handover. */
+    public const PAY_COD = 'cod';
+
+    /** Payment modes chosen when the parcel is registered. */
+    public const MODE_CASH = 'cash';
+    public const MODE_INSTALMENT = 'instalment';
+    public const MODE_COD = 'cod';
 
     /** Default vendor share of the non-system remainder when a vendor registered the parcel. */
     public const VENDOR_REMAINDER_PERCENT = 25.0;
@@ -255,9 +264,11 @@ class ParcelFlowService
     }
 
     /**
-     * Credit wallets and mark parcel paid/registered. Idempotent.
+     * Credit wallets for the FULL fee and mark the parcel fully paid. Idempotent.
+     * Used by ClickPesa callbacks (existing behaviour), cash-at-registration and
+     * the destination collection of an instalment balance / COD fee.
      */
-    public function confirmPayment(Parcel $parcel, string $reference, string $method = 'clickpesa'): Parcel
+    public function settleFully(Parcel $parcel, string $reference, string $method = 'cash'): Parcel
     {
         return DB::transaction(function () use ($parcel, $reference, $method) {
             $parcel = Parcel::whereKey($parcel->id)->lockForUpdate()->first();
@@ -266,7 +277,7 @@ class ParcelFlowService
                 return $parcel;
             }
 
-            $amount = (float) $parcel->amount_paid;
+            $amount = round((float) $parcel->amount_paid, 2);
             $hasVendor = !empty($parcel->vender_id);
             $split = self::splitAmounts(
                 $amount,
@@ -325,17 +336,27 @@ class ParcelFlowService
                 $vb->increment('amount', $vendorShare);
             }
 
-            $parcel->update([
+            $normalized = $this->normalizeStatus($parcel);
+            $update = [
                 'payment_status' => self::PAY_PAID,
                 'payment_method' => $method,
                 'payment_ref' => $reference,
-                'status' => self::STATUS_REGISTERED,
                 'settled_at' => now(),
+                'paid_amount' => $amount,
+                'balance_due' => 0,
+                'balance_paid_at' => now(),
                 'admin_share' => $systemShare,
                 'vendor_share' => $vendorShare,
                 'government_levy' => $governmentLevy,
                 'owner_share' => $ownerShare,
-            ]);
+            ];
+
+            // Never regress a parcel that already moved past registration.
+            if (in_array($normalized, [self::STATUS_AWAITING_PAYMENT, self::STATUS_PENDING], true)) {
+                $update['status'] = self::STATUS_REGISTERED;
+            }
+
+            $parcel->update($update);
 
             Log::info('Parcel payment settled', [
                 'parcel_id' => $parcel->id,
@@ -349,6 +370,91 @@ class ParcelFlowService
 
             return $parcel->fresh(['bus.campany', 'bus.route']);
         });
+    }
+
+    /**
+     * Backwards-compatible wrapper around settleFully() so existing ClickPesa
+     * callers keep working unchanged.
+     */
+    public function confirmPayment(Parcel $parcel, string $reference, string $method = 'clickpesa'): Parcel
+    {
+        return $this->settleFully($parcel, $reference, $method);
+    }
+
+    /**
+     * Record a deposit against the parcel fee (instalment mode). When the deposit
+     * clears the fee the parcel settles fully and the wallets are credited;
+     * otherwise it moves to `partial` with a balance still due at the destination.
+     * The parcel is allowed to move in both cases.
+     */
+    public function applyDeposit(Parcel $parcel, float $amount, string $reference, string $method = 'clickpesa'): Parcel
+    {
+        $parcel = DB::transaction(function () use ($parcel, $amount, $reference, $method) {
+            $locked = Parcel::whereKey($parcel->id)->lockForUpdate()->first();
+            $amount = max(0.0, round($amount, 2));
+
+            $total = round((float) ($locked->amount_paid ?? 0), 2);
+            $paid = round((float) ($locked->paid_amount ?? 0) + $amount, 2);
+            if ($paid > $total) {
+                $paid = $total;
+            }
+            $balance = round(max(0.0, $total - $paid), 2);
+
+            // Deposit clears the fee: settle like a full cash payment.
+            if ($balance <= 0.01) {
+                return $this->settleFully($locked, $reference, $method);
+            }
+
+            $normalized = $this->normalizeStatus($locked);
+            $update = [
+                'paid_amount' => $paid,
+                'balance_due' => $balance,
+                'payment_status' => self::PAY_PARTIAL,
+                'payment_method' => $method,
+                'payment_ref' => $reference,
+                'deposit_paid_at' => now(),
+            ];
+
+            if (in_array($normalized, [self::STATUS_AWAITING_PAYMENT, self::STATUS_PENDING], true)) {
+                $update['status'] = self::STATUS_REGISTERED;
+            }
+
+            $locked->update($update);
+
+            return $locked->fresh(['bus.campany', 'bus.route']);
+        });
+
+        $this->notifyRegistered($parcel);
+
+        return $parcel->fresh();
+    }
+
+    /** True when the parcel fee has been settled in full. */
+    public function isFullyPaid(?Parcel $parcel): bool
+    {
+        if (!$parcel) {
+            return false;
+        }
+
+        return ($parcel->payment_status ?? null) === self::PAY_PAID;
+    }
+
+    /**
+     * True when the payment state allows the parcel to physically move.
+     * Paid and partial parcels are fine; COD moves with nothing collected yet.
+     * Only unpaid / pending / awaiting-payment parcels are blocked.
+     */
+    public function paymentAllowsMovement(?Parcel $parcel): bool
+    {
+        if (!$parcel) {
+            return false;
+        }
+
+        return in_array($parcel->payment_status ?? null, [
+            self::PAY_PAID,
+            self::PAY_PARTIAL,
+            self::PAY_COD,
+        ], true);
     }
 
     public function notifyRegistered(Parcel $parcel): void
@@ -399,7 +505,7 @@ class ParcelFlowService
             throw new \RuntimeException(__('vender/parcels.cannot_store'));
         }
 
-        if (($parcel->payment_status ?? null) !== self::PAY_PAID) {
+        if (!$this->paymentAllowsMovement($parcel)) {
             throw new \RuntimeException(__('vender/parcels.cannot_receive_unpaid'));
         }
 
@@ -421,7 +527,7 @@ class ParcelFlowService
             throw new \RuntimeException(__('vender/parcels.cannot_load'));
         }
 
-        if (($parcel->payment_status ?? null) !== self::PAY_PAID) {
+        if (!$this->paymentAllowsMovement($parcel)) {
             throw new \RuntimeException(__('vender/parcels.cannot_load_unpaid'));
         }
 
@@ -583,6 +689,16 @@ class ParcelFlowService
         return $t === $key ? ucfirst(str_replace('_', ' ', $status)) : $t;
     }
 
+    /** Human label for payment_status (paid / partial / cod / unpaid / pending). */
+    public function paymentStatusLabel(?string $status): string
+    {
+        $status = $status ?: self::PAY_UNPAID;
+        $key = 'vender/parcels.paystatus_' . $status;
+        $t = __($key);
+
+        return $t === $key ? ucfirst(str_replace('_', ' ', $status)) : $t;
+    }
+
     /**
      * True only when ClickPesa (or settlement) confirmed payment.
      * unpaid / pending / null / anything else = not confirmed.
@@ -597,8 +713,10 @@ class ParcelFlowService
     }
 
     /**
-     * Receipt print is allowed only after payment is confirmed.
-     * Blocks: unpaid, pending, awaiting_payment, cancelled, and any non-paid row.
+     * Receipt print is allowed once the parcel has left the payment-awaiting
+     * stages. Cash still requires full payment; instalment is printable with a
+     * recorded deposit (the balance is shown on the receipt) and COD is always
+     * printable because the fee is collected at the destination.
      */
     public function canPrintReceipt(?Parcel $parcel): bool
     {
@@ -606,17 +724,26 @@ class ParcelFlowService
             return false;
         }
 
-        if (!$this->isPaymentConfirmed($parcel)) {
-            return false;
-        }
-
         $status = $this->normalizeStatus($parcel);
-
-        return !in_array($status, [
+        if (in_array($status, [
             self::STATUS_AWAITING_PAYMENT,
             self::STATUS_PENDING,
             self::STATUS_CANCELLED,
-        ], true);
+        ], true)) {
+            return false;
+        }
+
+        $mode = $parcel->payment_mode ?? self::MODE_CASH;
+
+        if ($mode === self::MODE_COD) {
+            return true;
+        }
+
+        if ($mode === self::MODE_INSTALMENT) {
+            return $this->isFullyPaid($parcel) || (float) ($parcel->paid_amount ?? 0) > 0;
+        }
+
+        return $this->isPaymentConfirmed($parcel);
     }
 
     private function smsSafe(?string $phone, string $message, int $parcelId): void

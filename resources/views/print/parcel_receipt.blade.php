@@ -103,6 +103,13 @@
             ?? optional(optional($parcel->bus)->schedule)->to;
         $govLevyPercentLabel = rtrim(rtrim(number_format(government_levy_percent(), 2, '.', ''), '0'), '.');
         $receiptGovLevy = government_levy_on_amount((float) ($parcel->amount_paid ?? 0));
+        // Thermal (Courier New) font: keep every label ASCII-safe.
+        $paymentModeLabels = [
+            'cash' => 'Cash',
+            'instalment' => 'Instalment',
+            'cod' => 'Cash on Delivery',
+        ];
+        $paymentModeLabel = $paymentModeLabels[$parcel->payment_mode ?? 'cash'] ?? 'Cash';
     @endphp
 
     <div class="receipt-container">
@@ -124,18 +131,10 @@
                 </tr>
                 @if($receiptFrom || $receiptTo)
                 <tr>
-                    <td>From → To:</td>
-                    <td>{{ $receiptFrom ?: '—' }} → {{ $receiptTo ?: '—' }}</td>
+                    <td>From -> To:</td>
+                    <td>{{ $receiptFrom ?: 'N/A' }} -> {{ $receiptTo ?: 'N/A' }}</td>
                 </tr>
                 @endif
-                <tr>
-                    <td>TIN:</td>
-                    <td>{{ $busOwnerAccount->tin ?? 'N/A' }}</td>
-                </tr>
-                <tr>
-                    <td>VRN:</td>
-                    <td>{{ $busOwnerAccount->vrn ?? 'N/A' }}</td>
-                </tr>
             </table>
         </div>
 
@@ -221,8 +220,20 @@
                     <td>{{ number_format($feePerKg, 2) }}</td>
                 </tr>
                 <tr>
-                    <td>Parcel transport fee paid:</td>
+                    <td>Total fee:</td>
                     <td>{{ number_format((float) ($parcel->amount_paid ?? 0), 2) }}</td>
+                </tr>
+                <tr>
+                    <td>Payment mode:</td>
+                    <td>{{ $paymentModeLabel }}</td>
+                </tr>
+                <tr>
+                    <td>Amount paid:</td>
+                    <td>{{ number_format((float) ($parcel->paid_amount ?? 0), 2) }}</td>
+                </tr>
+                <tr>
+                    <td>Balance due:</td>
+                    <td>{{ number_format((float) ($parcel->balance_due ?? 0), 2) }}</td>
                 </tr>
             </table>
         </div>

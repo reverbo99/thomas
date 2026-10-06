@@ -135,10 +135,11 @@
                                 </td>
                                 <td>
                                     @php
-                                        $statusKey = strtolower($parcel->status ?? 'pending');
-                                        $statusClass = $statusKey === 'completed' ? 'vendor-status--paid' : ($statusKey === 'cancelled' ? 'vendor-status--other' : 'vendor-status--unpaid');
+                                        $parcelFlow = app(\App\Services\ParcelFlowService::class);
+                                        $parcelStatus = $parcelFlow->normalizeStatus($parcel);
+                                        $statusClass = $parcelStatus === 'completed' ? 'vendor-status--paid' : ($parcelStatus === 'cancelled' ? 'vendor-status--other' : 'vendor-status--unpaid');
                                     @endphp
-                                    <span class="vendor-status {{ $statusClass }}">{{ ucfirst($parcel->status ?? 'pending') }}</span>
+                                    <span class="vendor-status {{ $statusClass }}">{{ $parcelFlow->statusLabel($parcelStatus) }}</span>
                                 </td>
                                 <td>
                                     @if(app(\App\Services\ParcelFlowService::class)->canPrintReceipt($parcel))

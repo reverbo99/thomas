@@ -27,6 +27,8 @@
                 <th>Weight</th>
                 <th>Instr.</th>
                 <th>Collector</th>
+                <th>Pay mode</th>
+                <th>Balance</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -43,6 +45,8 @@
                     <td>{{ $p->weight ?? '—' }}</td>
                     <td>{{ $p->parcel_instructions }}</td>
                     <td>{{ $p->collector_name ?? '—' }}{{ $p->collector_phone ? ' · ' . $p->collector_phone : '' }}</td>
+                    <td>{{ $p->payment_mode ?? 'cash' }}</td>
+                    <td>{{ number_format((float) ($p->balance_due ?? 0), 2) }}</td>
                     <td>{{ $p->status }}</td>
                 </tr>
             @endforeach

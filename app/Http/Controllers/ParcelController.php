@@ -199,6 +199,8 @@ class ParcelController extends Controller
             'receiving_agent_phone' => $phoneLike,
             'delivery_rider_name' => 'nullable|string|max:150',
             'delivery_rider_phone' => $phoneLike,
+            'payment_mode' => 'nullable|in:cash,instalment,cod',
+            'deposit_amount' => 'nullable|numeric|min:1',
             'phone' => $this->phoneValidationRules(required: false, max: 20),
         ], [
             'sender_contact.regex' => $phoneMsg,
@@ -239,6 +241,17 @@ class ParcelController extends Controller
             return back()->withInput()->with('error', $applied['message']);
         }
 
+        $paymentMode = $data['payment_mode'] ?? ParcelFlowService::MODE_CASH;
+        $discountedTotal = round((float) $applied['amount'], 2);
+        $depositAmount = 0.0;
+
+        if ($paymentMode === ParcelFlowService::MODE_INSTALMENT) {
+            $depositAmount = round((float) ($data['deposit_amount'] ?? 0), 2);
+            if ($depositAmount <= 0 || $depositAmount >= $discountedTotal) {
+                return back()->withInput()->with('error', __('vender/parcels.deposit_hint'));
+            }
+        }
+
         try {
             $parcel = Parcel::create([
                 'bus_id' => $data['bus_id'],
@@ -255,6 +268,9 @@ class ParcelController extends Controller
                 'length' => $data['length'] ?? null,
                 'status' => ParcelFlowService::STATUS_AWAITING_PAYMENT,
                 'payment_status' => ParcelFlowService::PAY_UNPAID,
+                'payment_mode' => $paymentMode,
+                'paid_amount' => 0,
+                'balance_due' => $discountedTotal,
                 'vender_id' => $isVendor ? Auth::id() : null,
                 'created_by' => Auth::id(),
                 'sender_name' => $data['sender_name'],
@@ -288,13 +304,35 @@ class ParcelController extends Controller
             return back()->withInput()->with('error', $message);
         }
 
-        if ($this->isTestMode()) {
-            return $this->processTestPayment($parcel);
+        // COD: nothing is collected at registration, the bus owner takes the full
+        // fee in cash at the destination. No gateway is involved.
+        if ($paymentMode === ParcelFlowService::MODE_COD) {
+            $parcel->update([
+                'payment_status' => ParcelFlowService::PAY_COD,
+                'status' => ParcelFlowService::STATUS_REGISTERED,
+            ]);
+            $this->flow->notifyRegistered($parcel);
+
+            return redirect($this->showUrl($parcel))->with('success', __('vender/parcels.cod_registered_success'));
         }
 
         $clickPesaPhone = trim((string) ($data['phone'] ?? ''));
         if ($clickPesaPhone === '') {
             $clickPesaPhone = (string) $parcel->sender_contact;
+        }
+
+        // Instalment: collect the deposit now, balance in cash at the destination.
+        if ($paymentMode === ParcelFlowService::MODE_INSTALMENT) {
+            if ($this->isTestMode()) {
+                return $this->processTestPayment($parcel, $depositAmount);
+            }
+
+            return $this->startClickPesaPayment($parcel, $clickPesaPhone, $depositAmount);
+        }
+
+        // Cash: full fee at registration.
+        if ($this->isTestMode()) {
+            return $this->processTestPayment($parcel);
         }
 
         return $this->startClickPesaPayment($parcel, $clickPesaPhone);
@@ -320,7 +358,12 @@ class ParcelController extends Controller
             ]
         );
 
-        return $this->startClickPesaPayment($parcel, $request->phone ?: $parcel->sender_contact);
+        // Top-up an instalment: charge the outstanding balance, not the full fee.
+        $amount = ($parcel->payment_mode ?? ParcelFlowService::MODE_CASH) === ParcelFlowService::MODE_INSTALMENT
+            ? (float) $parcel->balance_due
+            : null;
+
+        return $this->startClickPesaPayment($parcel, $request->phone ?: $parcel->sender_contact, $amount);
     }
 
     public function show($id)
@@ -475,6 +518,47 @@ class ParcelController extends Controller
         }
 
         return back()->with('success', __('vender/parcels.collected_success'));
+    }
+
+    /**
+     * Destination office collects the outstanding balance (instalment) or the full
+     * COD fee in cash, which settles the parcel and credits all wallets.
+     */
+    public function collectBalance(Request $request, $id)
+    {
+        $this->assertBusOwner();
+        $parcel = $this->findAuthorizedParcel($id);
+
+        $mode = $parcel->payment_mode ?? ParcelFlowService::MODE_CASH;
+        if (!in_array($mode, [ParcelFlowService::MODE_INSTALMENT, ParcelFlowService::MODE_COD], true)) {
+            return back()->with('error', __('vender/parcels.collect_balance_not_applicable'));
+        }
+
+        if ($parcel->payment_status === ParcelFlowService::PAY_PAID) {
+            return back()->with('success', __('vender/parcels.balance_cleared'));
+        }
+
+        $status = $this->flow->normalizeStatus($parcel);
+        if (!in_array($status, [ParcelFlowService::STATUS_RECEIVED, ParcelFlowService::STATUS_LOADED], true)) {
+            return back()->with('error', __('vender/parcels.collect_balance_not_ready'));
+        }
+
+        if ((float) ($parcel->balance_due ?? 0) <= 0) {
+            return back()->with('success', __('vender/parcels.balance_cleared'));
+        }
+
+        try {
+            $this->flow->settleFully($parcel, 'CASH' . time(), 'cash');
+        } catch (\Throwable $e) {
+            Log::error('Parcel balance collection failed', [
+                'parcel_id' => $parcel->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', __('vender/parcels.payment_failed_test_mode'));
+        }
+
+        return back()->with('success', __('vender/parcels.balance_cleared'));
     }
 
     public function print($id)
@@ -708,7 +792,7 @@ class ParcelController extends Controller
     }
 
     /** Mark parcel paid without ClickPesa when Settings → Test Mode is on. */
-    private function processTestPayment(Parcel $parcel)
+    private function processTestPayment(Parcel $parcel, ?float $amount = null)
     {
         if (!$this->isTestMode()) {
             return redirect($this->showUrl($parcel))->with('error', __('vender/parcels.test_mode_not_enabled'));
@@ -721,8 +805,20 @@ class ParcelController extends Controller
         $ref = 'TESTPCL' . $parcel->id . substr((string) time(), -6);
 
         try {
-            $parcel = $this->flow->confirmPayment($parcel, $ref, 'test_mode');
-            $this->finalizeAfterPayment($parcel);
+            $isInstalment = ($parcel->payment_mode ?? ParcelFlowService::MODE_CASH) === ParcelFlowService::MODE_INSTALMENT;
+
+            if ($isInstalment) {
+                // When no explicit deposit is given, collect the outstanding balance.
+                $deposit = $amount ?? (float) ($parcel->balance_due ?? 0);
+                $parcel = $this->flow->applyDeposit($parcel, (float) $deposit, $ref, 'test_mode');
+            } else {
+                $parcel = $this->flow->settleFully($parcel, $ref, 'test_mode');
+            }
+
+            // TRA fiscalization only makes sense once the fee is settled in full.
+            if ($this->flow->isFullyPaid($parcel)) {
+                $this->finalizeAfterPayment($parcel);
+            }
         } catch (\Throwable $e) {
             Log::error('Parcel test-mode payment failed', [
                 'parcel_id' => $parcel->id,
@@ -735,11 +831,13 @@ class ParcelController extends Controller
         return redirect($this->showUrl($parcel))->with('success', __('vender/parcels.payment_success_test_mode'));
     }
 
-    private function startClickPesaPayment(Parcel $parcel, ?string $phone)
+    private function startClickPesaPayment(Parcel $parcel, ?string $phone, ?float $amount = null)
     {
         if ($this->isTestMode()) {
-            return $this->processTestPayment($parcel);
+            return $this->processTestPayment($parcel, $amount);
         }
+
+        $chargeAmount = round($amount ?? (float) $parcel->amount_paid, 2);
 
         $normalized = ClickPesaController::normalizeTanzaniaMsisdnForClickPesa((string) $phone);
         if (!$normalized['ok']) {
@@ -760,6 +858,7 @@ class ParcelController extends Controller
         Session::put('parcel_payment', [
             'parcel_id' => $parcel->id,
             'order_ref' => $orderRef,
+            'amount' => $chargeAmount,
             'return_route' => $this->isBusOwnerContext()
                 ? 'bus_owner.parcels.show'
                 : 'vender.parcels.show',
@@ -770,7 +869,7 @@ class ParcelController extends Controller
         $parts = preg_split('/\s+/', trim($name), 2);
 
         return (new ClickPesaController())->initiatePayment(
-            (int) round((float) $parcel->amount_paid),
+            (int) round($chargeAmount),
             $parts[0] ?? 'Sender',
             $parts[1] ?? ($parts[0] ?? 'Sender'),
             $phone,

@@ -175,8 +175,28 @@
                 <p class="text-sm font-semibold text-gray-700 mb-3">{{ __('vender/parcels.payment_details') }}</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="vendor-form-field">
-                        <label for="amount_paid">{{ __('vender/parcels.amount_paid', ['currency' => $currency]) }}</label>
+                        <label for="payment_mode">{{ __('vender/parcels.payment_mode') }}</label>
+                        <select name="payment_mode" id="payment_mode" class="page-input">
+                            <option value="cash" {{ old('payment_mode', 'cash') == 'cash' ? 'selected' : '' }}>{{ __('vender/parcels.mode_cash') }}</option>
+                            <option value="instalment" {{ old('payment_mode') == 'instalment' ? 'selected' : '' }}>{{ __('vender/parcels.mode_instalment') }}</option>
+                            <option value="cod" {{ old('payment_mode') == 'cod' ? 'selected' : '' }}>{{ __('vender/parcels.mode_cod') }}</option>
+                        </select>
+                    </div>
+                    <div class="vendor-form-field">
+                        <label for="amount_paid">{{ __('vender/parcels.total_fee', ['currency' => $currency]) }}</label>
                         <input type="number" name="amount_paid" id="amount_paid" step="0.01" value="{{ old('amount_paid') }}" required class="page-input" placeholder="0.00">
+                    </div>
+                    <div class="vendor-form-field" id="deposit-field" style="display:none;">
+                        <label for="deposit_amount">{{ __('vender/parcels.deposit_now', ['currency' => $currency]) }}</label>
+                        <input type="number" name="deposit_amount" id="deposit_amount" step="0.01" value="{{ old('deposit_amount') }}" class="page-input" placeholder="0.00">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('vender/parcels.deposit_hint') }}</p>
+                    </div>
+                    <div class="vendor-form-field" id="deposit-preview" style="display:none;">
+                        <div class="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-100" role="status">
+                            <p class="font-semibold">{{ __('vender/parcels.payment_summary') }}</p>
+                            <p class="mt-1">{{ __('vender/parcels.paid_amount') }}: <span id="deposit-preview-paid">0.00</span> {{ $currency }}</p>
+                            <p>{{ __('vender/parcels.balance_due') }}: <span id="deposit-preview-balance">0.00</span> {{ $currency }}</p>
+                        </div>
                     </div>
                     <div class="vendor-form-field">
                         <label for="discount_code">{{ __('vender/parcels.discount_coupon') }}</label>
@@ -254,6 +274,46 @@
         select.addEventListener('change', syncInstructionsUi);
         syncInstructionsUi();
     }
+})();
+
+(function () {
+    var modeSelect = document.getElementById('payment_mode');
+    var depositField = document.getElementById('deposit-field');
+    var depositInput = document.getElementById('deposit_amount');
+    var totalInput = document.getElementById('amount_paid');
+    var preview = document.getElementById('deposit-preview');
+    var paidEl = document.getElementById('deposit-preview-paid');
+    var balanceEl = document.getElementById('deposit-preview-balance');
+    if (!modeSelect) return;
+
+    function money(value) {
+        return (isFinite(value) ? value : 0).toFixed(2);
+    }
+
+    function syncPaymentMode() {
+        var isInstalment = modeSelect.value === 'instalment';
+
+        if (depositField) depositField.style.display = isInstalment ? '' : 'none';
+        if (preview) preview.style.display = isInstalment ? '' : 'none';
+        if (depositInput) {
+            depositInput.disabled = !isInstalment;
+            if (!isInstalment) depositInput.value = '';
+        }
+        if (!isInstalment) return;
+
+        var total = parseFloat(totalInput && totalInput.value) || 0;
+        var deposit = parseFloat(depositInput && depositInput.value) || 0;
+        if (deposit > total) deposit = total;
+        var balance = Math.max(0, total - deposit);
+
+        if (paidEl) paidEl.textContent = money(deposit);
+        if (balanceEl) balanceEl.textContent = money(balance);
+    }
+
+    modeSelect.addEventListener('change', syncPaymentMode);
+    if (depositInput) depositInput.addEventListener('input', syncPaymentMode);
+    if (totalInput) totalInput.addEventListener('input', syncPaymentMode);
+    syncPaymentMode();
 })();
 </script>
 @endsection

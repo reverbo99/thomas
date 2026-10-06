@@ -21,6 +21,11 @@ class Parcel extends Model
         'payment_status',
         'payment_method',
         'payment_ref',
+        'payment_mode',
+        'paid_amount',
+        'balance_due',
+        'deposit_paid_at',
+        'balance_paid_at',
         'weight',
         'height',
         'width',
@@ -51,6 +56,7 @@ class Parcel extends Model
         'settled_at',
         'received_at',
         'departed_at',
+        'loaded_at',
         'arrived_at',
         'collected_at',
         'tra_status',
@@ -69,6 +75,8 @@ class Parcel extends Model
         'departed_at' => 'datetime',
         'arrived_at' => 'datetime',
         'collected_at' => 'datetime',
+        'deposit_paid_at' => 'datetime',
+        'balance_paid_at' => 'datetime',
     ];
 
     public function bus()

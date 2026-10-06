@@ -16,6 +16,18 @@ class ParcelMovementTest extends TestCase
         $this->assertSame('completed', ParcelFlowService::STATUS_COMPLETED);
     }
 
+    public function test_movement_timestamps_are_mass_assignable(): void
+    {
+        // Regression: `loaded_at` was missing from Parcel::$fillable, so
+        // ParcelFlowService::markLoaded() silently dropped the load time and the
+        // detail timeline always rendered "Loaded: —".
+        $fillable = (new Parcel())->getFillable();
+
+        foreach (['loaded_at', 'received_at', 'settled_at', 'collected_at'] as $field) {
+            $this->assertContains($field, $fillable, "Parcel::\$fillable is missing '{$field}'");
+        }
+    }
+
     public function test_legacy_pending_normalizes_on_payment_status(): void
     {
         $flow = new ParcelFlowService();

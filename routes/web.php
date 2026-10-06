@@ -489,6 +489,7 @@ Route::middleware('auth')->group(function () {
              Route::post('/{id}/load', [ParcelController::class, 'load'])->name('load');
              Route::post('/{id}/receive', [ParcelController::class, 'receive'])->name('receive');
              Route::post('/{id}/collect', [ParcelController::class, 'collect'])->name('collect');
+             Route::post('/{id}/collect-balance', [ParcelController::class, 'collectBalance'])->name('collect_balance');
              Route::get('/{id}/print', [ParcelController::class, 'print'])->name('print');
         });
     });

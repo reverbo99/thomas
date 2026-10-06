@@ -749,9 +749,48 @@ class ClickPesaController extends Controller
                     ], true)
                     || str_contains(strtoupper((string) $reference), 'PCL')
                 )) {
+                    $parcelMeta = Session::get('parcel_payment');
                     try {
-                        $parcel = $parcelFlow->confirmPayment($parcel, (string) $reference, 'clickpesa');
-                        app(ParcelController::class)->finalizeAfterPayment($parcel);
+                        $isInstalment = ($parcel->payment_mode ?? \App\Services\ParcelFlowService::MODE_CASH)
+                                === \App\Services\ParcelFlowService::MODE_INSTALMENT
+                            && $parcel->payment_status !== \App\Services\ParcelFlowService::PAY_PAID;
+
+                        if ($isInstalment) {
+                            // Only the deposit was charged; the balance stays due at the destination.
+                            // Prefer the amount ClickPesa actually collected, then the amount we
+                            // asked for. Never fall back to balance_due — at registration that is
+                            // the FULL fee and would wrongly settle the whole parcel from a deposit.
+                            $verifiedAmount = isset($verifyResponse->amount) ? (float) $verifyResponse->amount : 0.0;
+                            $sessionAmount = (is_array($parcelMeta) && isset($parcelMeta['amount']))
+                                ? (float) $parcelMeta['amount']
+                                : 0.0;
+                            $charge = $verifiedAmount > 0 ? $verifiedAmount : $sessionAmount;
+
+                            if ($charge <= 0) {
+                                Log::error('Instalment parcel deposit amount could not be determined; leaving parcel unpaid', [
+                                    'parcel_id' => $parcel->id ?? null,
+                                    'reference' => $reference,
+                                ]);
+
+                                return view('clickpesa.error', [
+                                    'message' => __('vender/parcels.payment_failed'),
+                                    'reference' => $reference,
+                                ]);
+                            }
+
+                            $parcel = $parcelFlow->applyDeposit(
+                                $parcel,
+                                $charge,
+                                (string) $reference,
+                                'clickpesa'
+                            );
+                        } else {
+                            $parcel = $parcelFlow->confirmPayment($parcel, (string) $reference, 'clickpesa');
+                        }
+
+                        if ($parcelFlow->isFullyPaid($parcel)) {
+                            app(ParcelController::class)->finalizeAfterPayment($parcel);
+                        }
                     } catch (\Throwable $e) {
                         Log::error('Parcel ClickPesa confirm failed', [
                             'parcel_id' => $parcel->id ?? null,

@@ -15,9 +15,20 @@
     if ($isBusOwnerView && auth()->user()?->campany) {
         $companyBuses = \App\Models\bus::query()
             ->where('campany_id', auth()->user()->campany->id)
+            ->with('route')
             ->orderBy('bus_number')
-            ->get(['id', 'bus_number']);
+            ->get(['id', 'bus_number', 'route_id']);
     }
+
+    $payMode = $parcel->payment_mode ?? \App\Services\ParcelFlowService::MODE_CASH;
+    $modeLabels = [
+        \App\Services\ParcelFlowService::MODE_CASH => __('vender/parcels.mode_cash'),
+        \App\Services\ParcelFlowService::MODE_INSTALMENT => __('vender/parcels.mode_instalment'),
+        \App\Services\ParcelFlowService::MODE_COD => __('vender/parcels.mode_cod'),
+    ];
+    $modeLabel = $modeLabels[$payMode] ?? $modeLabels[\App\Services\ParcelFlowService::MODE_CASH];
+    $paidAmount = (float) ($parcel->paid_amount ?? ($flow->isFullyPaid($parcel) ? $parcel->amount_paid : 0));
+    $balanceDue = round((float) ($parcel->balance_due ?? 0), 2);
 @endphp
 
 @if(session('success'))
@@ -39,7 +50,7 @@
             </p>
         @endif
         <span class="mt-2 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{{ $flow->statusLabel($status) }}</span>
-        <span class="ml-2 text-sm text-gray-600">{{ $currency }} {{ convert_money($parcel->amount_paid) }} · {{ $parcel->payment_status ?? '—' }}</span>
+        <span class="ml-2 text-sm text-gray-600">{{ $currency }} {{ convert_money($parcel->amount_paid) }} · {{ $flow->paymentStatusLabel($parcel->payment_status) }}</span>
     </div>
     <div class="flex flex-wrap gap-2 items-center">
         <a href="{{ route($showPrefix.'.index') }}" class="rounded-lg border px-3 py-2 text-sm">{{ __('vender/parcels.back') }}</a>
@@ -53,6 +64,21 @@
                 <span class="mt-1 text-xs text-red-600">{{ __('vender/parcels.print_payment_required') }}</span>
             </span>
         @endif
+    </div>
+</div>
+
+<div class="mb-6 grid gap-3 rounded-xl border bg-white p-4 shadow-sm sm:grid-cols-3 dark:border-slate-700 dark:bg-slate-800">
+    <div>
+        <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('vender/parcels.payment_mode') }}</p>
+        <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $modeLabel }}</p>
+    </div>
+    <div>
+        <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('vender/parcels.paid_amount') }}</p>
+        <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{{ $currency }} {{ convert_money($paidAmount) }}</p>
+    </div>
+    <div>
+        <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ __('vender/parcels.balance_due') }}</p>
+        <p class="mt-1 text-sm font-semibold {{ $balanceDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">{{ $currency }} {{ convert_money($balanceDue) }}</p>
     </div>
 </div>
 
@@ -93,7 +119,12 @@
         <p class="text-xs text-gray-500">{{ __('vender/parcels.share_formula') }}</p>
         <div class="pt-2 text-xs text-gray-600 space-y-1">
             <p class="font-semibold text-gray-800">{{ __('vender/parcels.timeline') }}</p>
-            <p>{{ __('vender/parcels.paid_at') }}: {{ $parcel->settled_at ? $parcel->settled_at->format('d M Y H:i') : '—' }}</p>
+            @php $paidAt = $parcel->settled_at ?? $parcel->deposit_paid_at; @endphp
+            <p>{{ __('vender/parcels.paid_at') }}: {{ $paidAt ? $paidAt->format('d M Y H:i') : '—' }}
+                @if(!$flow->isFullyPaid($parcel) && $parcel->deposit_paid_at)
+                    ({{ __('vender/parcels.status_partial') }})
+                @endif
+            </p>
             <p>{{ __('vender/parcels.loaded_at') }}: {{ $parcel->loaded_at ? $parcel->loaded_at->format('d M Y H:i') : '—' }}</p>
             <p>{{ __('vender/parcels.received_at') }}: {{ $parcel->received_at ? $parcel->received_at->format('d M Y H:i') : '—' }}</p>
             <p>{{ __('vender/parcels.collected_at') }}: {{ $parcel->collected_at ? $parcel->collected_at->format('d M Y H:i') : '—' }}</p>
@@ -110,7 +141,7 @@
     </div>
 
     <div class="space-y-4">
-        @if(($parcel->payment_status ?? '') !== 'paid')
+        @if(!in_array($parcel->payment_status ?? '', ['paid', 'cod'], true))
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             @if($test_mode ?? false)
                 <h2 class="mb-2 font-semibold text-gray-800 dark:text-gray-100">{{ __('vender/parcels.pay_test_mode') }}</h2>
@@ -185,16 +216,27 @@
         @endif
 
         @if($isBusOwnerView && $companyBuses->isNotEmpty() && !in_array($status, ['completed', 'cancelled'], true))
-        <div class="rounded-xl border bg-white p-5 shadow-sm">
-            <h2 class="font-semibold mb-2">{{ __('vender/parcels.assign_bus') }}</h2>
-            <form method="POST" action="{{ route($showPrefix.'.assign', $parcel->id) }}" class="flex flex-wrap items-center gap-2">
+        <div class="rounded-xl border bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <h2 class="mb-2 font-semibold text-gray-800 dark:text-gray-100">{{ __('vender/parcels.assign_bus') }}</h2>
+            @php
+                $currentBus = $parcel->bus;
+                $currentBusNumber = $currentBus->bus_number ?? null;
+                $currentBusFrom = $currentBus->route->from ?? $currentBus->schedule->from ?? null;
+                $currentBusTo = $currentBus->route->to ?? $currentBus->schedule->to ?? null;
+            @endphp
+            <p class="mb-3 text-sm text-gray-800 dark:text-gray-100">
+                <span class="font-bold">{{ __('vender/parcels.current_bus') }}:</span>
+                {{ $currentBusNumber ?: '-' }} — {{ $currentBusFrom ?: '-' }} -> {{ $currentBusTo ?: '-' }}
+            </p>
+            <form method="POST" action="{{ route($showPrefix.'.assign', $parcel->id) }}" class="flex flex-wrap items-center gap-2"
+                @if(in_array($status, ['loaded', 'received'], true)) onsubmit="return confirm(@json(__('vender/parcels.bus_move_confirm')))" @endif>
                 @csrf
-                <select name="bus_id" class="rounded-lg border-gray-300 text-sm">
+                <select name="bus_id" class="rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
                     @foreach($companyBuses as $companyBus)
-                        <option value="{{ $companyBus->id }}" @selected((int) $companyBus->id === (int) $parcel->bus_id)>{{ $companyBus->bus_number }}</option>
+                        <option value="{{ $companyBus->id }}" @selected((int) $companyBus->id === (int) $parcel->bus_id)>{{ $companyBus->bus_number }}@if($companyBus->route) — {{ $companyBus->route->from ?: '—' }} -> {{ $companyBus->route->to ?: '—' }}@endif@if((int) $companyBus->id === (int) $parcel->bus_id) {{ __('vender/parcels.bus_current_marker') }}@endif</option>
                     @endforeach
                 </select>
-                <button class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white">{{ __('vender/parcels.save_bus') }}</button>
+                <button class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400">{{ __('vender/parcels.save_bus') }}</button>
             </form>
         </div>
         @endif
@@ -206,7 +248,7 @@
             @if(in_array($status, ['registered', 'in_store'], true))
                 <form method="POST" action="{{ route($showPrefix.'.store_state', $parcel->id) }}">
                     @csrf
-                    <button class="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white" @if(($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_in_store') }}</button>
+                    <button class="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white" @if(!$flow->paymentAllowsMovement($parcel)) disabled @endif>{{ __('vender/parcels.mark_in_store') }}</button>
                 </form>
 
                 <form method="POST" action="{{ route($showPrefix.'.load', $parcel->id) }}" class="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-slate-600">
@@ -214,8 +256,8 @@
                     <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ __('vender/parcels.mark_loaded') }}</p>
                     <input type="text" name="conductor_name" required value="{{ old('conductor_name') }}" placeholder="{{ __('vender/parcels.conductor_name') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
                     <input type="tel" name="conductor_phone" required value="{{ old('conductor_phone') }}" placeholder="{{ __('vender/parcels.conductor_phone') }}" class="w-full rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
-                    <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white" @if(($parcel->payment_status ?? '') !== 'paid') disabled @endif>{{ __('vender/parcels.mark_loaded') }}</button>
-                    @if(($parcel->payment_status ?? '') !== 'paid')
+                    <button class="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white" @if(!$flow->paymentAllowsMovement($parcel)) disabled @endif>{{ __('vender/parcels.mark_loaded') }}</button>
+                    @if(!$flow->paymentAllowsMovement($parcel))
                         <p class="text-xs text-red-600">{{ __('vender/parcels.cannot_load_unpaid') }}</p>
                     @endif
                 </form>
@@ -227,6 +269,17 @@
                     <button class="rounded-lg bg-green-600 px-3 py-2 text-sm text-white">{{ __('vender/parcels.mark_received_destination') }}</button>
                 </form>
             @endif
+        </div>
+        @endif
+
+        @if($isBusOwnerView && $balanceDue > 0 && $payMode !== 'cash' && in_array($status, ['received', 'loaded'], true))
+        <div class="rounded-xl border border-amber-300 bg-amber-50 p-5 shadow-sm dark:border-amber-700 dark:bg-amber-900/30">
+            <h2 class="font-semibold mb-2 text-amber-900 dark:text-amber-100">{{ __('vender/parcels.collect_balance') }}</h2>
+            <p class="text-xs text-amber-800 dark:text-amber-200 mb-3">{{ __('vender/parcels.collect_balance_hint') }}</p>
+            <form method="POST" action="{{ route($showPrefix.'.collect_balance', $parcel->id) }}">
+                @csrf
+                <button class="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700">{{ __('vender/parcels.collect_balance') }} ({{ $currency }} {{ convert_money($balanceDue) }})</button>
+            </form>
         </div>
         @endif
 
@@ -246,7 +299,10 @@
                     <button type="button" id="parcel-signature-clear" class="mt-1 text-xs text-gray-500 underline dark:text-gray-400">{{ __('vender/parcels.signature_clear') }}</button>
                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('vender/parcels.signature_hint') }}</p>
                 </div>
-                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white">{{ __('vender/parcels.mark_collected') }}</button>
+                <button class="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white" @if($balanceDue > 0) disabled @endif>{{ __('vender/parcels.mark_collected') }}</button>
+                @if($balanceDue > 0)
+                    <p class="text-xs text-red-600 dark:text-red-400">{{ __('vender/parcels.mark_collected_needs_balance') }}</p>
+                @endif
             </form>
         </div>
         @endif
