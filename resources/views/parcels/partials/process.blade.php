@@ -233,7 +233,14 @@
                 @csrf
                 <select name="bus_id" class="rounded-lg border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-gray-100">
                     @foreach($companyBuses as $companyBus)
-                        <option value="{{ $companyBus->id }}" @selected((int) $companyBus->id === (int) $parcel->bus_id)>{{ $companyBus->bus_number }}@if($companyBus->route) — {{ $companyBus->route->from ?: '—' }} -> {{ $companyBus->route->to ?: '—' }}@endif@if((int) $companyBus->id === (int) $parcel->bus_id) {{ __('vender/parcels.bus_current_marker') }}@endif</option>
+                        @php
+                            $isCurrentBus = (int) $companyBus->id === (int) $parcel->bus_id;
+                            $busRouteLabel = $companyBus->route
+                                ? ' — ' . ($companyBus->route->from ?: '—') . ' -> ' . ($companyBus->route->to ?: '—')
+                                : '';
+                            $busMarker = $isCurrentBus ? ' ' . __('vender/parcels.bus_current_marker') : '';
+                        @endphp
+                        <option value="{{ $companyBus->id }}" @selected($isCurrentBus)>{{ $companyBus->bus_number }}{{ $busRouteLabel }}{{ $busMarker }}</option>
                     @endforeach
                 </select>
                 <button class="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400">{{ __('vender/parcels.save_bus') }}</button>
