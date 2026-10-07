@@ -382,6 +382,117 @@ class ParcelFlowService
     }
 
     /**
+     * Reverse the wallet credits created when a parcel settled. Idempotent: the
+     * `commission_reversed_at` marker is the single source of truth, so this can
+     * be called repeatedly (including to repair parcels cancelled before the
+     * marker existed) without reversing twice.
+     *
+     * Reverses only parcels that actually moved money: fully paid
+     * (payment_status = paid) with a recorded settlement and no prior reversal.
+     * Partial instalment deposits and COD parcels never credited wallets, so
+     * they are ignored. payment_status is never changed.
+     *
+     * @return array{reversed: bool, owner: float, admin: float, vendor: float, government: float}
+     */
+    public function reverseSettledParcelIfNeeded(Parcel $parcel): array
+    {
+        return DB::transaction(function () use ($parcel) {
+            $locked = Parcel::whereKey($parcel->id)->lockForUpdate()->first();
+
+            $noop = [
+                'reversed' => false,
+                'owner' => 0.0,
+                'admin' => 0.0,
+                'vendor' => 0.0,
+                'government' => 0.0,
+            ];
+
+            if (
+                !$locked
+                || $locked->payment_status !== self::PAY_PAID
+                || $locked->settled_at === null
+                || $locked->commission_reversed_at !== null
+            ) {
+                return $noop;
+            }
+
+            $split = self::splitForParcel($locked);
+            $owner = (float) $split['owner'];
+            $admin = (float) $split['admin'];
+            $vendor = (float) $split['vendor'];
+            $government = (float) $split['government'];
+
+            $locked->loadMissing('bus.campany.balance');
+            $campany = $locked->bus?->campany;
+
+            if ($campany && $campany->balance && $owner > 0) {
+                $campany->balance->decrement('amount', $owner);
+            }
+
+            if ($admin > 0) {
+                $adminWallet = AdminWallet::find(1) ?: AdminWallet::query()->first();
+                if ($adminWallet) {
+                    $adminWallet->decrement('balance', $admin);
+                }
+            }
+
+            if ($locked->vender_id && $vendor > 0) {
+                $venderBalance = VenderBalance::where('user_id', $locked->vender_id)->first();
+                if ($venderBalance) {
+                    $venderBalance->decrement('amount', $vendor);
+                }
+            }
+
+            GovernmentLevy::where('booking_id', $locked->parcel_number)->delete();
+
+            $locked->update(['commission_reversed_at' => now()]);
+
+            return [
+                'reversed' => true,
+                'owner' => $owner,
+                'admin' => $admin,
+                'vendor' => $vendor,
+                'government' => $government,
+            ];
+        });
+    }
+
+    /**
+     * Cancel a parcel and reverse the wallet credits made when it settled.
+     *
+     * Reversal only happens when the parcel actually moved money: fully paid
+     * (payment_status = paid) with a recorded settlement and no prior reversal.
+     * Partial instalment deposits and COD parcels never credited wallets, so
+     * they are cancelled without touching any balance. payment_status is
+     * deliberately left as `paid` so a cancelled parcel can never be
+     * re-settled. Idempotent via reverseSettledParcelIfNeeded() and the
+     * commission_reversed_at marker.
+     */
+    public function cancelWithReversal(Parcel $parcel): Parcel
+    {
+        return DB::transaction(function () use ($parcel) {
+            $locked = Parcel::whereKey($parcel->id)->lockForUpdate()->first();
+
+            $reversal = $this->reverseSettledParcelIfNeeded($locked);
+
+            if ($locked->status !== self::STATUS_CANCELLED) {
+                $locked->update(['status' => self::STATUS_CANCELLED]);
+            }
+
+            Log::info('Parcel cancelled with reversal', [
+                'parcel_id' => $locked->id,
+                'owner' => $reversal['owner'],
+                'admin' => $reversal['admin'],
+                'vendor' => $reversal['vendor'],
+                'government' => $reversal['government'],
+                'reversed' => $reversal['reversed'],
+            ]);
+
+            return $locked->fresh();
+        });
+    }
+
+    /**
      * Record a deposit against the parcel fee (instalment mode). When the deposit
      * clears the fee the parcel settles fully and the wallets are credited;
      * otherwise it moves to `partial` with a balance still due at the destination.

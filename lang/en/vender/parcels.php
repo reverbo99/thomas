@@ -212,6 +212,7 @@ return [
     'cancel_parcel' => 'Cancel parcel',
     'cancel_confirm' => 'Cancel this parcel?',
     'cancel_after_handover_blocked' => 'This parcel has already been handed over to the bus owner; only the bus owner can cancel it.',
+    'cancelled_reversed' => 'Parcel cancelled and the settled amounts were reversed.',
     'assignment_locked_after_handover' => 'This parcel has been handed over to the bus owner. Only the bus owner can change its bus or receiving details.',
     // System admin parcel tracking
     'admin_tracking_subtitle' => 'Track every parcel across all bus companies and see how each paid fee is shared.',

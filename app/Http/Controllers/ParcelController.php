@@ -35,7 +35,10 @@ class ParcelController extends Controller
 
         $parcelStats = [
             'total' => Parcel::where('vender_id', $venderId)->count(),
-            'amount' => (float) Parcel::where('vender_id', $venderId)->where('payment_status', ParcelFlowService::PAY_PAID)->sum('amount_paid'),
+            'amount' => (float) Parcel::where('vender_id', $venderId)
+                ->where('payment_status', ParcelFlowService::PAY_PAID)
+                ->where('status', '!=', ParcelFlowService::STATUS_CANCELLED)
+                ->sum('amount_paid'),
             'today' => Parcel::where('vender_id', $venderId)->whereDate('created_at', today())->count(),
             'assigned' => Parcel::where('vender_id', $venderId)->whereIn('status', [
                 ParcelFlowService::STATUS_REGISTERED,
@@ -607,9 +610,14 @@ class ParcelController extends Controller
             return back()->with('error', $message);
         }
 
-        $parcel->update(['status' => ParcelFlowService::STATUS_CANCELLED]);
+        // A settled parcel credited wallets; cancelling reverses every share.
+        $reversed = $parcel->payment_status === ParcelFlowService::PAY_PAID && $parcel->settled_at !== null;
 
-        return back()->with('success', __('vender/parcels.parcel_status_updated'));
+        $this->flow->cancelWithReversal($parcel);
+
+        return back()->with('success', $reversed
+            ? __('vender/parcels.cancelled_reversed')
+            : __('vender/parcels.parcel_status_updated'));
     }
 
     public function toggleAcceptance(Request $request)

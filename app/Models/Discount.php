@@ -56,6 +56,7 @@ class Discount extends Model
         $parcels = Parcel::query()
             ->where('discount_code', $this->code)
             ->where('payment_status', ParcelFlowService::PAY_PAID)
+            ->where('status', '!=', ParcelFlowService::STATUS_CANCELLED)
             ->count();
 
         // Count once when deposit is paid or order is fully paid.

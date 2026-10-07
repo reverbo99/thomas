@@ -211,6 +211,7 @@ return [
     'cancel_parcel' => 'Futa mzigo',
     'cancel_confirm' => 'Unataka kufuta mzigo huu?',
     'cancel_after_handover_blocked' => 'Mzigo huu umekwishakabidhiwa kwa mwenye basi; ni mwenye basi tu anayeweza kuufuta.',
+    'cancelled_reversed' => 'Mzigo umefutwa na kiasi kilicholipwa kimerudishwa.',
     'assignment_locked_after_handover' => 'Mzigo huu umekwishakabidhiwa kwa mwenye basi. Ni mwenye basi tu anayeweza kubadilisha basi au taarifa za mpokeaji.',
     // Ufuatiliaji wa mizigo (admin wa mfumo)
     'admin_tracking_subtitle' => 'Fuatilia kila mzigo kwenye makampuni yote ya mabasi na uone jinsi kila ada iliyolipwa inavyogawanywa.',

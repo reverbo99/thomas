@@ -239,6 +239,7 @@ class AdminController extends Controller
         $query = Parcel::query()
             ->whereIn('bus_id', $busIds)
             ->where('payment_status', ParcelFlowService::PAY_PAID)
+            ->where('status', '!=', ParcelFlowService::STATUS_CANCELLED)
             ->whereNotNull('settled_at')
             ->whereBetween('settled_at', [$start, $end]);
 
@@ -1209,6 +1210,7 @@ $q->where('id', auth()->user()->campany->id);
             ->with(['bus.campany'])
             ->whereIn('bus_id', $bus_ids)
             ->where('payment_status', ParcelFlowService::PAY_PAID)
+            ->where('status', '!=', ParcelFlowService::STATUS_CANCELLED)
             ->whereNotNull('settled_at')
             ->whereBetween('settled_at', [$periodStart, $periodEnd]);
         apply_bus_relation_column_filters($baseQuery, $request);
