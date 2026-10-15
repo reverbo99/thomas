@@ -15,6 +15,10 @@
     if ($isBusOwnerView && auth()->user()?->campany) {
         $companyBuses = \App\Models\bus::query()
             ->where('campany_id', auth()->user()->campany->id)
+            ->where(function ($q) use ($parcel) {
+                $q->where('accept_parcels', true)
+                    ->orWhere('id', $parcel->bus_id);
+            })
             ->with('route')
             ->orderBy('bus_number')
             ->get(['id', 'bus_number', 'route_id']);
@@ -106,16 +110,16 @@
             $parcelSplit = parcel_share_split($parcel);
         @endphp
         @if($isBusOwnerView)
-            <p><strong>{{ __('vender/parcels.your_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['owner']) }}</p>
-            @if($parcelSplit['vendor'] > 0)
-                <p><strong>{{ __('vender/parcels.vendor_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['vendor']) }}</p>
-            @endif
+            {{-- Bus owner sees only the platform deductions (admin commission + government levy).
+                 The vendor's cut and the bus-owner share are not shown here. --}}
+            <p><strong>{{ __('vender/parcels.admin_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['admin']) }}</p>
+            <p><strong>{{ __('vender/parcels.government_levy_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['government']) }}</p>
         @else
             <p><strong>{{ __('vender/parcels.your_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['vendor']) }}</p>
             <p><strong>{{ __('vender/parcels.bus_owner_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['owner']) }}</p>
+            <p><strong>{{ __('vender/parcels.admin_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['admin']) }}</p>
+            <p><strong>{{ __('vender/parcels.government_levy_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['government']) }}</p>
         @endif
-        <p><strong>{{ __('vender/parcels.admin_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['admin']) }}</p>
-        <p><strong>{{ __('vender/parcels.government_levy_share') }}:</strong> {{ $currency }} {{ convert_money($parcelSplit['government']) }}</p>
         <p class="text-xs text-gray-500">{{ __('vender/parcels.share_formula') }}</p>
         <div class="pt-2 text-xs text-gray-600 space-y-1">
             <p class="font-semibold text-gray-800">{{ __('vender/parcels.timeline') }}</p>
