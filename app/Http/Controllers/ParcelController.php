@@ -131,12 +131,8 @@ class ParcelController extends Controller
         }
 
         $buses = $busQuery->get()->map(function ($bus) {
-            $bus->parcel_weight_used = (float) Parcel::where('bus_id', $bus->id)
-                ->whereNotIn('status', [
-                    ParcelFlowService::STATUS_CANCELLED,
-                    ParcelFlowService::STATUS_COMPLETED,
-                    ParcelFlowService::STATUS_AWAITING_PAYMENT,
-                ])
+            $bus->parcel_weight_used = (float) $this->flow
+                ->activeLoadQuery((int) $bus->id)
                 ->sum('weight');
 
             return $bus;

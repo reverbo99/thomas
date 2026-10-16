@@ -253,6 +253,7 @@ class ParcelSharesVisibilityTest extends TestCase
         $this->assertStringNotContainsString('Bus owner share', $text);
         $this->assertStringNotContainsString('60.00', $text);
         $this->assertStringNotContainsString('10,800.00', $text);
+        $this->assertStringNotContainsString('Admin commission 5%', $text, 'the fee-split footnote must not be shown');
     }
 
     public function test_bus_owner_assign_dropdown_hides_buses_that_refuse_parcels(): void
@@ -279,5 +280,6 @@ class ParcelSharesVisibilityTest extends TestCase
         $this->assertStringContainsString('10,800.00', $text);
         $this->assertStringContainsString('Admin share', $text);
         $this->assertStringContainsString('Government levy', $text);
+        $this->assertStringNotContainsString('Admin commission 5%', $text, 'the fee-split footnote must not be shown');
     }
 }

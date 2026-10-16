@@ -539,6 +539,9 @@ class AdminController extends Controller
                 'customer_service_contact_4' => $request->customer_service_contact_4,
                 'bus_model' => $request->bus_model,
                 'seate_json' => $request->seate_json,
+                // Parcel transport is opt-in: a new bus starts disabled until
+                // its owner enables it from "Usimamizi wa Mizigo".
+                'accept_parcels' => false,
             ];
 
             $bus = bus::create($data);

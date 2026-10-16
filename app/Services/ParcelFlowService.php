@@ -48,6 +48,23 @@ class ParcelFlowService
     /** Cash on delivery: nothing collected yet, the full fee is due on handover. */
     public const PAY_COD = 'cod';
 
+    /**
+     * Statuses whose weight no longer occupies space on the bus.
+     *
+     * `received`/`arrived` mean the parcel has already reached the destination
+     * office (it is off the bus), and collected/cancelled/awaiting-payment
+     * parcels never held capacity in the first place.
+     *
+     * @var array<int, string>
+     */
+    public const CAPACITY_FREE_STATUSES = [
+        self::STATUS_AWAITING_PAYMENT,
+        self::STATUS_RECEIVED,
+        self::STATUS_ARRIVED,
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+    ];
+
     /** Payment modes chosen when the parcel is registered. */
     public const MODE_CASH = 'cash';
     public const MODE_INSTALMENT = 'instalment';
@@ -191,9 +208,28 @@ class ParcelFlowService
 
     public function assertBusAcceptsParcels(bus $bus): void
     {
-        if (!(bool) ($bus->accept_parcels ?? true)) {
+        // Parcel transport is opt-in: a bus must be explicitly enabled by its owner.
+        if (!(bool) ($bus->accept_parcels ?? false)) {
             throw new \RuntimeException(__('vender/parcels.bus_not_accepting'));
         }
+    }
+
+    /**
+     * Parcels that still occupy the bus: paid (or legacy null payment status)
+     * and not yet delivered/collected/cancelled. Shared by the capacity guard
+     * and the "used weight" shown in the bus pickers so both always agree.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Parcel>
+     */
+    public function activeLoadQuery(int $busId): \Illuminate\Database\Eloquent\Builder
+    {
+        return Parcel::query()
+            ->where('bus_id', $busId)
+            ->whereNotIn('status', self::CAPACITY_FREE_STATUSES)
+            ->where(function ($q) {
+                $q->where('payment_status', self::PAY_PAID)
+                    ->orWhereNull('payment_status');
+            });
     }
 
     /**
@@ -206,12 +242,7 @@ class ParcelFlowService
             return;
         }
 
-        $query = Parcel::where('bus_id', $bus->id)
-            ->whereNotIn('status', [self::STATUS_CANCELLED, self::STATUS_COMPLETED, self::STATUS_AWAITING_PAYMENT])
-            ->where(function ($q) {
-                $q->where('payment_status', self::PAY_PAID)
-                    ->orWhereNull('payment_status');
-            });
+        $query = $this->activeLoadQuery((int) $bus->id);
 
         if ($excludeParcelId) {
             $query->where('id', '!=', $excludeParcelId);
