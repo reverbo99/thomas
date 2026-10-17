@@ -22,6 +22,6 @@ return [
     'transfer_booking' => 'Hamisha Uhifadhi',
     'excess_luggage' => 'Mzigo wa Ziada',
     'parcels' => 'Mizigo',
-    'local_bus_owners' => 'Msaidizi',
-    'bus_owner_panel' => 'Jopo la Mmiliki wa Basi',
+    'local_bus_owners' => 'Msaada wa Mwendeshaji wa Basi',
+    'bus_owner_panel' => 'Jopo la Mwendeshaji wa Basi',
 ];

@@ -184,6 +184,15 @@
                 </li>
                 @endif
 
+                @if(auth()->user()->hasAccess(\App\Models\Access::LINKS['DISBURSEMENTS']) || auth()->user()->hasAccess(\App\Models\Access::LINKS['REFUNDS']) || auth()->user()->hasAccess(\App\Models\Access::LINKS['PAYMENT_REQUEST']) || auth()->user()->hasAccess(\App\Models\Access::LINKS['SPECIAL_HIRE']))
+                <li>
+                    <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-gray-700 transition-colors {{ request()->routeIs('system.disbursements*') ? 'bg-blue-500' : '' }}" href="{{ route('system.disbursements') }}">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                        {{ __('system.sidebar.disbursements') }}
+                    </a>
+                </li>
+                @endif
+
                 @if(auth()->user()->hasAccess(\App\Models\Access::LINKS['LOCAL_ADMINS']))
                 <li>
                     <a class="flex items-center px-3 py-2 text-white rounded-lg hover:bg-gray-700 transition-colors {{ request()->routeIs('system.local_admin') ? 'bg-blue-500' : '' }}" href="{{ route('system.local_admin') }}">

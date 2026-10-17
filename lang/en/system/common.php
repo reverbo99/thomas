@@ -65,7 +65,7 @@ return [
     'percentage' => 'Percentage',
     'details' => 'Details',
     'work_center' => 'Work Center',
-    'owner' => 'Owner',
+    'owner' => 'Operator',
     'no' => 'No',
     'booking' => 'booking',
     'bookings' => 'bookings',

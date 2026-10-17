@@ -65,7 +65,7 @@ return [
     'percentage' => 'Asilimia',
     'details' => 'Maelezo',
     'work_center' => 'Kituo cha Kazi',
-    'owner' => 'Mmiliki',
+    'owner' => 'Mwendeshaji',
     'no' => 'Nambari',
     'booking' => 'uhifadhi',
     'bookings' => 'uhifadhi',

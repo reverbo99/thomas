@@ -26,6 +26,7 @@ return [
     'government_levy' => 'Government Levy',
     'payment_request' => 'Payment Request',
     'refunds' => 'Refunds',
+    'disbursements' => 'Disbursements',
     'local_admins' => 'Local Admins',
     'account' => 'Account',
     'command' => 'Command',

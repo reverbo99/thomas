@@ -18,5 +18,5 @@ return [
     'search_reference' => 'Search Reference',
     'action' => 'Action',
     'cancel_reason_label' => 'Reason for cancellation',
-    'cancel_reason_placeholder' => 'Write the reason (visible to bus owner)',
+    'cancel_reason_placeholder' => 'Write the reason (visible to bus operator)',
 ];

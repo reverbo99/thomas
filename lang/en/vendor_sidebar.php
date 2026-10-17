@@ -22,6 +22,6 @@ return [
     'transfer_booking' => 'Transfer Booking',
     'excess_luggage' => 'Excess Luggage',
     'parcels' => 'Parcels',
-    'local_bus_owners' => 'Bus Owner Assistance',
-    'bus_owner_panel' => 'Bus Owner Panel',
+    'local_bus_owners' => 'Bus Operator Assistance',
+    'bus_owner_panel' => 'Bus Operator Panel',
 ];

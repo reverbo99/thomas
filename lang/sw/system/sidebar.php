@@ -26,6 +26,7 @@ return [
     'government_levy' => 'Ushuru wa Serikali',
     'payment_request' => 'Ombi la Malipo',
     'refunds' => 'Marejesho',
+    'disbursements' => 'Malipo ya Kutoka',
     'local_admins' => 'Wasimamizi wa Ndani',
     'account' => 'Akaunti',
     'command' => 'Amri',

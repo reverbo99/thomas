@@ -79,7 +79,7 @@ return [
     'service_fees' => 'Service fees',
     'service_fees_rows' => 'Payment fees · :count rows',
     'luggage_fees' => 'Luggage fees (system share)',
-    'luggage_desc' => "System share of the bus owner's excess luggage fee on paid bookings (:percent%)",
+    'luggage_desc' => "System share of the bus operator's excess luggage fee on paid bookings (:percent%)",
     'luggage_fees_rows' => 'Luggage entries · :count rows',
     'gov_levy_service' => 'Gov. levy (service)',
     'gov_levy_rows' => 'Government levy · :count rows',
@@ -237,7 +237,7 @@ return [
     'current_coaster' => 'Current coaster',
     'available_coasters' => 'Available coasters',
     'col_capacity' => 'Capacity',
-    'col_owner' => 'Owner',
+    'col_owner' => 'Operator',
     'capacity_warning' => 'This coaster seats fewer passengers than this order needs.',
     'transfer_here' => 'Transfer here',
     'confirm_transfer_order' => 'Transfer this order to :coaster? Passengers, pricing and payment stay unchanged.',
@@ -277,15 +277,15 @@ return [
     'upcoming_schedules' => 'Upcoming Schedules',
     'withdrawal_history' => 'Withdrawal History',
 
-    // View bus owner
-    'bus_owner_profile' => 'Bus Owner Profile',
+    // View bus operator
+    'bus_owner_profile' => 'Bus Operator Profile',
     'company_name' => 'Company Name',
     'registration_number' => 'Registration Number',
     'tin' => 'TIN',
     'vrn' => 'VRN',
     'bank_name' => 'Bank Name',
     'account_number' => 'Account Number',
-    'update_owner' => 'Update Owner',
+    'update_owner' => 'Update Operator',
 
     // Special hire
     'special_hire_title' => 'Special Hire Overview',

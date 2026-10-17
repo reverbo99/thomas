@@ -18,5 +18,5 @@ return [
     'search_reference' => 'Tafuta Rejea',
     'action' => 'Kitendo',
     'cancel_reason_label' => 'Sababu ya kughairi',
-    'cancel_reason_placeholder' => 'Andika sababu (itaonekana kwa mmiliki wa basi)',
+    'cancel_reason_placeholder' => 'Andika sababu (itaonekana kwa mwendeshaji wa basi)',
 ];

@@ -6,7 +6,7 @@ return [
     'company_data' => 'Data ya Kampuni',
     'search_no' => 'Tafuta Nambari',
     'search_company' => 'Tafuta Kampuni',
-    'search_owner' => 'Tafuta Mmiliki',
+    'search_owner' => 'Tafuta Mwendeshaji',
     'search_contact' => 'Tafuta Mawasiliano',
     'search_balance' => 'Tafuta Salio',
     'search_status' => 'Tafuta Hali',

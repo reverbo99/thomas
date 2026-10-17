@@ -952,9 +952,9 @@ class ExcessLuggageService
      * Booking fee is already the actual (post weigh-in) amount — do not subtract
      * the refund from excess_luggage_fee again. Only clear surplus + customer_paid_total.
      */
-    public function approveRefund(Booking $booking, User $actor): Booking
+    public function approveRefund(Booking $booking, ?User $actor = null, ?float $amount = null): Booking
     {
-        return DB::transaction(function () use ($booking, $actor) {
+        return DB::transaction(function () use ($booking, $actor, $amount) {
             $booking = Booking::whereKey($booking->id)->lockForUpdate()->first();
 
             if ($booking->luggage_payment_status === self::PAYMENT_REFUNDED) {
@@ -965,7 +965,7 @@ class ExcessLuggageService
                 throw new \RuntimeException(__('vender/luggage.refund_not_pending'));
             }
 
-            $refund = $this->refundAmount($booking);
+            $refund = $amount !== null ? round(max(0, $amount), 2) : $this->refundAmount($booking);
             if ($refund <= 0) {
                 throw new \RuntimeException(__('vender/luggage.no_refund_due'));
             }
@@ -994,7 +994,7 @@ class ExcessLuggageService
                     ExcessLuggageEscrowTransaction::TYPE_REFUND,
                     $refundFromEscrow,
                     $booking->luggage_payment_ref,
-                    ['approved_by' => $actor->id]
+                    ['approved_by' => $actor?->id]
                 );
             }
 
@@ -1024,7 +1024,7 @@ class ExcessLuggageService
                 'booking_id' => $booking->id,
                 'refund' => $refund,
                 'excess_luggage_fee' => $payload['excess_luggage_fee'],
-                'actor_id' => $actor->id,
+                'actor_id' => $actor?->id,
                 'reference' => $booking->luggage_payment_ref,
             ]);
 

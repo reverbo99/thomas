@@ -46,7 +46,7 @@ return [
     'luggage_section' => 'Mzigo',
     'luggage_admin' => 'Admin wa mzigo (5%)',
     'luggage_government' => 'Ushuru wa serikali wa mzigo (5%)',
-    'luggage_owner_net' => 'Mzigo kwa mmiliki',
+    'luggage_owner_net' => 'Mzigo kwa mwendeshaji',
     'vendor' => 'Muuzaji:',
     'vendor_service' => 'Huduma ya muuzaji:',
     'discount' => 'Punguzo:',

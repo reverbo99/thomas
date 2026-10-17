@@ -1,7 +1,7 @@
 <?php
  
 return [
-    'Bus Owner Panel' => 'Jopo la Mmiliki wa Basi',
+    'Bus Owner Panel' => 'Jopo la Mwendeshaji wa Basi',
     'Dashboard' => 'Dashibodi',
     'My Tickets' => 'Tiketi Zangu',
     'Bus Route' => 'Njia ya Basi',

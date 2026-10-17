@@ -6,7 +6,7 @@ return [
     'company_data' => 'Company Data',
     'search_no' => 'Search No',
     'search_company' => 'Search Company',
-    'search_owner' => 'Search Owner',
+    'search_owner' => 'Search Operator',
     'search_contact' => 'Search Contact',
     'search_balance' => 'Search Balance',
     'search_status' => 'Search Status',

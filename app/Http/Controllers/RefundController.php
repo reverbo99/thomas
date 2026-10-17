@@ -113,6 +113,8 @@ class RefundController extends Controller
             'status' => 'Pending',
             'phone' => $mobile !== '' ? $request->mobile_number : $request->bank_number,
             'fullname' => $request->fullname,
+            // The disbursement batch uses this to decide mobile-money vs bank payout.
+            'payout_method' => $mobile !== '' ? 'mobile_money' : 'bank',
         ]); 
 
         $booking->update([

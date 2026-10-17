@@ -30,6 +30,7 @@ class Access extends Model
         'PAYMENT_REQUEST' => 'payment-request',
         'LOCAL_ADMINS' => 'local-admins',
         'REFUNDS' => 'refunds',
+        'DISBURSEMENTS' => 'disbursements',
         'CARDS' => 'cards',
         'SPECIAL_HIRE' => 'special-hire',
     ];

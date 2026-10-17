@@ -46,7 +46,7 @@ return [
     'luggage_section' => 'Luggage',
     'luggage_admin' => 'Luggage admin (5%)',
     'luggage_government' => 'Luggage gov. levy (5%)',
-    'luggage_owner_net' => 'Luggage to bus owner',
+    'luggage_owner_net' => 'Luggage to bus operator',
     'vendor' => 'Vendor:',
     'vendor_service' => 'Vendor service:',
     'discount' => 'Discount:',

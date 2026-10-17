@@ -18,6 +18,7 @@ use App\Http\Controllers\QRcodeScannerController;
 use App\Http\Controllers\RebookController;
 use App\Http\Controllers\RedirectController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\DisbursementController;
 use App\Http\Controllers\ResaveController;
 use App\Http\Controllers\RoundTripController;
 use App\Http\Controllers\RouteController;
@@ -609,6 +610,19 @@ Route::middleware('auth')->group(function () {
         Route::get('/refunds/export/csv', [SystemController::class, 'refundsReportCsv'])->name('system.refunds.csv');
         Route::post('/refunds/{id}/approve', [SystemController::class, 'approveRefund'])->name('system.refunds.approve');
         Route::post('/refunds/{id}/reject', [SystemController::class, 'rejectRefund'])->name('system.refunds.reject');
+
+        // Daily disbursement batches (booking refunds, excess luggage, payouts,
+        // special-hire withdrawals and special-hire customer refunds).
+        Route::get('/disbursements', [DisbursementController::class, 'index'])->name('system.disbursements');
+        Route::get('/disbursements/export/csv', [DisbursementController::class, 'exportCsv'])->name('system.disbursements.csv');
+        Route::post('/disbursements/collect', [DisbursementController::class, 'collectNow'])->name('system.disbursements.collect');
+        Route::post('/disbursements/run', [DisbursementController::class, 'runNow'])->name('system.disbursements.run');
+        Route::post('/disbursements/sync', [DisbursementController::class, 'syncNow'])->name('system.disbursements.sync');
+        Route::post('/disbursements/settings', [DisbursementController::class, 'updateSettings'])->name('system.disbursements.settings');
+        Route::post('/disbursements/items/{item}/retry', [DisbursementController::class, 'retry'])->name('system.disbursements.items.retry');
+        Route::post('/disbursements/items/{item}/skip', [DisbursementController::class, 'skip'])->name('system.disbursements.items.skip');
+        Route::post('/disbursements/items/{item}/mark-paid', [DisbursementController::class, 'markPaid'])->name('system.disbursements.items.mark_paid');
+        Route::post('/disbursements/items/{item}/details', [DisbursementController::class, 'updateItem'])->name('system.disbursements.items.update');
 
         Route::get('/migrate/{migration?}', [SystemController::class, 'runMigrations'])->name('system.migrate');
 

@@ -48,7 +48,7 @@ return [
     'brand_emergency' => 'Emergency / external bus — receiving operator brand',
     'companion_passengers' => 'Passengers on this trip',
     'select_all_companions' => 'Select all',
-    'emergency_agreement' => 'I confirm this emergency or cross-company transfer is by agreement with the receiving bus owner, and their brand will show on the new trip.',
+    'emergency_agreement' => 'I confirm this emergency or cross-company transfer is by agreement with the receiving bus operator, and their brand will show on the new trip.',
     'emergency_times' => 'Emergency trip times',
     'emergency_start' => 'Departure time',
     'emergency_end' => 'Arrival time',

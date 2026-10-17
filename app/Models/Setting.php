@@ -36,11 +36,18 @@ class Setting extends Model
             'at_sandbox',
             'cotz_username',
             'cotz_password',
+            'disbursement_enabled',
+            'disbursement_run_time',
+            'disbursement_live',
+            'disbursement_last_run_at',
         ];
 
     protected $casts = [
         'at_sandbox' => 'boolean',
         'test_mode' => 'boolean',
+        'disbursement_enabled' => 'boolean',
+        'disbursement_live' => 'boolean',
+        'disbursement_last_run_at' => 'datetime',
         // Gateway secrets are stored encrypted at rest; they are only ever
         // decrypted inside the SMS drivers, never rendered back to the form.
         'at_api_key' => 'encrypted',

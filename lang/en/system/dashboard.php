@@ -14,7 +14,7 @@ return [
     'cancellation_fees' => 'Cancellation Fees',
     'total_cancelled_amount' => 'Total cancelled amount',
     'luggage_amount' => 'Luggage Fee (System Share)',
-    'total_luggage_amount' => "System share of bus owners' excess luggage fees",
+    'total_luggage_amount' => "System share of bus operators' excess luggage fees",
     'special_hire_commission' => 'Special Hire Commission',
     'view_special_hire_details' => 'View special hire accounts',
     'parcel_commission' => 'Parcel Commission',

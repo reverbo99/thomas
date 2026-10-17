@@ -239,7 +239,7 @@ abstract final class AppStrings {
 
   /// Friendly labels for `BookingModel.hireNextStep`.
   static const String nextStepPayDeposit = 'Pay deposit';
-  static const String nextStepWaitOwner = 'Waiting for owner to accept';
+  static const String nextStepWaitOwner = 'Waiting for operator to accept';
   static const String nextStepPayBalance = 'Pay balance';
   static const String nextStepEnterPassengers = 'Enter passenger / seat names';
   static const String nextStepDone = 'All set';

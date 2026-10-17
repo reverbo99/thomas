@@ -14,7 +14,7 @@ return [
     'cancellation_fees' => 'Ada za Kughairi',
     'total_cancelled_amount' => 'Jumla ya kiasi kilichoghairiwa',
     'luggage_amount' => 'Ada ya Mizigo (Sehemu ya Mfumo)',
-    'total_luggage_amount' => 'Sehemu ya mfumo kutoka ada za mizigo ya ziada za wenye mabasi',
+    'total_luggage_amount' => 'Sehemu ya mfumo kutoka ada za mizigo ya ziada za waendeshaji wa mabasi',
     'special_hire_commission' => 'Kamisheni ya Kukodi Maalum',
     'view_special_hire_details' => 'Ona akaunti za kukodi maalum',
     'parcel_commission' => 'Kamisheni ya Mizigo',
