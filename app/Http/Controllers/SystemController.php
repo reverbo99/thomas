@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\balance;
 use App\Models\Booking;
 use App\Models\Setting;
+use App\Models\SmsGateway;
 use App\Models\Campany;
 use App\Models\Discount;
 use App\Models\AdminWallet;
@@ -21,6 +22,7 @@ use Illuminate\Http\Request;
 use App\Models\SystemBalance;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use App\Models\AdminTransaction;
 use App\Models\Schedule;
 use PhpParser\Builder\Function_;
@@ -2732,7 +2734,31 @@ class SystemController extends Controller
             'from_name' => (string) config('mail.from.name', ''),
         ];
 
-        return view('system.setting', compact('settings', 'mailConfig'));
+        return view('system.setting', [
+            'settings' => $settings,
+            'mailConfig' => $mailConfig,
+            'smsGateways' => $this->smsGateways(),
+        ]);
+    }
+
+    /**
+     * Saved FastHub configurations, ordered by name. Empty until the migration
+     * has run so the settings screen still renders on a not-yet-migrated
+     * database.
+     */
+    private function smsGateways()
+    {
+        try {
+            if (!Schema::hasTable('sms_gateways')) {
+                return collect();
+            }
+
+            return Schema::hasColumn('settings', 'sms_gateway_id')
+                ? SmsGateway::query()->orderBy('name')->orderBy('id')->get()
+                : collect();
+        } catch (Throwable $e) {
+            return collect();
+        }
     }
 
     public function setting_update(Request $request)
@@ -2743,12 +2769,15 @@ class SystemController extends Controller
             'excess_luggage_fee_per_kg' => ['required', 'numeric', 'min:0'],
             'parcel_fee_per_kg' => ['required', 'numeric', 'min:0'],
             'sms_driver' => ['nullable', Rule::in(SmsManager::DRIVERS)],
+            'sms_gateway_id' => ['nullable', 'integer', 'required_if:sms_driver,fasthub', Rule::exists('sms_gateways', 'id')],
             // Alphanumeric sender ids are capped at 11 characters by the networks.
             'sms_sender_id' => ['nullable', 'string', 'max:11'],
             'at_username' => ['nullable', 'string', 'max:100'],
             'at_api_key' => ['nullable', 'string', 'max:255'],
             'cotz_username' => ['nullable', 'string', 'max:100'],
             'cotz_password' => ['nullable', 'string', 'max:255'],
+        ], [
+            'sms_gateway_id.required_if' => __('system.settings.sms_gateway_required'),
         ]);
 
         $settings = Setting::first();
@@ -2769,6 +2798,13 @@ class SystemController extends Controller
             ]);
         }
 
+        $selectedDriver = in_array($request->input('sms_driver'), SmsManager::DRIVERS, true)
+            ? $request->input('sms_driver')
+            : 'smscotz';
+        $selectedGatewayId = $selectedDriver === 'fasthub' && filled($request->input('sms_gateway_id'))
+            ? (int) $request->input('sms_gateway_id')
+            : null;
+
         $settings->update([
             'local' => $request->local,
             'international' => $request->international,
@@ -2788,9 +2824,8 @@ class SystemController extends Controller
             'test_mode' => $request->boolean('test_mode'),
             'enforce_2fa' => $request->boolean('enforce_2fa'),
             'enforce_customer_email_verification' => $request->boolean('enforce_customer_email_verification'),
-            'sms_driver' => in_array($request->input('sms_driver'), SmsManager::DRIVERS, true)
-                ? $request->input('sms_driver')
-                : 'smscotz',
+            'sms_driver' => $selectedDriver,
+            'sms_gateway_id' => $selectedGatewayId,
             'sms_sender_id' => trim((string) $request->input('sms_sender_id', '')),
             'at_username' => trim((string) $request->input('at_username', '')),
             'at_sandbox' => $request->boolean('at_sandbox'),
@@ -2813,6 +2848,168 @@ class SystemController extends Controller
         SmsManager::flushConfig();
 
         return back()->with('success', __('system.messages.settings_updated'));
+    }
+
+    /**
+     * Validation rules for the "add / edit FastHub configuration" forms.
+     *
+     * The client secret is write-only: on edit a blank field means "keep the
+     * stored secret", exactly like the other gateway credentials.
+     */
+    private function smsGatewayRules(bool $creating): array
+    {
+        return [
+            'gateway_name' => ['required', 'string', 'max:100'],
+            'gateway_client_id' => ['required', 'string', 'max:191'],
+            'gateway_client_secret' => [$creating ? 'required' : 'nullable', 'string', 'max:500'],
+            'gateway_status_callback_url' => ['nullable', 'url', 'max:500'],
+            'gateway_api_endpoint' => ['nullable', 'url', 'max:500'],
+        ];
+    }
+
+    private function smsGatewayMessages(): array
+    {
+        return [
+            'gateway_name.required' => __('system.settings.gateway_name_required'),
+            'gateway_client_id.required' => __('system.settings.gateway_client_id_required'),
+            'gateway_client_secret.required' => __('system.settings.gateway_client_secret_required'),
+            'gateway_status_callback_url.url' => __('system.settings.gateway_url_invalid'),
+            'gateway_api_endpoint.url' => __('system.settings.gateway_url_invalid'),
+        ];
+    }
+
+    private function nullableTrim($value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Settings row, created with the same defaults the settings page uses.
+     */
+    private function settingsWithDefaults(): Setting
+    {
+        return Setting::query()->first() ?: Setting::create([
+            'international' => 0,
+            'local' => 0,
+            'service' => 0,
+            'service_percentage' => 0,
+            'parcel_commission_percentage' => 0,
+            'parcel_vendor_commission_percentage' => 25,
+            'excess_luggage_fee_per_kg' => 0,
+            'parcel_fee_per_kg' => 0,
+            'test_mode' => false,
+            'enforce_2fa' => true,
+            'enforce_customer_email_verification' => true,
+        ]);
+    }
+
+    private function smsSettingsRedirect()
+    {
+        return redirect()->to(route('system.setting') . '#sms-gateways');
+    }
+
+    /**
+     * Save a new named FastHub gateway configuration.
+     */
+    public function sms_gateway_store(Request $request)
+    {
+        $data = $request->validate($this->smsGatewayRules(true), $this->smsGatewayMessages());
+
+        $gateway = SmsGateway::create([
+            'name' => trim($data['gateway_name']),
+            'client_id' => trim($data['gateway_client_id']),
+            'client_secret' => (string) $data['gateway_client_secret'],
+            'status_callback_url' => $this->nullableTrim($data['gateway_status_callback_url'] ?? null),
+            'api_endpoint' => $this->nullableTrim($data['gateway_api_endpoint'] ?? null),
+        ]);
+
+        SmsManager::flushConfig();
+
+        return $this->smsSettingsRedirect()
+            ->with('success', __('system.messages.sms_gateway_created', ['name' => $gateway->name]));
+    }
+
+    /**
+     * Update an existing configuration (blank secret keeps the stored one).
+     */
+    public function sms_gateway_update(Request $request, SmsGateway $gateway)
+    {
+        try {
+            $data = $request->validate($this->smsGatewayRules(false), $this->smsGatewayMessages());
+        } catch (ValidationException $e) {
+            // Re-open the matching edit panel on the settings page.
+            return $this->smsSettingsRedirect()
+                ->withInput($request->input())
+                ->withErrors($e->errors())
+                ->with('gateway_edit', $gateway->getKey());
+        }
+
+        $attributes = [
+            'name' => trim($data['gateway_name']),
+            'client_id' => trim($data['gateway_client_id']),
+            'status_callback_url' => $this->nullableTrim($data['gateway_status_callback_url'] ?? null),
+            'api_endpoint' => $this->nullableTrim($data['gateway_api_endpoint'] ?? null),
+        ];
+
+        if (filled($data['gateway_client_secret'] ?? null)) {
+            $attributes['client_secret'] = (string) $data['gateway_client_secret'];
+        }
+
+        $gateway->update($attributes);
+
+        SmsManager::flushConfig();
+
+        return $this->smsSettingsRedirect()
+            ->with('success', __('system.messages.sms_gateway_updated', ['name' => $gateway->name]));
+    }
+
+    /**
+     * Delete a configuration. If it was the default, fall back to the next
+     * saved configuration, or to the legacy gateway when none is left.
+     */
+    public function sms_gateway_destroy(SmsGateway $gateway)
+    {
+        $settings = $this->settingsWithDefaults();
+        $wasDefault = (string) $settings->sms_gateway_id === (string) $gateway->getKey();
+        $name = $gateway->name;
+
+        $gateway->delete();
+
+        if ($wasDefault) {
+            $next = SmsGateway::query()->orderBy('name')->orderBy('id')->first();
+
+            $settings->update([
+                'sms_gateway_id' => $next?->getKey(),
+                'sms_driver' => $next
+                    ? 'fasthub'
+                    : ($settings->sms_driver === 'fasthub' ? 'smscotz' : $settings->sms_driver),
+            ]);
+        }
+
+        SmsManager::flushConfig();
+
+        return $this->smsSettingsRedirect()
+            ->with('success', __('system.messages.sms_gateway_deleted', ['name' => $name]));
+    }
+
+    /**
+     * Make one saved configuration the default gateway for the whole system.
+     */
+    public function sms_gateway_default(SmsGateway $gateway)
+    {
+        $settings = $this->settingsWithDefaults();
+
+        $settings->update([
+            'sms_driver' => 'fasthub',
+            'sms_gateway_id' => $gateway->getKey(),
+        ]);
+
+        SmsManager::flushConfig();
+
+        return $this->smsSettingsRedirect()
+            ->with('success', __('system.messages.sms_gateway_default_set', ['name' => $gateway->name]));
     }
 
     /**

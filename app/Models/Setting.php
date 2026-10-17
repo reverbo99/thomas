@@ -30,6 +30,7 @@ class Setting extends Model
             'enforce_2fa',
             'enforce_customer_email_verification',
             'sms_driver',
+            'sms_gateway_id',
             'sms_sender_id',
             'at_username',
             'at_api_key',

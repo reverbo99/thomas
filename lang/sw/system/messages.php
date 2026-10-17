@@ -46,6 +46,10 @@ return [
     'access_updated' => 'Ruhusa imesasishwa kwa mafanikio!',
     'sms_test_sent' => 'SMS ya majaribio imepokelewa na :driver (kitambulisho: :id).',
     'sms_test_failed' => 'SMS ya majaribio imeshindikana kwenye :driver: :error',
+    'sms_gateway_created' => 'Usanidi wa FastHub ":name" umehifadhiwa.',
+    'sms_gateway_updated' => 'Usanidi wa FastHub ":name" umesasishwa.',
+    'sms_gateway_deleted' => 'Usanidi wa FastHub ":name" umefutwa.',
+    'sms_gateway_default_set' => '":name" sasa ni lango la SMS la msingi.',
     'email_test_sent' => 'Barua pepe ya majaribio imetumwa kwa :email.',
     'email_test_failed' => 'Barua pepe ya majaribio imeshindikana: :error',
 ];

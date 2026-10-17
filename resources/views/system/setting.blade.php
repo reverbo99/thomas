@@ -302,6 +302,8 @@
             <!-- SMS Gateway -->
             @php
                 $smsDriver = old('sms_driver', $settings->sms_driver ?? 'smscotz');
+                $smsGateways = $smsGateways ?? collect();
+                $defaultGatewayId = (string) old('sms_gateway_id', $settings->sms_gateway_id ?? '');
                 $atKeySaved = $settings && filled($settings->getRawOriginal('at_api_key'));
                 $cotzPasswordSaved = $settings && filled($settings->getRawOriginal('cotz_password'));
             @endphp
@@ -324,6 +326,7 @@
                                     class="focus:ring-blue-500 focus:border-blue-500 block w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
                                 <option value="smscotz" {{ $smsDriver === 'smscotz' ? 'selected' : '' }}>{{ __('system.settings.sms_driver_smscotz') }}</option>
                                 <option value="africastalking" {{ $smsDriver === 'africastalking' ? 'selected' : '' }}>{{ __('system.settings.sms_driver_africastalking') }}</option>
+                                <option value="fasthub" {{ $smsDriver === 'fasthub' ? 'selected' : '' }}>{{ __('system.settings.sms_driver_fasthub') }}</option>
                             </select>
                             <p class="mt-1 text-xs text-gray-500">{{ __('system.settings.sms_driver_desc') }}</p>
                             @error('sms_driver')
@@ -422,6 +425,31 @@
                         </div>
                     </div>
 
+                    <!-- FastHub configuration -->
+                    <div data-sms-panel="fasthub" class="border rounded-lg p-4 bg-blue-50 border-blue-200 space-y-4 {{ $smsDriver === 'fasthub' ? '' : 'hidden' }}">
+                        <h3 class="text-md font-semibold text-gray-800">{{ __('system.settings.fasthub_section') }}</h3>
+                        <p class="text-xs text-gray-600">{{ __('system.settings.fasthub_section_desc') }}</p>
+
+                        <div>
+                            <label for="sms_gateway_id" class="block text-sm font-medium text-gray-700 mb-1">{{ __('system.settings.sms_gateway_select') }}</label>
+                            <select id="sms_gateway_id" name="sms_gateway_id"
+                                    class="focus:ring-blue-500 focus:border-blue-500 block w-full px-3 py-2 border border-gray-300 rounded-md bg-white">
+                                <option value="">{{ __('system.settings.sms_gateway_select_placeholder') }}</option>
+                                @foreach ($smsGateways as $gateway)
+                                    <option value="{{ $gateway->id }}" {{ $defaultGatewayId === (string) $gateway->id ? 'selected' : '' }}>
+                                        {{ $gateway->name }} — {{ $gateway->maskedClientId() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('sms_gateway_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                            @if ($smsGateways->isEmpty())
+                                <p class="mt-1 text-xs text-amber-700">{{ __('system.settings.sms_gateway_none') }}</p>
+                            @endif
+                        </div>
+                    </div>
+
                     <p class="text-xs text-gray-500">{{ __('system.settings.sms_env_fallback_note') }}</p>
                 </div>
             </div>
@@ -510,6 +538,117 @@
                 </button>
             </div>
         </form>
+
+        <!-- FastHub configurations — each action has its own form so they never
+             submit the settings above. -->
+        <div id="sms-gateways" class="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                    </svg>
+                    {{ __('system.settings.fasthub_configs') }}
+                </h2>
+                <p class="text-sm text-gray-500 mt-1">{{ __('system.settings.fasthub_configs_desc') }}</p>
+            </div>
+
+            <div class="p-6 space-y-4">
+                @forelse ($smsGateways as $gateway)
+                    @php
+                        $isDefault = $settings && $settings->sms_driver === 'fasthub'
+                            && (string) $settings->sms_gateway_id === (string) $gateway->id;
+                        $editing = (string) session('gateway_edit') === (string) $gateway->id;
+                    @endphp
+                    <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 bg-gray-50">
+                            <div class="min-w-0">
+                                <p class="text-base font-semibold text-gray-800 flex flex-wrap items-center gap-2">
+                                    {{ $gateway->name }}
+                                    @if ($isDefault)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            {{ __('system.settings.gateway_default_badge') }}
+                                        </span>
+                                    @endif
+                                </p>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    {{ __('system.settings.gateway_client_id') }}:
+                                    <span class="font-mono">{{ $gateway->maskedClientId() }}</span>
+                                </p>
+                                <p class="text-xs text-gray-500 mt-1 break-all">
+                                    {{ __('system.settings.gateway_callback_hint') }}
+                                    <code class="bg-white px-1 py-0.5 rounded border">{{ $gateway->effectiveCallbackUrl() }}</code>
+                                </p>
+                                <p class="text-xs text-gray-400 mt-1">
+                                    {{ __('system.settings.gateway_last_used') }}:
+                                    {{ $gateway->last_used_at ? $gateway->last_used_at->diffForHumans() : __('system.settings.gateway_never_used') }}
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                @unless ($isDefault)
+                                    <form action="{{ route('setting.sms.gateways.default', $gateway) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md">
+                                            {{ __('system.settings.gateway_default') }}
+                                        </button>
+                                    </form>
+                                @endunless
+                                <form action="{{ route('setting.sms.gateways.destroy', $gateway) }}" method="POST"
+                                      onsubmit="return confirm(@js(__('system.settings.gateway_delete_confirm')))">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="px-3 py-1.5 text-sm bg-white border border-red-200 text-red-600 hover:bg-red-50 font-medium rounded-md">
+                                        {{ __('system.settings.gateway_delete') }}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <details class="border-t border-gray-200" {{ $editing ? 'open' : '' }}>
+                            <summary class="px-4 py-2 text-sm font-medium text-blue-600 cursor-pointer select-none">
+                                {{ __('system.settings.gateway_edit') }}
+                            </summary>
+                            <form action="{{ route('setting.sms.gateways.update', $gateway) }}" method="POST"
+                                  class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100">
+                                @csrf
+                                @method('PUT')
+                                @include('system.partials.sms-gateway-fields', [
+                                    'gateway' => $gateway,
+                                    'idSuffix' => 'edit-' . $gateway->id,
+                                    'showErrors' => $editing,
+                                ])
+                                <div class="md:col-span-2 flex justify-end">
+                                    <button type="submit" class="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg shadow-sm">
+                                        {{ __('system.settings.gateway_save') }}
+                                    </button>
+                                </div>
+                            </form>
+                        </details>
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-500">{{ __('system.settings.gateway_no_config') }}</p>
+                @endforelse
+
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="text-md font-semibold text-gray-800">{{ __('system.settings.gateway_add') }}</h3>
+                    <p class="text-xs text-gray-500 mt-1">{{ __('system.settings.gateway_add_desc') }}</p>
+
+                    <form action="{{ route('setting.sms.gateways.store') }}" method="POST"
+                          class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        @csrf
+                        @include('system.partials.sms-gateway-fields', [
+                            'gateway' => null,
+                            'idSuffix' => 'new',
+                            'showErrors' => !session('gateway_edit'),
+                        ])
+                        <div class="md:col-span-2 flex justify-end">
+                            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm">
+                                {{ __('system.settings.gateway_add') }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 
         <!-- Test SMS — separate form so it never submits the settings above -->
         <form action="{{ route('setting.sms.test') }}" method="POST" class="mt-6">

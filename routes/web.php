@@ -221,10 +221,16 @@ Route::any('/vender/dpo/cancel', [VenderWalletController::class, 'handlePdoCallb
 
 
 use App\Http\Controllers\Webhooks\AfricasTalkingWebhookController;
+use App\Http\Controllers\Webhooks\FastHubWebhookController;
 // Africa's Talking delivery reports. Public by design — register this URL in
 // the AT dashboard (SMS > SMS Callback URLs > Delivery Reports).
 Route::post('/webhooks/africastalking/dlr', [AfricasTalkingWebhookController::class, 'deliveryReport'])
     ->name('webhooks.africastalking.dlr');
+
+// FastHub delivery-status callbacks. The URL is shown per configuration in
+// Settings > SMS Gateway and registered in the FastHub portal.
+Route::post('/webhooks/fasthub/sms-status/{gateway}', [FastHubWebhookController::class, 'status'])
+    ->name('webhooks.fasthub.status');
 
 Route::view('/dpo/example', 'dpo.example')->name('dpo.example');
 // General Routes (Accessible to all authenticated users)
@@ -602,6 +608,10 @@ Route::middleware('auth')->group(function () {
         Route::get('settings', [SystemController::class, 'setting'])->name('system.setting');
         Route::post('settings', [SystemController::class, 'setting_update'])->name('setting.update');
         Route::post('settings/sms/test', [SystemController::class, 'sms_test'])->name('setting.sms.test');
+        Route::post('settings/sms/gateways', [SystemController::class, 'sms_gateway_store'])->name('setting.sms.gateways.store');
+        Route::put('settings/sms/gateways/{gateway}', [SystemController::class, 'sms_gateway_update'])->name('setting.sms.gateways.update');
+        Route::delete('settings/sms/gateways/{gateway}', [SystemController::class, 'sms_gateway_destroy'])->name('setting.sms.gateways.destroy');
+        Route::post('settings/sms/gateways/{gateway}/default', [SystemController::class, 'sms_gateway_default'])->name('setting.sms.gateways.default');
         Route::post('settings/email/test', [SystemController::class, 'email_test'])->name('setting.email.test');
         Route::post('vender/percentage', [SystemController::class, 'vender_percent'])->name('vender.percent');
 

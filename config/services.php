@@ -36,7 +36,7 @@ return [
      | (settings table) takes precedence when a value has been filled in there.
      */
     'sms' => [
-        // 'smscotz' | 'africastalking'
+        // 'smscotz' | 'africastalking' | 'fasthub'
         'driver' => env('SMS_DRIVER', 'smscotz'),
         'sender_id' => env('SMS_API_SENDER_ID', 'HIGHLINK'),
         // Country code prepended to local numbers (Tanzania by default).
@@ -44,6 +44,19 @@ return [
         // sms.co.tz credentials
         'username' => env('SMS_API_USERNAME', 'HIGHLINK'),
         'password' => env('SMS_API_PASSWORD'),
+    ],
+
+    /*
+     | FastHub Bulk SMS Gateway.
+     |
+     | Credentials live in the sms_gateways table (managed from Settings), so
+     | only the send endpoint and timeout are configured here. The endpoint is
+     | supplied by FastHub when the account is created — set FASTHUB_SMS_ENDPOINT
+     | in .env, or enter it per configuration in Settings.
+     */
+    'fasthub' => [
+        'endpoint' => env('FASTHUB_SMS_ENDPOINT', ''),
+        'timeout' => (int) env('FASTHUB_SMS_TIMEOUT', 20),
     ],
 
     'africastalking' => [

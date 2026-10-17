@@ -17,5 +17,6 @@ class VerifyCsrfToken extends Middleware
         '/selcom/callback',
         '/selcom/webhook',
         'webhooks/africastalking/dlr',
+        'webhooks/fasthub/*',
     ];
 }

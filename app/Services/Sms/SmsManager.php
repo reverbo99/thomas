@@ -3,6 +3,7 @@
 namespace App\Services\Sms;
 
 use App\Models\Setting;
+use App\Models\SmsGateway;
 use App\Models\SmsLog;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class SmsManager
 {
-    public const DRIVERS = ['smscotz', 'africastalking'];
+    public const DRIVERS = ['smscotz', 'africastalking', 'fasthub'];
 
     private static ?array $cachedConfig = null;
 
@@ -29,7 +30,7 @@ class SmsManager
     }
 
     /**
-     * @return array{driver: string, sender_id: string, at_username: string, at_api_key: string, at_sandbox: bool, cotz_username: string, cotz_password: string}
+     * @return array{driver: string, sender_id: string, at_username: string, at_api_key: string, at_sandbox: bool, cotz_username: string, cotz_password: string, gateway_id: int|null}
      */
     public function config(): array
     {
@@ -65,7 +66,48 @@ class SmsManager
             'at_sandbox' => $sandbox !== null ? (bool) $sandbox : (bool) ($at['sandbox'] ?? true),
             'cotz_username' => $pick('cotz_username', $services['username'] ?? null),
             'cotz_password' => $pick('cotz_password', $services['password'] ?? null),
+            'gateway_id' => $this->gatewayId($settings),
         ];
+    }
+
+    /**
+     * Id of the FastHub configuration selected as default, or null.
+     */
+    private function gatewayId(?Setting $settings): ?int
+    {
+        $value = $this->attr($settings, 'sms_gateway_id');
+
+        if (!filled($value)) {
+            return null;
+        }
+
+        try {
+            $gateway = $this->gateway((int) $value);
+
+            return $gateway?->getKey();
+        } catch (\Throwable $e) {
+            Log::warning('Could not read SMS gateway selection', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Load a saved FastHub configuration by id (null when it no longer exists).
+     */
+    public function gateway(int $id): ?SmsGateway
+    {
+        try {
+            if ($id <= 0 || !Schema::hasTable('sms_gateways')) {
+                return null;
+            }
+
+            return SmsGateway::query()->find($id);
+        } catch (\Throwable $e) {
+            Log::warning('Could not load SMS gateway', ['gateway_id' => $id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     public function driver(?string $name = null): SmsDriver
@@ -82,10 +124,51 @@ class SmsManager
             );
         }
 
+        if ($name === 'fasthub') {
+            return $this->fastHubDriver($config);
+        }
+
         return new SmsCoTzDriver(
             $config['cotz_username'],
             $config['cotz_password'],
             $config['sender_id'] ?: 'HIGHLINK',
+        );
+    }
+
+    /**
+     * Build the FastHub driver from the selected configuration.
+     *
+     * A missing configuration is not an exception: the driver is returned
+     * empty and fails the send with an actionable message, so SMS stays a
+     * non-fatal side effect everywhere it is used.
+     */
+    private function fastHubDriver(array $config): FastHubDriver
+    {
+        $endpoint = (string) config('services.fasthub.endpoint', '');
+        $gateway = $this->gateway((int) ($config['gateway_id'] ?? 0));
+
+        if (!$gateway) {
+            return new FastHubDriver('', '', $config['sender_id'] ?: 'HIGHLINK', $endpoint);
+        }
+
+        try {
+            $secret = (string) $gateway->getAttribute('client_secret');
+        } catch (\Throwable $e) {
+            // A rotated APP_KEY makes the encrypted cast unreadable; fail the
+            // send instead of 500-ing the request that triggered it.
+            Log::warning('Could not decrypt FastHub client secret', [
+                'gateway_id' => $gateway->getKey(),
+                'error' => $e->getMessage(),
+            ]);
+            $secret = '';
+        }
+
+        return new FastHubDriver(
+            (string) $gateway->client_id,
+            $secret,
+            $config['sender_id'] ?: 'HIGHLINK',
+            trim((string) ($gateway->api_endpoint ?: $endpoint)),
+            (int) $gateway->getKey(),
         );
     }
 
@@ -121,6 +204,7 @@ class SmsManager
         }
 
         $this->record($driver->name(), $normalised, $message, $result);
+        $this->touchFastHubGateway($driver);
 
         if (!$result->success) {
             Log::info('SMS send failed', [
@@ -150,9 +234,32 @@ class SmsManager
         return $result->messageId ?: 'sent';
     }
 
-    private function record(string $driver, string $destination, string $message, SmsResult $result): void
+    /**
+     * Remember when the selected FastHub configuration was last used, so the
+     * settings screen can show which account is actually live.
+     */
+    private function touchFastHubGateway(SmsDriver $driver): void
     {
-        if (!Schema::hasTable('sms_logs')) {
+        if (!$driver instanceof FastHubDriver) {
+            return;
+        }
+
+        $gatewayId = $this->config()['gateway_id'] ?? null;
+
+        if (!$gatewayId) {
+            return;
+        }
+
+        try {
+            SmsGateway::query()->whereKey($gatewayId)->update(['last_used_at' => now()]);
+        } catch (\Throwable $e) {
+            // Telemetry only — never fail the send over it.
+            Log::warning('Could not update FastHub gateway last_used_at', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function record(string $driver, string $destination, string $message, SmsResult $result): void
+    {        if (!Schema::hasTable('sms_logs')) {
             return;
         }
 
