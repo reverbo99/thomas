@@ -563,6 +563,17 @@ class DisbursementService
             return ['processed' => 0, 'skipped' => 0, 'reason' => 'disabled', 'batches' => 0];
         }
 
+        // Catch-up for missed midnight runs (e.g. the PC/server was off at
+        // 00:00). Building/reactivating today's batch here means the day's
+        // obligations are never silently skipped.
+        if (! $force) {
+            try {
+                $this->collectForDate(Carbon::today());
+            } catch (Throwable $e) {
+                Log::warning('Disbursement catch-up collection failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         if (! $force && ! $this->isDueNow()) {
             return ['processed' => 0, 'skipped' => 0, 'reason' => 'not_due', 'batches' => 0];
         }
