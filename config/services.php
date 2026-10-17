@@ -50,13 +50,13 @@ return [
      | FastHub Bulk SMS Gateway.
      |
      | Credentials live in the sms_gateways table (managed from Settings), so
-     | only the send endpoint and timeout are configured here. The endpoint is
-     | supplied by FastHub when the account is created — set FASTHUB_SMS_ENDPOINT
-     | in .env, or enter it per configuration in Settings.
+     | only the send endpoint and timeout are defined here. The endpoint below
+     | is FastHub's gateway URL; it can be overridden per saved configuration
+     | in Settings > SMS Gateway > FastHub configurations.
      */
     'fasthub' => [
-        'endpoint' => env('FASTHUB_SMS_ENDPOINT', ''),
-        'timeout' => (int) env('FASTHUB_SMS_TIMEOUT', 20),
+        'endpoint' => 'https://bulksms.fasthub.co.tz/api/sms/send',
+        'timeout' => 20,
     ],
 
     'africastalking' => [

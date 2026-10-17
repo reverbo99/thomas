@@ -42,8 +42,9 @@ Africa's Talking drivers and is selected in **Admin → Settings → SMS Gateway
    - **Status callback URL** – where FastHub should post delivery statuses. Leave
      blank to use the built-in `/webhooks/fasthub/sms-status/{id}` URL shown for
      the configuration. Copy that URL into the FastHub portal.
-   - **API endpoint URL (optional)** – the send endpoint supplied by FastHub. If
-     left blank the app falls back to `FASTHUB_SMS_ENDPOINT` from `.env`.
+   - **API endpoint URL (optional)** – override for the send endpoint. Leave
+     blank to use the built-in FastHub endpoint configured in
+     `config/services.php` (`https://bulksms.fasthub.co.tz/api/sms/send`).
 3. Click **Make default** (or pick the configuration under **Active gateway →
    FastHub** in the main settings form and save).
 4. Send a test SMS from the **Send Test SMS** card.
@@ -57,7 +58,7 @@ configuration, or to the legacy gateway if none is left.
 
 - `client_secret` is encrypted with the app key. If `APP_KEY` is rotated the
   stored secret becomes unreadable; re-enter it in the configuration.
-- The PDF does not include the FastHub send endpoint URL. It is therefore stored
-  per configuration (or via `FASTHUB_SMS_ENDPOINT`); the platform reports a clear
-  error instead of silently failing when it is missing.
+- The PDF does not include the FastHub send endpoint URL, so the gateway URL is
+  defined in `config/services.php` (`fasthub.endpoint`) and can be overridden per
+  saved configuration. No `.env` values are required.
 - `SMS_API_SENDER_ID` (Settings → Sender ID) is sent as the message `source`.

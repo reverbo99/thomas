@@ -49,8 +49,14 @@ class FastHubDriver implements SmsDriver
             return SmsResult::fail('FastHub Client ID / Client secret are missing for the selected configuration.');
         }
 
-        if ($this->endpoint === '') {
-            return SmsResult::fail('FastHub API endpoint is not configured. Add the endpoint URL to the gateway configuration (or set FASTHUB_SMS_ENDPOINT).');
+        // The endpoint comes from the saved configuration; when that is blank
+        // the system-wide default from config/services.php is used.
+        $endpoint = $this->endpoint !== ''
+            ? $this->endpoint
+            : (string) config('services.fasthub.endpoint', '');
+
+        if ($endpoint === '') {
+            return SmsResult::fail('FastHub API endpoint is not configured. Add the endpoint URL to the gateway configuration.');
         }
 
         // The documented minimum is 20 characters.
@@ -62,7 +68,7 @@ class FastHubDriver implements SmsDriver
                 // No retry — a resend after a lost response double-delivers.
                 ->acceptJson()
                 ->asJson()
-                ->post($this->endpoint, [
+                ->post($endpoint, [
                     'auth' => [
                         'client_id' => $this->clientId,
                         'client_secret' => $this->clientSecret,
@@ -78,11 +84,16 @@ class FastHubDriver implements SmsDriver
             return SmsResult::fail('Request failed: ' . $e->getMessage());
         }
 
-        if (!$response->successful()) {
-            return SmsResult::fail('HTTP ' . $response->status());
-        }
-
         $body = $response->json();
+        $error = is_array($body) && is_string($body['message'] ?? null)
+            ? mb_substr(trim($body['message']), 0, 190)
+            : '';
+
+        if (!$response->successful()) {
+            // FastHub returns 400 with a useful message ("Invalid credentials",
+            // "Insufficient balance", …) — surface that instead of the code.
+            return SmsResult::fail($error !== '' ? $error : 'HTTP ' . $response->status());
+        }
 
         if (!is_array($body)) {
             return SmsResult::fail('FastHub returned a non-JSON response.');
@@ -92,20 +103,20 @@ class FastHubDriver implements SmsDriver
             return SmsResult::ok($reference, 'sent');
         }
 
-        $error = $body['message'] ?? null;
-
-        return SmsResult::fail(
-            is_string($error) && trim($error) !== ''
-                ? mb_substr(trim($error), 0, 190)
-                : 'FastHub rejected the message.'
-        );
+        return SmsResult::fail($error !== '' ? $error : 'FastHub rejected the message.');
     }
 
     /**
-     * The gateway documents a boolean, but tolerate 1/"true" too.
+     * The gateway documents a boolean, but its health check (and some gateway
+     * versions) answer with strings like "ok", so accept those too.
      */
     private function isSuccessfulStatus($status): bool
     {
-        return $status === true || $status === 1 || $status === '1' || $status === 'true';
+        if ($status === true || $status === 1) {
+            return true;
+        }
+
+        return is_string($status)
+            && in_array(strtolower(trim($status)), ['1', 'true', 'ok', 'success', 'sent'], true);
     }
 }

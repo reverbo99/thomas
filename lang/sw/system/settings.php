@@ -81,7 +81,7 @@ return [
     'gateway_status_callback_url' => 'URL ya kupokea hali (status callback)',
     'gateway_status_callback_url_desc' => 'Mahali FastHub inapaswa kutuma hali za uwasilishaji. Acha wazi kutumia URL ya mfumo inayoonyeshwa kwa kila usanidi.',
     'gateway_api_endpoint' => 'URL ya API endpoint (si lazima)',
-    'gateway_api_endpoint_desc' => 'Endpoint ya kutuma iliyotolewa na FastHub. Acha wazi kutumia FASTHUB_SMS_ENDPOINT kutoka faili la .env.',
+    'gateway_api_endpoint_desc' => 'Endpoint ya kutuma iliyotolewa na FastHub. Acha wazi kutumia endpoint ya FastHub iliyojengwa ndani ya mfumo.',
     'gateway_add' => 'Ongeza usanidi',
     'gateway_add_desc' => 'Weka taarifa alizokupa FastHub kwa akaunti hii.',
     'gateway_save' => 'Hifadhi mabadiliko',

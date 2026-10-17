@@ -60,6 +60,18 @@ class FastHubDriverTest extends TestCase
         $this->assertSame('Invalid credentials', $result->error);
     }
 
+    public function test_it_surfaces_the_gateway_message_on_a_400_response(): void
+    {
+        Http::fake([
+            '*' => Http::response(['status' => false, 'message' => 'Invalid credentials', 'data' => null], 400),
+        ]);
+
+        $result = $this->driver()->send('255712345678', 'Hello');
+
+        $this->assertFalse($result->success);
+        $this->assertSame('Invalid credentials', $result->error);
+    }
+
     public function test_it_reports_an_http_failure(): void
     {
         Http::fake([
@@ -85,16 +97,31 @@ class FastHubDriverTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_it_fails_without_sending_when_the_endpoint_is_missing(): void
+    public function test_it_uses_the_configured_default_endpoint_when_the_configuration_has_none(): void
     {
-        Http::fake();
+        Http::fake([
+            '*' => Http::response(['status' => 'ok', 'message' => 'Queued'], 200),
+        ]);
 
+        // Blank per-configuration endpoint -> system default from config/services.php.
         $driver = new FastHubDriver('client-123', 'secret-456', 'HIGHLINK', '', 7);
 
         $result = $driver->send('255712345678', 'Hello');
 
-        $this->assertFalse($result->success);
-        $this->assertStringContainsString('endpoint', (string) $result->error);
-        Http::assertNothingSent();
+        $this->assertTrue($result->success);
+        Http::assertSent(function (Request $request) {
+            return $request->url() === config('services.fasthub.endpoint');
+        });
+    }
+
+    public function test_it_accepts_an_ok_string_status(): void
+    {
+        Http::fake([
+            '*' => Http::response(['status' => 'ok', 'message' => 'Success'], 200),
+        ]);
+
+        $result = $this->driver()->send('255712345678', 'Hello');
+
+        $this->assertTrue($result->success);
     }
 }

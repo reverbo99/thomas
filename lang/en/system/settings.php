@@ -81,7 +81,7 @@ return [
     'gateway_status_callback_url' => 'Status callback URL',
     'gateway_status_callback_url_desc' => 'Where FastHub should POST delivery statuses. Leave blank to use the built-in callback URL shown for each configuration.',
     'gateway_api_endpoint' => 'API endpoint URL (optional)',
-    'gateway_api_endpoint_desc' => 'Send endpoint supplied by FastHub. Leave blank to use FASTHUB_SMS_ENDPOINT from the .env file.',
+    'gateway_api_endpoint_desc' => 'The send endpoint supplied by FastHub. Leave blank to use the built-in FastHub endpoint.',
     'gateway_add' => 'Add configuration',
     'gateway_add_desc' => 'Enter the details FastHub provided for this account.',
     'gateway_save' => 'Save changes',
