@@ -4,6 +4,7 @@ return [
     'common' => require __DIR__ . '/system/common.php',
     'commands' => require __DIR__ . '/system/commands.php',
     'dashboard' => require __DIR__ . '/system/dashboard.php',
+    'disbursements' => require __DIR__ . '/system/disbursements.php',
     'local_admin' => require __DIR__ . '/system/local_admin.php',
     'messages' => require __DIR__ . '/system/messages.php',
     'operators' => require __DIR__ . '/system/operators.php',
