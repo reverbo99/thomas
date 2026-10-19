@@ -18,8 +18,13 @@ Africa's Talking drivers and is selected in **Admin → Settings → SMS Gateway
   }
   ```
 
-  The `reference` is a UUID (36 chars, above the documented 20-char minimum) and is
-  stored as `sms_logs.message_id` so delivery reports can be matched back.
+The `reference` is a UUID (36 chars, above the documented 20-char minimum) and is
+stored as `sms_logs.message_id` so delivery reports can be matched back.
+
+The `msisdn` is always sent in international form starting with the country code
+(255 for Tanzania), even when the stored/entered number is local:
+`0712345678`, `712345678`, `+255 712 345 678` and `00255712345678` all go out as
+`255712345678`.
 
 - **Delivery status callback**: FastHub posts to
 

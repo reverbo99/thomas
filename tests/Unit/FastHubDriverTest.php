@@ -48,6 +48,45 @@ class FastHubDriverTest extends TestCase
         });
     }
 
+    public function test_it_sends_the_number_with_the_255_country_code(): void
+    {
+        Http::fake([
+            '*' => Http::response(['status' => true, 'message' => 'Queued'], 200),
+        ]);
+
+        $expected = [
+            '0712345678' => '255712345678',
+            '712345678' => '255712345678',
+            '+255 712 345 678' => '255712345678',
+            '00255712345678' => '255712345678',
+            '255712345678' => '255712345678',
+        ];
+
+        foreach (array_keys($expected) as $input) {
+            $this->driver()->send((string) $input, 'Hello');
+        }
+
+        $sent = Http::recorded();
+
+        $this->assertCount(count($expected), $sent);
+
+        foreach (array_values($expected) as $index => $msisdn) {
+            $body = $sent[$index][0]->data();
+            $this->assertSame($msisdn, $body['messages'][0]['msisdn']);
+        }
+    }
+
+    public function test_it_rejects_a_destination_without_digits(): void
+    {
+        Http::fake();
+
+        $result = $this->driver()->send('  ', 'Hello');
+
+        $this->assertFalse($result->success);
+        $this->assertStringContainsString('Invalid destination', (string) $result->error);
+        Http::assertNothingSent();
+    }
+
     public function test_it_reports_a_gateway_rejection(): void
     {
         Http::fake([

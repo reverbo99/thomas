@@ -59,6 +59,14 @@ class FastHubDriver implements SmsDriver
             return SmsResult::fail('FastHub API endpoint is not configured. Add the endpoint URL to the gateway configuration.');
         }
 
+        // FastHub expects the full international MSISDN — always send the
+        // country code (255 for Tanzania), never a local "07..." number.
+        $msisdn = $this->internationalMsisdn($destination);
+
+        if ($msisdn === null) {
+            return SmsResult::fail('Invalid destination number: ' . $destination);
+        }
+
         // The documented minimum is 20 characters.
         $reference = (string) Str::uuid();
 
@@ -75,7 +83,7 @@ class FastHubDriver implements SmsDriver
                     ],
                     'messages' => [[
                         'text' => $message,
-                        'msisdn' => $destination,
+                        'msisdn' => $msisdn,
                         'source' => $this->senderId,
                         'reference' => $reference,
                     ]],
@@ -104,6 +112,33 @@ class FastHubDriver implements SmsDriver
         }
 
         return SmsResult::fail($error !== '' ? $error : 'FastHub rejected the message.');
+    }
+
+    /**
+     * Normalise the destination to bare international digits starting with the
+     * country code (e.g. "0712345678" -> "255712345678"), which is the format
+     * FastHub requires. Null when the value contains no usable digits.
+     */
+    private function internationalMsisdn(string $destination): ?string
+    {
+        $countryCode = PhoneNumber::defaultCountryCode();
+        $digits = PhoneNumber::digits($destination, $countryCode);
+
+        if ($digits === null) {
+            // Fall back to the raw digits so the gateway can still report its
+            // own validation error instead of us dropping the send silently.
+            $digits = preg_replace('/\D/', '', $destination) ?? '';
+
+            if ($digits === '') {
+                return null;
+            }
+        }
+
+        if ($countryCode !== '' && !str_starts_with($digits, $countryCode)) {
+            $digits = $countryCode . ltrim($digits, '0');
+        }
+
+        return $digits;
     }
 
     /**
