@@ -90,7 +90,7 @@ return [
     'refund_already_pending' => 'A luggage refund request is already pending for this booking.',
     'refund_already_processed' => 'This luggage refund has already been processed.',
     'refund_not_pending' => 'No pending luggage refund request found for this booking.',
-    'refund_approved' => 'Luggage refund approved and balances adjusted.',
+    'refund_approved' => 'Luggage refund approved.',
     'refund_rejected' => 'Luggage refund request rejected.',
     'approve_refund' => 'Approve refund',
     'reject_refund' => 'Reject',

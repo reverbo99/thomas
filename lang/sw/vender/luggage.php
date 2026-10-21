@@ -90,7 +90,7 @@ return [
     'refund_already_pending' => 'Ombi la marejesho ya mzigo tayari linasubiri kwa uhifadhi huu.',
     'refund_already_processed' => 'Marejesho haya ya mzigo tayari yamechakatwa.',
     'refund_not_pending' => 'Hakuna ombi la marejesho ya mzigo linalosubiri kwa uhifadhi huu.',
-    'refund_approved' => 'Marejesho ya mzigo yameidhinishwa na salio limebadilishwa.',
+    'refund_approved' => 'Marejesho ya mzigo yameidhinishwa.',
     'refund_rejected' => 'Ombi la marejesho ya mzigo limekataliwa.',
     'approve_refund' => 'Idhinisha marejesho',
     'reject_refund' => 'Kataa',

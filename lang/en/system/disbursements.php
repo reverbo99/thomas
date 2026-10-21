@@ -100,6 +100,7 @@ return [
 
     'messages' => [
         'collected' => 'Batch for :date collected: :count item(s).',
+        'queued' => 'Queued for payout in :reference.',
         'nothing_to_process' => 'No payout is due right now. New items are picked up on the next run.',
         'processed' => ':count payout(s) sent or queued.',
         'synced' => ':count payout status(es) updated.',

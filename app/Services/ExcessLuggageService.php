@@ -946,6 +946,53 @@ class ExcessLuggageService
     }
 
     /**
+     * System admin approves a pending luggage refund for payout.
+     *
+     * The booking stays in "refund_pending" until the disbursement batch
+     * actually pays it; the old behaviour marked it "refunded" immediately,
+     * which removed the refund from the disbursements page and never paid the
+     * passenger.
+     */
+    public function markRefundApproved(Booking $booking, ?User $actor = null): Booking
+    {
+        $booking = Booking::whereKey($booking->id)->lockForUpdate()->first();
+
+        if (! $booking) {
+            throw new \RuntimeException('Booking not found.');
+        }
+
+        if ($booking->luggage_payment_status !== self::PAYMENT_REFUND_PENDING) {
+            throw new \RuntimeException(__('vender/luggage.refund_not_pending'));
+        }
+
+        $amount = $this->refundAmount($booking);
+        if ($amount <= 0) {
+            throw new \RuntimeException(__('vender/luggage.no_refund_due'));
+        }
+
+        $escrow = ExcessLuggageEscrow::query()
+            ->where('booking_id', $booking->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($escrow) {
+            $escrow->update([
+                'status' => self::ESCROW_REFUND_PENDING,
+                'refund_amount' => $amount,
+                'refund_approved_at' => now(),
+            ]);
+        }
+
+        Log::info('Excess luggage refund approved for disbursement', [
+            'booking_id' => $booking->id,
+            'amount' => $amount,
+            'actor_id' => $actor?->id,
+        ]);
+
+        return $booking->fresh();
+    }
+
+    /**
      * System admin approves a pending luggage refund: reduce escrow surplus and
      * mark payment status refunded. Surplus was held in escrow and never distributed.
      *
@@ -1046,6 +1093,14 @@ class ExcessLuggageService
         if ($escrow && $escrow->status === self::ESCROW_REFUND_PENDING) {
             $escrow->update(['status' => self::ESCROW_SURPLUS_HELD]);
         }
+
+        // A rejected request may already have been picked up by today's batch.
+        // Stop that payout so the batch cannot pay a refund that was refused.
+        app(DisbursementService::class)->cancelPendingItems(
+            \App\Models\DisbursementItem::SOURCE_EXCESS_LUGGAGE,
+            (int) $booking->id,
+            'Luggage refund request rejected.'
+        );
 
         Log::info('Excess luggage refund rejected', [
             'booking_id' => $booking->id,

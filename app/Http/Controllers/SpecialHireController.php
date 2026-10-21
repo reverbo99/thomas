@@ -787,25 +787,38 @@ class SpecialHireController extends Controller
     }
 
     /**
-     * Operator: mark payment as refunded (e.g. after manual reversal).
+     * Operator: queue the customer refund for payout.
+     *
+     * The payment is not marked "refunded" here: it stays "refund_pending"
+     * until the disbursement batch actually pays it, so the refund always shows
+     * up on the disbursements page.
      */
     public function refundHirePayment(Request $request, $id)
     {
         $order = SpecialHireOrder::byUser(Auth::id())->findOrFail($id);
 
-        if (! in_array($order->payment_status, ['paid', 'refund_pending'], true)) {
+        if (! in_array($order->payment_status, ['paid', 'refund_pending', 'refunded'], true)) {
             return back()->with('error', 'Refund is only available when payment status is Paid or Refund pending.');
         }
 
-        $order->update([
-            'payment_status' => 'refunded',
-            'order_status' => 'cancelled',
-        ]);
+        if ($order->payment_status !== 'refunded') {
+            $order->update([
+                'payment_status' => 'refund_pending',
+                'order_status' => 'cancelled',
+            ]);
+        }
+
         if ($order->coaster && $order->coaster->status === 'on_hire') {
             $order->coaster->update(['status' => 'available']);
         }
 
-        return back()->with('success', 'Payment marked as refunded and booking cancelled.');
+        $item = app(\App\Services\DisbursementService::class)->queueSpecialHireRefund($order->fresh());
+
+        if (! $item) {
+            return back()->with('error', 'No refundable amount was found for this booking.');
+        }
+
+        return back()->with('success', 'Refund queued for disbursement (' . $item->reference . ') and booking cancelled.');
     }
 
     public function createDriver()

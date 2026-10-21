@@ -480,12 +480,14 @@ class ExcessLuggageController extends Controller
         $booking = Booking::findOrFail($bookingId);
 
         try {
-            $this->luggage->approveRefund($booking, $user);
+            // Approval queues the payout; it must not mark the refund as paid
+            // by itself, otherwise it never reaches the disbursements page.
+            $item = app(\App\Services\DisbursementService::class)->approveExcessLuggageRefund($booking, $user);
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', __('vender/luggage.refund_approved'));
+        return back()->with('success', __('vender/luggage.refund_approved') . ' ' . __('system.disbursements.messages.queued', ['reference' => $item->reference]));
     }
 
     public function adminRejectRefund($bookingId)

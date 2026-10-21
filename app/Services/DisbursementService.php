@@ -34,24 +34,45 @@ class DisbursementService
     /**
      * Create (if needed) and fill the batch for a calendar date.
      *
-     * The batch is filled once. Items that arrive after the midnight
-     * collection are picked up by the next date's batch.
+     * Today's batch is topped up on every call (each scheduled tick, page
+     * load and "Collect now") so a refund or payout created during the day is
+     * visible and payable on the disbursements page immediately. Past batches
+     * are frozen once collected unless $force is passed.
      */
     public function collectForDate(CarbonInterface|string|null $date = null, bool $force = false): Disbursement
     {
         $day = $date instanceof CarbonInterface ? Carbon::parse($date) : Carbon::parse($date ?: 'today');
         $day = $day->startOfDay();
 
-        $batch = Disbursement::firstOrCreate(
-            ['batch_date' => $day->toDateString()],
-            [
-                'reference' => $this->batchReference($day),
-                'currency' => $this->gateway->currency(),
-                'status' => Disbursement::STATUS_OPEN,
-            ]
-        );
+        $batch = Disbursement::query()
+            ->whereDate('batch_date', $day->toDateString())
+            ->first();
 
-        if (! $force && $batch->collected_at !== null) {
+        if (! $batch) {
+            try {
+                $batch = Disbursement::create([
+                    'batch_date' => $day->toDateString(),
+                    'reference' => $this->batchReference($day),
+                    'currency' => $this->gateway->currency(),
+                    'status' => Disbursement::STATUS_OPEN,
+                ]);
+            } catch (Throwable $e) {
+                // Another request created today's batch between the lookup and
+                // the insert (batch_date is unique); use that one.
+                $batch = Disbursement::query()
+                    ->whereDate('batch_date', $day->toDateString())
+                    ->first();
+
+                if (! $batch) {
+                    throw $e;
+                }
+            }
+        }
+
+        // Only freeze a batch once it belongs to a past day. The collectors are
+        // idempotent (one item per source), so re-running them for today cannot
+        // duplicate an obligation.
+        if (! $force && $batch->collected_at !== null && ! $day->isToday()) {
             return $batch->refreshTotals();
         }
 
@@ -94,6 +115,134 @@ class DisbursementService
     public function ensureTodayBatch(): Disbursement
     {
         return $this->collectForDate(Carbon::today());
+    }
+
+    /**
+     * Approve a pending excess-luggage refund and put it in today's batch.
+     *
+     * Approval must not mark the booking "refunded" on its own: that hid the
+     * refund from the disbursements page and the passenger was never paid.
+     * The source record is only finalised after the payout succeeds.
+     */
+    public function approveExcessLuggageRefund(Booking $booking, ?User $actor = null): DisbursementItem
+    {
+        $booking = Booking::query()->whereKey($booking->getKey())->first();
+
+        if (! $booking) {
+            throw new \RuntimeException('Booking not found.');
+        }
+
+        $existing = $this->findItem(DisbursementItem::SOURCE_EXCESS_LUGGAGE, $booking->id, true);
+        if ($existing) {
+            return $existing;
+        }
+
+        if ($booking->luggage_payment_status !== ExcessLuggageService::PAYMENT_REFUND_PENDING) {
+            throw new \RuntimeException(__('vender/luggage.refund_not_pending'));
+        }
+
+        app(ExcessLuggageService::class)->markRefundApproved($booking, $actor);
+
+        $this->collectForDate(Carbon::today());
+
+        $item = $this->findItem(DisbursementItem::SOURCE_EXCESS_LUGGAGE, $booking->id, true);
+        if (! $item) {
+            throw new \RuntimeException(__('vender/luggage.no_refund_due'));
+        }
+
+        return $item;
+    }
+
+    /**
+     * Queue a luggage refund that is already approved (or refunded but never
+     * batched) without changing the authoritative source state.
+     */
+    public function queueExcessLuggageRefund(Booking $booking): ?DisbursementItem
+    {
+        $this->collectForDate(Carbon::today());
+
+        return $this->findItem(DisbursementItem::SOURCE_EXCESS_LUGGAGE, $booking->id, true);
+    }
+
+    /**
+     * Queue a special-hire customer refund in today's batch.
+     */
+    public function queueSpecialHireRefund(SpecialHireOrder $order): ?DisbursementItem
+    {
+        $this->collectForDate(Carbon::today());
+
+        return $this->findItem(DisbursementItem::SOURCE_SPECIAL_HIRE_REFUND, $order->id, true);
+    }
+
+    /**
+     * Stop queued payouts for a source that is no longer owed (for example a
+     * refund request rejected after today's batch was already filled), so the
+     * batch cannot pay out a cancelled refund.
+     */
+    public function cancelPendingItems(string $sourceType, int $sourceId, string $reason = 'Source is no longer owed.'): int
+    {
+        $items = DisbursementItem::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->whereIn('status', [
+                DisbursementItem::STATUS_PENDING,
+                DisbursementItem::STATUS_FAILED,
+                DisbursementItem::STATUS_NEEDS_DETAILS,
+                DisbursementItem::STATUS_REVERSED,
+            ])
+            ->whereNull('finalized_at')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        $batchIds = $items->pluck('disbursement_id')->unique();
+
+        DisbursementItem::query()
+            ->whereKey($items->modelKeys())
+            ->update([
+                'status' => DisbursementItem::STATUS_SKIPPED,
+                'last_error' => $reason,
+                'processed_at' => now(),
+                'next_attempt_at' => null,
+            ]);
+
+        foreach ($batchIds as $batchId) {
+            $this->refreshBatch(Disbursement::find($batchId));
+        }
+
+        return $items->count();
+    }
+
+    private function findItem(string $sourceType, int $sourceId, bool $reopen = false): ?DisbursementItem
+    {
+        $item = DisbursementItem::query()
+            ->where('source_type', $sourceType)
+            ->where('source_id', $sourceId)
+            ->first();
+
+        // A refund that was rejected once (item skipped) or failed earlier must
+        // be payable again when it is re-requested and approved. The unique
+        // source row prevents creating a second item, so reopen it instead.
+        if ($item && $reopen && $item->finalized_at === null && in_array($item->status, [
+            DisbursementItem::STATUS_SKIPPED,
+            DisbursementItem::STATUS_FAILED,
+            DisbursementItem::STATUS_REVERSED,
+            DisbursementItem::STATUS_NEEDS_DETAILS,
+        ], true)) {
+            $item->update([
+                'status' => DisbursementItem::STATUS_PENDING,
+                'last_error' => null,
+                'next_attempt_at' => null,
+                'processed_at' => null,
+            ]);
+
+            $this->refreshBatch($item->disbursement);
+            $item->refresh();
+        }
+
+        return $item;
     }
 
     private function collectBookingRefunds(Disbursement $batch): void
@@ -167,8 +316,16 @@ class DisbursementService
 
     private function collectExcessLuggageRefunds(Disbursement $batch): void
     {
+        // "refunded" rows are included on purpose: the admin approval button
+        // used to mark a refund as processed without ever queueing a payout, so
+        // those records have no disbursement item yet. Including them catches
+        // up every luggage refund that is owed but was never batched; rows that
+        // were paid through a batch already have an item and are skipped.
         $bookings = Booking::query()
-            ->where('luggage_payment_status', ExcessLuggageService::PAYMENT_REFUND_PENDING)
+            ->whereIn('luggage_payment_status', [
+                ExcessLuggageService::PAYMENT_REFUND_PENDING,
+                ExcessLuggageService::PAYMENT_REFUNDED,
+            ])
             ->whereNotNull('luggage_refund_amount')
             ->where('luggage_refund_amount', '<', 0)
             ->orderBy('id')
@@ -313,8 +470,12 @@ class DisbursementService
 
     private function collectSpecialHireRefunds(Disbursement $batch): void
     {
+        // "refunded" rows without a batch item were marked refunded outside the
+        // disbursement pipeline (operator action / API); they are still owed and
+        // must appear on the disbursements page. Rows already paid have an item
+        // and are skipped below.
         $orders = SpecialHireOrder::query()
-            ->where('payment_status', 'refund_pending')
+            ->whereIn('payment_status', ['refund_pending', 'refunded'])
             ->orderBy('id')
             ->cursor();
 
@@ -1102,12 +1263,17 @@ class DisbursementService
             return;
         }
 
+        // A manual approval (Refunds page) already flipped the booking to
+        // "Refund" and debited the company balance; do not debit it twice when
+        // the batched payout finalises.
+        $alreadySettled = strtolower((string) $booking->payment_status) === 'refund';
+
         $booking->update([
             'payment_status' => 'Refund',
             'refund_id' => $refund->id,
         ]);
 
-        if ($booking->campany_id) {
+        if (! $alreadySettled && $booking->campany_id) {
             $campany = Campany::with('balance')->find($booking->campany_id);
             if ($campany && $campany->balance) {
                 $campany->balance->decrement('amount', (float) $item->amount);

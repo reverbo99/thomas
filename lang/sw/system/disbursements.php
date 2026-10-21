@@ -100,6 +100,7 @@ return [
 
     'messages' => [
         'collected' => 'Kundi la :date limekusanywa: vitu :count.',
+        'queued' => 'Imewekwa kwenye foleni ya malipo :reference.',
         'nothing_to_process' => 'Hakuna malipo yanayostahili sasa. Vipya vitachukuliwa kwenye mzunguko ujao.',
         'processed' => 'Malipo :count yametumwa au yamewekwa kwenye foleni.',
         'synced' => 'Hali :count za malipo zimesasishwa.',

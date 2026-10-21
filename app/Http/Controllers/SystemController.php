@@ -3214,6 +3214,13 @@ class SystemController extends Controller
 
         RefundPercentage::where('booking_code', $refund->booking_code)->delete();
 
+        // If today's batch already picked up this request, stop the payout.
+        app(\App\Services\DisbursementService::class)->cancelPendingItems(
+            \App\Models\DisbursementItem::SOURCE_BOOKING_REFUND,
+            (int) $refund->id,
+            'Refund request rejected.'
+        );
+
         return back()->with('error', __('system.messages.refund_rejected'));
     }
 
