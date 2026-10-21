@@ -124,10 +124,22 @@ class AdminController extends Controller
 
     public function transaction_request(Request $request)
     {
+        $request->validate([
+            'amount' => ['required', 'numeric', 'min:1'],
+            'payment_method' => ['required', 'string', 'max:100'],
+            'payment_number' => ['required', 'string', 'max:100'],
+        ]);
+
         $user = auth()->user();
-        // Check if the company balance is sufficient
-        if ($request->amount > $user->campany->balance->amount) {
-            return back()->with('error', __('vender/earning.insufficient_balance'));
+        $wallet = $this->busOwnerWalletSummary($user);
+
+        // Only revenue from trips that have already departed (up to and including
+        // today) may be requested. Bookings for later trips stay locked even though
+        // their owner share is already sitting in the company wallet.
+        if ((float) $request->amount > $wallet['withdrawable']) {
+            return back()->withInput()->with('error', __('vender/earning.amount_exceeds_withdrawable', [
+                'amount' => number_format($wallet['withdrawable'], 0, '.', ','),
+            ]));
         }
         // Create the transaction and deduct amount from balance (pending state)
         try {
@@ -157,6 +169,42 @@ class AdminController extends Controller
 
             return back()->with('error', __('vender/earning.transaction_request_failed'));
         }
+    }
+
+    /**
+     * Wallet summary for the bus-owner earnings page.
+     *
+     * The company wallet is credited as soon as a booking is paid, so it also holds
+     * revenue for trips that have not departed yet. Trips up to and including today
+     * are withdrawable; later trips stay locked until their travel date.
+     *
+     * @return array{balance: float, withdrawable: float, locked: float}
+     */
+    private function busOwnerWalletSummary($user): array
+    {
+        $user = $user ?? auth()->user();
+        $company = $user ? $user->campany : null;
+        $companyId = (int) ($company->id ?? 0);
+        $balance = round((float) ($company?->balance?->amount ?? 0), 2);
+
+        $locked = 0.0;
+        if ($companyId > 0) {
+            $busIds = Bus::where('campany_id', $companyId)->pluck('id')->toArray();
+            $futureTrips = $this->companyTicketEarningsQuery($busIds, $companyId)
+                ->where('payment_status', 'Paid')
+                ->whereDate('travel_date', '>', Carbon::today());
+            $locked = $this->sumBusOwnerTicketEarnings($futureTrips);
+        }
+
+        // Locked money can never exceed what is actually in the wallet: cancellations
+        // and other reversals may drain the balance below the future trip revenue.
+        $locked = round(min(max(0.0, $locked), max(0.0, $balance)), 2);
+
+        return [
+            'balance' => $balance,
+            'withdrawable' => round(max(0.0, $balance - $locked), 2),
+            'locked' => $locked,
+        ];
     }
 
     /**
@@ -922,7 +970,9 @@ $q->where('id', auth()->user()->campany->id);
 
         session()->put('export_data', $data);
 
-        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date', 'filters', 'earnings_type'));
+        $wallet = $this->busOwnerWalletSummary($user);
+
+        return view('controller.erning', compact('data', 'period', 'start_date', 'end_date', 'filters', 'earnings_type', 'wallet'));
     }
 
     public function filterEarnings(Request $request)

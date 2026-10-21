@@ -159,6 +159,11 @@
             default => 'paidTickets',
         };
         $currency = $currency ?? session('currency', 'Tzs');
+        $wallet = $wallet ?? [
+            'balance' => (float) (auth()->user()->campany->balance->amount ?? 0),
+            'withdrawable' => (float) (auth()->user()->campany->balance->amount ?? 0),
+            'locked' => 0.0,
+        ];
         $inputClass = 'w-full border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:border-teal-500 focus:ring-teal-500';
         $labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1';
         $cardClass = 'bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 border border-gray-100 dark:border-slate-700';
@@ -262,15 +267,44 @@
         </div>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div class="{{ $cardClass }}">
                 <div class="flex items-center">
                     <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
                         <i class="fas fa-money-bill-wave"></i>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.balance') }}</p>
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money(auth()->user()->campany->balance->amount ?? 0) }}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.total_balance') }}</p>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $currency }} {{ convert_money($wallet['balance']) }}</h3>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('vender/earning.total_balance_hint') }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Money from trips that have already departed (up to today) -->
+            <div class="{{ $cardClass }} border-l-4 border-l-emerald-500">
+                <div class="flex items-center">
+                    <div class="bg-emerald-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.withdrawable_balance') }}</p>
+                        <h3 class="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{{ $currency }} {{ convert_money($wallet['withdrawable']) }}</h3>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('vender/earning.withdrawable_hint') }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Money from bookings whose trip is still ahead (locked until travel date) -->
+            <div class="{{ $cardClass }} border-l-4 border-l-slate-400">
+                <div class="flex items-center">
+                    <div class="bg-slate-500 text-white rounded-full w-10 h-10 flex items-center justify-center mr-3 shrink-0">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('vender/earning.locked_balance') }}</p>
+                        <h3 class="text-lg font-semibold text-slate-600 dark:text-slate-300">{{ $currency }} {{ convert_money($wallet['locked']) }}</h3>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('vender/earning.locked_hint') }}</p>
                     </div>
                 </div>
             </div>
@@ -540,9 +574,18 @@
                                     @csrf
                                     <div class="mb-4">
                                         <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">{{ __('vender/earning.amount_tsh') }}</label>
-                                        <input type="number" class="w-full border-gray-300 rounded-md shadow-sm focus:border-teal-500 focus:ring-teal-500"
-                                            placeholder="{{ __('vender/earning.max') }} {{ convert_money(auth()->user()->campany->balance->amount ?? 0) }}"
-                                            id="amount" name="amount" step="0.01" min="1" required>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                            {{ __('vender/earning.available_to_request') }}:
+                                            <span class="font-semibold text-emerald-600 dark:text-emerald-400">{{ $currency }} {{ convert_money($wallet['withdrawable']) }}</span>
+                                        </p>
+                                        <input type="number" class="w-full border-gray-300 rounded-md shadow-sm focus:border-teal-500 focus:ring-teal-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                            placeholder="{{ __('vender/earning.max') }} {{ convert_money($wallet['withdrawable']) }}"
+                                            max="{{ $wallet['withdrawable'] }}"
+                                            id="amount" name="amount" step="0.01" min="1" required
+                                            @if($wallet['withdrawable'] <= 0) disabled @endif>
+                                        @if($wallet['withdrawable'] <= 0)
+                                            <p class="mt-1 text-sm text-amber-600">{{ __('vender/earning.no_withdrawable_balance') }}</p>
+                                        @endif
                                         @error('amount')
                                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                         @enderror
@@ -568,7 +611,8 @@
                         </div>
                     </div>
                     <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
-                        <button type="submit" form="requestTransactionForm" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-teal-600 text-base font-medium text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:ml-3 sm:w-auto sm:text-sm">
+                        <button type="submit" form="requestTransactionForm" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-teal-600 text-base font-medium text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            @if($wallet['withdrawable'] <= 0) disabled @endif>
                             {{ __('vender/earning.submit_request') }}
                         </button>
                         <button type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
