@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\VenderAccount;
 use App\Models\VenderBalance;
+use App\Services\Sms\ParcelSmsTemplates;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -607,7 +608,9 @@ class ParcelFlowService
         $to = $parcel->receiver_delivery_address ?? ($parcel->bus->route->to ?? '');
 
         $receiverMsg = "Mpendwa {$parcel->receiver_name}, mzigo nambari {$parcel->parcel_number} umepokelewa na {$company} hapa {$from} tayari kusafirishwa kuelekea {$to}. Utapokea taarifa baada ya kuwasili.";
-        $senderMsg = "Habari {$parcel->sender_name}, mzigo wako {$parcel->parcel_number} umesajiliwa na {$company}. Mpokeaji: {$parcel->receiver_name}. Kufuatilia: {$parcel->parcel_number}.";
+        // Template 1: the sender is told the parcel was accepted, by whom, where,
+        // when, under which tracking number, and how to follow up.
+        $senderMsg = ParcelSmsTemplates::sent($parcel);
 
         $this->smsSafe($parcel->receiver_contact_1, $receiverMsg, $parcel->id);
         $this->smsSafe($parcel->sender_contact, $senderMsg, $parcel->id);
@@ -711,14 +714,10 @@ class ParcelFlowService
 
         $parcel = $parcel->fresh(['bus.campany', 'bus.route']);
 
-        $company = optional($parcel->bus->campany)->name ?? 'Highlink';
-        $agent = $parcel->receiving_agent_name ?: $company;
-        $agentPhone = $parcel->receiving_agent_phone ?: '';
-
         if ($parcel->parcel_instructions === 'collection') {
-            $msg = "Mpendwa {$parcel->receiver_name}, mzigo {$parcel->parcel_number} umefika. Tafadhali uje ukachukue kwa {$agent}" .
-                ($agentPhone ? " ({$agentPhone})" : '') .
-                ". Lete nambari ya ufuatiliaji.";
+            // Template 2: the receiver is told the parcel arrived and which office
+            // to collect it from, with the operator's contact for follow-up.
+            $msg = ParcelSmsTemplates::arrivedForCollection($parcel);
             $this->smsSafe($parcel->receiver_contact_1, $msg, $parcel->id);
         } else {
             $riderPhone = $parcel->delivery_rider_phone;
