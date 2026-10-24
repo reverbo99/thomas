@@ -229,6 +229,10 @@
             <div class="details">
                 <table>
                     <tr>
+                        <td>Date of issue:</td>
+                        <td>{{ receipt_issued_label($data) }}</td>
+                    </tr>
+                    <tr>
                         <td>Passenger name:</td>
                         <td>{{ $printPassengerName }}</td>
                     </tr>

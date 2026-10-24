@@ -1939,23 +1939,37 @@ $q->where('id', auth()->user()->campany->id);
             $data = $payload;
         }
 
-        // Generate as HTML (easiest for Blade)
-        $qrCode = DNS2D::getBarcodeHTML($data->booking_code, 'QRCODE', 6, 6, 'blue');
+        // A receipt needs a booking/customer payload; system/history fallbacks can
+        // post an empty or malformed payload. Fail visibly instead of printing an
+        // "N/A" receipt or emitting undefined-property warnings.
+        if (!is_object($data)) {
+            return back()->with('error', __('system.messages.no_booking_income_data'));
+        }
 
-        $data->qrcode = $qrCode;
+        // PNG QRs (fixed size in the PDF) so TRA and service QRs render identically.
+        $traQrCode = !empty($data->tra_qr_url)
+            ? receipt_qr_png_image((string) $data->tra_qr_url, 'TRA QR')
+            : null;
+        $serviceQrCode = receipt_qr_png_image(trim((string) ($data->booking_code ?? '')) . '|SERVICE', 'Service QR');
 
         $user = Auth::user();
         $isBusOwner = $user && ($user->isBusCampany() || $user->isLocalBusOwner());
 
-        $pdf = Pdf::loadView('print.service', [
-            'data' => $data,
-            'hideLuggageAmount' => true,
-            'hideServiceFee' => $isBusOwner,
-        ]);
+        // Bus owners get the internal fare view (no system service fee, no luggage).
+        // Everyone else gets the complete, reconciling payment breakdown.
+        $hideLuggageAmount = $isBusOwner;
+        $hideServiceFee = $isBusOwner;
 
-        $pdf->setPaper([0, 0, 4 * 72, 10 * 72], 'portrait');
+        $pdf = Pdf::loadView(
+            'print.service',
+            compact('data', 'hideLuggageAmount', 'hideServiceFee', 'traQrCode', 'serviceQrCode')
+        );
 
-        return $pdf->download($data->customer_name . '.pdf');
+        $pdf->setPaper([0, 0, 4 * 72, 7 * 72], 'portrait');
+
+        $filename = trim((string) ($data->customer_name ?? '')) ?: 'service-fee-receipt';
+
+        return $pdf->download($filename . '.pdf');
     }
 
     public function localBusOwners()

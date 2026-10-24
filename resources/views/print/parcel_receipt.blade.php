@@ -62,7 +62,15 @@
         .qr-row {
             width: 100%;
             border-collapse: collapse;
+            page-break-inside: avoid;
             margin: 1mm 0;
+        }
+
+        .qr-cell {
+            width: 50%;
+            text-align: center;
+            vertical-align: top;
+            padding: 0.5mm;
         }
 
         .qr-cell-single {
@@ -72,6 +80,13 @@
             padding: 0.5mm;
         }
 
+        .qr-label {
+            font-size: 8px;
+            font-weight: bold;
+            margin-bottom: 0.5mm;
+        }
+
+        .qr-cell img,
         .qr-cell-single img {
             width: 24mm;
             height: 24mm;
@@ -96,7 +111,7 @@
         $feePerKg = (float) (\App\Models\Setting::first()->parcel_fee_per_kg ?? 0);
         $isCollection = ($parcel->parcel_instructions ?? '') === 'collection';
         $instructionsLabel = $parcel->parcel_instructions === 'delivery' ? 'Delivery' : ($isCollection ? 'Collection' : 'N/A');
-        $addressLabel = $isCollection ? 'Receiver collection address:' : 'Receiver delivery address:';
+        $addressLabel = $isCollection ? 'Collection address:' : 'Delivery address:';
         $receiptFrom = optional(optional($parcel->bus)->route)->from
             ?? optional(optional($parcel->bus)->schedule)->from;
         $receiptTo = optional(optional($parcel->bus)->route)->to
@@ -125,6 +140,10 @@
 
         <div class="details">
             <table>
+                <tr>
+                    <td>Date of issue:</td>
+                    <td>{{ receipt_issued_label($parcel) }}</td>
+                </tr>
                 <tr>
                     <td>Receipt No.</td>
                     <td>{{ $parcel->parcel_number ?? 'N/A' }}</td>
@@ -267,16 +286,33 @@
             </div>
         @endif
 
-        @if($traQrCode)
-            <div class="divider"></div>
-            <table class="qr-row">
-                <tr>
-                    <td class="qr-cell-single">
+        @php
+            // Controller always passes $parcelQrCode; keep a fallback so legacy
+            // callers still show the Parcel QR.
+            $parcelQrCode = $parcelQrCode ?? receipt_qr_png_image(trim((string) ($parcel->parcel_number ?? '')) . '|PARCEL', 'Parcel QR');
+            $hasTraQr = !empty($traQrCode);
+        @endphp
+
+        <div class="divider"></div>
+        <table class="qr-row">
+            <tr>
+                @if ($hasTraQr)
+                    <td class="qr-cell">
+                        <div class="qr-label">TRA Verification</div>
                         {!! $traQrCode !!}
                     </td>
-                </tr>
-            </table>
-        @endif
+                    <td class="qr-cell">
+                        <div class="qr-label">Parcel QR</div>
+                        {!! $parcelQrCode !!}
+                    </td>
+                @else
+                    <td class="qr-cell-single">
+                        <div class="qr-label">Parcel QR</div>
+                        {!! $parcelQrCode !!}
+                    </td>
+                @endif
+            </tr>
+        </table>
 
         <div class="divider"></div>
 

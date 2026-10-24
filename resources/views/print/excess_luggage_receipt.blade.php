@@ -162,6 +162,10 @@
         <div class="details">
             <table>
                 <tr>
+                    <td>Date of issue:</td>
+                    <td>{{ receipt_issued_label($booking) }}</td>
+                </tr>
+                <tr>
                     <td>Receipt No.</td>
                     <td>{{ $booking->booking_code ?? 'N/A' }}</td>
                 </tr>

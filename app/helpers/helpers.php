@@ -2337,3 +2337,78 @@ if (!function_exists('booking_seat_list')) {
         return array_map('trim', explode(',', $seatString));
     }
 }
+
+if (!function_exists('receipt_issued_at')) {
+    /**
+     * Deterministic "date of issue" for printed receipts (ticket, parcel,
+     * excess luggage, service fee). Uses the document's created_at so that a
+     * reprint keeps the original issue date; falls back to an explicit field
+     * (e.g. deposit_paid_at) and finally to now() for legacy/partial payloads.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model|object|null  $document
+     */
+    function receipt_issued_at($document, ?string $fallbackField = null): \Carbon\Carbon
+    {
+        $candidates = [];
+
+        if (is_object($document)) {
+            $candidates[] = $document->created_at ?? null;
+            if ($fallbackField !== null) {
+                $candidates[] = $document->{$fallbackField} ?? null;
+            }
+        }
+
+        foreach ($candidates as $value) {
+            if (empty($value)) {
+                continue;
+            }
+
+            try {
+                return \Carbon\Carbon::parse($value);
+            } catch (\Throwable $e) {
+                // Ignore unparsable legacy values and try the next candidate.
+            }
+        }
+
+        return now();
+    }
+}
+
+if (!function_exists('receipt_issued_label')) {
+    /**
+     * Human label for the receipt "Date of issue" line.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model|object|null  $document
+     */
+    function receipt_issued_label($document, ?string $fallbackField = null): string
+    {
+        return receipt_issued_at($document, $fallbackField)->format('d M Y h:i A');
+    }
+}
+
+if (!function_exists('receipt_qr_png_image')) {
+    /**
+     * Render a black QR as a fixed-size PNG <img> tag, matching the ticket QRs.
+     * PNG (not HTML table) keeps TRA and document QRs identical in size, which
+     * Dompdf otherwise scales differently depending on payload length.
+     */
+    function receipt_qr_png_image(string $payload, string $alt = 'QR', int $size = 68, int $moduleSize = 4): ?string
+    {
+        $payload = trim($payload);
+        if ($payload === '') {
+            return null;
+        }
+
+        try {
+            $png = \Milon\Barcode\Facades\DNS2DFacade::getBarcodePNG($payload, 'QRCODE', $moduleSize, $moduleSize, [0, 0, 0]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (empty($png)) {
+            return null;
+        }
+
+        return '<img src="data:image/png;base64,' . $png . '" alt="' . e($alt) . '" width="' . $size . '" height="' . $size . '">';
+    }
+}

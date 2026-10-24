@@ -17,7 +17,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
-use Milon\Barcode\Facades\DNS2DFacade as DNS2D;
 
 class ParcelController extends Controller
 {
@@ -572,15 +571,10 @@ class ParcelController extends Controller
         $busCompany = $parcel->bus->campany ?? null;
         $busOwnerAccount = $busCompany->busOwnerAccount ?? null;
 
-        $traQrCode = null;
-        if (!empty($parcel->tra_qr_url)) {
-            $traQrPng = DNS2D::getBarcodePNG($parcel->tra_qr_url, 'QRCODE', 4, 4, [0, 0, 0]);
-            $traQrCode = $traQrPng
-                ? '<img src="data:image/png;base64,' . $traQrPng . '" alt="TRA QR" width="68" height="68">'
-                : null;
-        }
+        $traQrCode = receipt_qr_png_image((string) ($parcel->tra_qr_url ?? ''), 'TRA QR');
+        $parcelQrCode = receipt_qr_png_image(trim((string) ($parcel->parcel_number ?? '')) . '|PARCEL', 'Parcel QR');
 
-        $pdf = Pdf::loadView('print.parcel_receipt', compact('parcel', 'busCompany', 'busOwnerAccount', 'traQrCode'));
+        $pdf = Pdf::loadView('print.parcel_receipt', compact('parcel', 'busCompany', 'busOwnerAccount', 'traQrCode', 'parcelQrCode'));
         $pdf->setPaper([0, 0, 4 * 72, 9 * 72], 'portrait');
 
         return $pdf->stream('parcel-receipt-' . $parcel->parcel_number . '.pdf');
