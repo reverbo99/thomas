@@ -108,7 +108,6 @@
 
 <body>
     @php
-        $feePerKg = (float) (\App\Models\Setting::first()->parcel_fee_per_kg ?? 0);
         $isCollection = ($parcel->parcel_instructions ?? '') === 'collection';
         $instructionsLabel = $parcel->parcel_instructions === 'delivery' ? 'Delivery' : ($isCollection ? 'Collection' : 'N/A');
         $addressLabel = $isCollection ? 'Collection address:' : 'Delivery address:';
@@ -234,10 +233,6 @@
 
         <div class="details">
             <table>
-                <tr>
-                    <td>Parcel transport fee per kg:</td>
-                    <td>{{ number_format($feePerKg, 2) }}</td>
-                </tr>
                 <tr>
                     <td>Total fee:</td>
                     <td>{{ number_format((float) ($parcel->amount_paid ?? 0), 2) }}</td>
