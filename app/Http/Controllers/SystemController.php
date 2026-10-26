@@ -68,7 +68,7 @@ class SystemController extends Controller
         $todayParcelQuery = $this->commissionableParcelsQuery()
             ->whereBetween('created_at', [Carbon::today(), Carbon::today()->endOfDay()]);
         $todayParcelGross = (float) (clone $todayParcelQuery)->sum('amount_paid');
-        $todayParcelOwnerShare = round((float) (clone $todayParcelQuery)->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share'])->sum(
+        $todayParcelOwnerShare = round((float) (clone $todayParcelQuery)->get()->sum(
             fn ($parcel) => parcel_owner_share($parcel)
         ), 2);
         // Today's earnings count the bus-owner parcel share (fee minus the 5% commission pool).
@@ -197,8 +197,7 @@ class SystemController extends Controller
         $luggageService = app(ExcessLuggageService::class);
         $escrowBalance = $luggageService->totalEscrowBalance();
         $luggageBalanceTotal = $luggageService->totalLuggageCollected();
-        $paidParcels = $this->commissionableParcelsQuery()
-            ->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
+        $paidParcels = $this->commissionableParcelsQuery()->get();
         $parcelCommissionTotal = round((float) $paidParcels->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
         $parcelGovernmentLevyTotal = round((float) $paidParcels->sum(fn ($parcel) => parcel_government_levy($parcel)), 2);
         $parcelFeesTotal = round((float) $paidParcels->sum('amount_paid'), 2);
@@ -1301,7 +1300,7 @@ class SystemController extends Controller
         $totalLuggageRevenue = (float) $luggageBookings->sum(fn ($b) => booking_luggage_fee($b));
         $companyParcels = $this->commissionableParcelsQuery()
             ->whereHas('bus', fn ($q) => $q->where('campany_id', $campany->id))
-            ->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
+            ->get();
         $totalParcelRevenue = (float) $companyParcels->sum('amount_paid');
         $totalParcelCommission = round((float) $companyParcels->sum(fn ($parcel) => parcel_admin_share($parcel)), 2);
         $totalOperatorRevenue = round($totalBookingsRevenue + $totalParcelRevenue, 2);

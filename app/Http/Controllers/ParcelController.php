@@ -711,10 +711,13 @@ class ParcelController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
+        // Select every column: the settlement split columns (admin_share, vendor_share,
+        // government_levy, owner_share) only exist once the settlement-split migration has
+        // run. Naming them explicitly 500s the whole page on a database without them.
         $paidParcels = (clone $query)->reorder()
             ->where('payment_status', ParcelFlowService::PAY_PAID)
             ->where('status', '!=', ParcelFlowService::STATUS_CANCELLED)
-            ->get(['id', 'amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
+            ->get();
 
         $breakdown = ['fees' => 0.0, 'admin' => 0.0, 'vendor' => 0.0, 'government' => 0.0, 'owner' => 0.0];
         foreach ($paidParcels as $paid) {

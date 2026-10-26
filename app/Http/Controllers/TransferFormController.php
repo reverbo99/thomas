@@ -23,10 +23,15 @@ class TransferFormController extends Controller
     {
     }
 
-    public function show(Request $request, $booking_id = null)
+    public function show(Request $request)
     {
         $actor = $this->resolveActor($request);
-        $booking_id = $booking_id ?? $request->input('booking_id');
+
+        // Read the route parameter by NAME. Taking it as a method argument let Laravel
+        // inject the route's `transfer_actor` default positionally, so $booking_id became
+        // "vender"/"customer"/"guest", Booking::find() returned null, and the form
+        // redirected to itself forever (ERR_TOO_MANY_REDIRECTS).
+        $booking_id = $request->route('booking_id') ?? $request->input('booking_id');
 
         $options = $this->actorListOptions($actor);
         $bookings = $this->transfers->listTransferableBookings($actor, $options);

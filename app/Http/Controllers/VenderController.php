@@ -208,7 +208,11 @@ class VenderController extends Controller
             ->where('status', '!=', 'cancelled')
             ->where('payment_status', 'paid');
         $this->applyVendorFeePeriodFilter($parcelQuery, $period, $startDate, $endDate);
-        $parcelRows = (clone $parcelQuery)->get(['amount_paid', 'vender_id', 'admin_share', 'vendor_share', 'government_levy', 'owner_share']);
+        // Select every column: the settlement split columns (admin_share, vendor_share,
+        // government_levy, owner_share) only exist once the settlement-split migration has
+        // run. Naming them explicitly made this page 500 for every period filter on any
+        // database that had not been migrated, instead of just falling back to the formula.
+        $parcelRows = (clone $parcelQuery)->get();
         $parcelCollected = (float) $parcelRows->sum('amount_paid');
         $totalParcelFee = (float) $parcelRows->sum(fn ($parcel) => parcel_vendor_share($parcel));
 
@@ -255,6 +259,12 @@ class VenderController extends Controller
                     }
                     $query->whereBetween('created_at', [$start, $end]);
                 }
+                break;
+            case '':
+            case 'all':
+                // "All time": deliberately no date restriction. Previously this fell
+                // through to the month branch, so the history page showed all bookings
+                // in the table while its fee cards were silently limited to this month.
                 break;
             case 'month':
             default:
@@ -1360,10 +1370,7 @@ class VenderController extends Controller
         $built = $this->buildVendorBookingHistoryQuery($request);
         $bookings = $built['query']->where('payment_status', 'Paid')->latest()->paginate(20)->withQueryString();
 
-        $period = $built['period'] ?? 'today';
-        if (! $request->has('period') && ! $request->filled('start_date') && ! $request->filled('end_date')) {
-            $period = 'today';
-        }
+        $period = $built['period'];
 
         $feeSummary = $this->buildVendorFeeSummary(
             (int) auth()->id(),
@@ -1374,7 +1381,7 @@ class VenderController extends Controller
 
         return view('vender.history', array_merge([
             'bookings' => $bookings,
-            'period' => $built['period'],
+            'period' => $period,
             'startDate' => $built['startDate'],
             'endDate' => $built['endDate'],
         ], $feeSummary));
@@ -1432,13 +1439,23 @@ class VenderController extends Controller
             ->where('vender_id', auth()->id());
 
         $dateFilter = apply_booking_history_date_filter($query, $request);
-        $period = $dateFilter['period'] ?? $request->get('period', 'today');
         $startDate = $dateFilter['startDate'];
         $endDate = $dateFilter['endDate'];
 
-        if (! $request->has('period') && ! $request->filled('start_date') && ! $request->filled('end_date')) {
-            $query->whereDate('created_at', today());
-            $period = $period ?? 'today';
+        // A missing `period` parameter is the plain default view (today), but an explicitly
+        // EMPTY one is the "All time" option (the form posts period=). Reading it with
+        // get('period', 'today') collapsed both cases into "today", so All time listed every
+        // booking in the table while its period label and fee cards stayed on today/month.
+        $period = $dateFilter['period'];
+        if ($period === null) {
+            if ($request->has('period')) {
+                $period = '';
+            } else {
+                $period = 'today';
+                if (! $request->filled('start_date') && ! $request->filled('end_date')) {
+                    $query->whereDate('created_at', today());
+                }
+            }
         }
 
         if ($request->filled('start_date') && $request->filled('end_date')) {
@@ -1460,6 +1477,7 @@ class VenderController extends Controller
         }
 
         return match ($period) {
+            '', 'all' => __('system.common.all_time'),
             'week' => __('assistance/dashboard.this_week'),
             'month' => __('assistance/dashboard.this_month'),
             'year' => __('assistance/dashboard.this_year'),

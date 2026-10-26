@@ -260,13 +260,6 @@
                                                         <button type="submit"
                                                             class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{{ __('vender/history.print_ticket') }}</button>
                                                     </form>
-                                                    <form action="{{ route('print.service') }}" method="POST">
-                                                        @csrf
-                                                        <input type="hidden" name="data"
-                                                            value='{{ json_encode(["id" => $booking->id, "booking_code" => $booking->booking_code]) }}'>
-                                                        <button type="submit"
-                                                            class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{{ __('vender/history.print_service') }}</button>
-                                                    </form>
                                                     <form
                                                         action="{{ route('booking.transfer.form', ['booking_id' => $booking->id]) }}"
                                                         method="GET">

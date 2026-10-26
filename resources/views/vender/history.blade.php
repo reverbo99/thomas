@@ -7,6 +7,7 @@
     $startDate = $startDate ?? request('start_date', '');
     $endDate = $endDate ?? request('end_date', '');
     $filters = [
+        '' => __('system.common.all_time'),
         'today' => __('assistance/dashboard.today'),
         'week' => __('assistance/dashboard.this_week'),
         'month' => __('assistance/dashboard.this_month'),
