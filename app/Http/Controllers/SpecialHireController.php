@@ -7,6 +7,7 @@ use App\Models\SpecialHireOrder;
 use App\Models\SpecialHirePricing;
 use App\Models\SpecialHireWithdrawalRequest;
 use App\Models\User;
+use App\Services\SpecialHireOrderPaymentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -401,9 +402,13 @@ class SpecialHireController extends Controller
             $request->hire_time
         );
 
-        $totalAmt = (float) $priceData['total_amount'];
-        $dep = round($totalAmt * 0.10, 2);
-        $bal = round($totalAmt - $dep, 2);
+        $totalAmt = round((float) $priceData['total_amount'], 2);
+        // Full upfront payment, matching the customer app. An operator-created hire must
+        // be payable in one ClickPesa push so it can continue straight to the driver —
+        // the legacy 10%/90% split left the order parked at "wait for driver" with no
+        // request ever sent to the customer.
+        $dep = $totalAmt;
+        $bal = 0.0;
         $ownerUser = Auth::user();
 
         // Create order
@@ -441,8 +446,86 @@ class SpecialHireController extends Controller
             'payment_status' => 'pending',
         ]);
 
-        return redirect()->route('special_hire.orders.show', $order->id)
-            ->with('success', 'Order created successfully!');
+        $push = $this->sendPaymentPush($order);
+
+        $redirect = redirect()->route('special_hire.orders.show', $order->id);
+
+        if ($push['ok']) {
+            return $redirect->with(
+                'success',
+                "Order created. A payment request was sent to {$order->customer_phone}. "
+                . 'The booking goes to the driver automatically once the customer pays.'
+            );
+        }
+
+        return $redirect->with(
+            'error',
+            'Order created, but the payment request could not be sent: '
+            . ($push['error'] ?? 'unknown error')
+            . '. Use "Send payment request" to try again.'
+        );
+    }
+
+    /**
+     * Re-send the ClickPesa payment request for a pending hire.
+     */
+    public function resendOrderPaymentPush($id)
+    {
+        $order = SpecialHireOrder::byUser(Auth::id())->findOrFail($id);
+        $push = $this->sendPaymentPush($order);
+
+        return back()->with(
+            $push['ok'] ? 'success' : 'error',
+            $push['ok']
+                ? "Payment request sent to {$order->customer_phone}."
+                : 'Could not send the payment request: ' . ($push['error'] ?? 'unknown error')
+        );
+    }
+
+    /**
+     * Push a USSD payment prompt for the full hire amount to the customer's phone.
+     *
+     * @return array{ok: bool, error?: string}
+     */
+    private function sendPaymentPush(SpecialHireOrder $order): array
+    {
+        if (($order->payment_status ?? '') === 'paid') {
+            return ['ok' => false, 'error' => 'This hire is already paid.'];
+        }
+
+        $phone = normalize_tanzania_phone_for_booking($order->customer_phone);
+        if ($phone === '') {
+            return ['ok' => false, 'error' => 'The customer has no valid phone number.'];
+        }
+
+        // Guarantees deposit_amount = total and balance_amount = 0 before pushing.
+        $order->ensureUpfrontDepositPayment();
+
+        $name = trim((string) ($order->customer_name ?: 'Customer'));
+        $parts = preg_split('/\s+/', $name) ?: [];
+        $firstName = ($parts[0] ?? '') !== '' ? $parts[0] : 'Customer';
+        $lastName = count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : $firstName;
+
+        try {
+            $result = app(SpecialHireOrderPaymentService::class)->initiateUssd(
+                $order->fresh(),
+                'deposit',
+                $phone,
+                $firstName,
+                $lastName,
+                (string) ($order->customer_email ?: 'customer-bus@higc.co.tz')
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Special hire payment push failed: ' . $e->getMessage(), ['order_id' => $order->id]);
+
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+
+        if (! ($result['ok'] ?? false)) {
+            return ['ok' => false, 'error' => $result['error'] ?? 'ClickPesa rejected the request.'];
+        }
+
+        return ['ok' => true];
     }
 
     /**
@@ -577,11 +660,22 @@ class SpecialHireController extends Controller
                 break;
         }
 
-        // Get earnings data
-        $totalEarnings = SpecialHireOrder::byUser($user->id)
+        // Get earnings data.
+        // Earnings must always be NET of the platform commission: the customer pays
+        // the full hire amount, the admin keeps special_hire_platform_percent, and
+        // only the remainder belongs to the operator. Showing the gross total here
+        // promised more than the operator could actually withdraw.
+        $periodGross = (float) SpecialHireOrder::byUser($user->id)
             ->paid()
             ->whereBetween('created_at', [$startDate, $endDate])
             ->sum('total_amount');
+
+        $totalCommission = (float) SpecialHireOrder::byUser($user->id)
+            ->paid()
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->sum('platform_commission_amount');
+
+        $totalEarnings = max(0, round($periodGross - $totalCommission, 2));
 
         $totalOrders = SpecialHireOrder::byUser($user->id)
             ->paid()
@@ -601,16 +695,18 @@ class SpecialHireController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
-        // Earnings by coaster
+        // Earnings by coaster (net of platform commission, same basis as the KPI cards)
         $earningsByCoaster = SpecialHireOrder::byUser($user->id)
             ->paid()
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->selectRaw('coaster_id, SUM(total_amount) as total, COUNT(*) as trips')
+            ->selectRaw('coaster_id, SUM(total_amount - COALESCE(platform_commission_amount, 0)) as total, COUNT(*) as trips')
             ->groupBy('coaster_id')
             ->with('coaster')
             ->get();
 
-        $lifetimePaidEarnings = (float) SpecialHireOrder::byUser($user->id)->paid()->sum('total_amount');
+        $lifetimeGrossEarnings = (float) SpecialHireOrder::byUser($user->id)->paid()->sum('total_amount');
+        $lifetimeCommission = (float) SpecialHireOrder::byUser($user->id)->paid()->sum('platform_commission_amount');
+        $lifetimePaidEarnings = max(0, round($lifetimeGrossEarnings - $lifetimeCommission, 2));
         $withdrawalReserved = SpecialHireWithdrawalRequest::reservedAmountForUser($user->id);
         $withdrawalPaidOut = SpecialHireWithdrawalRequest::paidOutAmountForUser($user->id);
         $withdrawableBalance = SpecialHireWithdrawalRequest::withdrawableForUser($user->id);
@@ -632,11 +728,15 @@ class SpecialHireController extends Controller
             'startDate',
             'endDate',
             'totalEarnings',
+            'periodGross',
+            'totalCommission',
             'totalOrders',
             'totalDistance',
             'orders',
             'earningsByCoaster',
             'lifetimePaidEarnings',
+            'lifetimeGrossEarnings',
+            'lifetimeCommission',
             'withdrawalReserved',
             'withdrawalPaidOut',
             'withdrawableBalance',

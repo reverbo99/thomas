@@ -282,6 +282,44 @@ class SpecialHireOrder extends Model
     }
 
     /**
+     * Normalised passenger rows for printing (manifest, receipts).
+     *
+     * passenger_seats is written in two shapes: the customer app stores a plain
+     * list of names (array of strings), while the system panel stores arrays of
+     * ['name', 'phone', 'gender', 'is_infant']. Printing must accept both —
+     * treating a string as an array is what crashed the manifest PDF.
+     *
+     * @return array<int, array{name: string, phone: string, gender: string, is_infant: bool}>
+     */
+    public function passengerRows(): array
+    {
+        $raw = is_array($this->passenger_seats) ? $this->passenger_seats : [];
+
+        $rows = [];
+        foreach ($raw as $row) {
+            if (is_string($row)) {
+                $row = ['name' => $row];
+            } elseif (! is_array($row)) {
+                continue;
+            }
+
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'name' => $name,
+                'phone' => trim((string) ($row['phone'] ?? '')),
+                'gender' => (string) ($row['gender'] ?? ''),
+                'is_infant' => (bool) ($row['is_infant'] ?? false),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * Customer-app hire flow: optional deposit → (if balance > 0) driver accept → balance → passenger names → done.
      * When deposit_amount is null or zero, the deposit step is skipped.
      * When balance_amount is null or zero, wait_owner / pay_balance are skipped

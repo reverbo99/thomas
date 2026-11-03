@@ -799,7 +799,7 @@ class SystemController extends Controller
         abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
 
         $hireOrder = SpecialHireOrder::with(['user', 'coaster'])->findOrFail($order);
-        $passengers = is_array($hireOrder->passenger_seats) ? $hireOrder->passenger_seats : [];
+        $passengers = $hireOrder->passengerRows();
 
         return view('system.special_hire_order_passengers', compact('hireOrder', 'passengers'));
     }
@@ -841,7 +841,7 @@ class SystemController extends Controller
         abort_unless(Auth::user()->hasAccess(Access::LINKS['SPECIAL_HIRE']), 403);
 
         $hireOrder = SpecialHireOrder::with(['user', 'coaster.driver'])->findOrFail($order);
-        $passengers = is_array($hireOrder->passenger_seats) ? $hireOrder->passenger_seats : [];
+        $passengers = $hireOrder->passengerRows();
 
         $pdf = Pdf::loadView('print.special_hire_manifest', compact('hireOrder', 'passengers'));
         $pdf->setPaper('a4', 'landscape');

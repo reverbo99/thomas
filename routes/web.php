@@ -840,6 +840,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/orders/{id}/accept-hire', [SpecialHireController::class, 'acceptHireBooking'])->name('special_hire.orders.accept_hire');
         Route::post('/orders/{id}/cancel-hire', [SpecialHireController::class, 'cancelHireOrder'])->name('special_hire.orders.cancel_hire');
         Route::post('/orders/{id}/refund-hire', [SpecialHireController::class, 'refundHirePayment'])->name('special_hire.orders.refund_hire');
+        Route::post('/orders/{id}/send-payment', [SpecialHireController::class, 'resendOrderPaymentPush'])->name('special_hire.orders.send_payment');
 
         Route::get('/drivers/create', [SpecialHireController::class, 'createDriver'])->name('special_hire.drivers.create');
         Route::post('/drivers', [SpecialHireController::class, 'storeDriver'])->name('special_hire.drivers.store');

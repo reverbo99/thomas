@@ -50,7 +50,7 @@
                         <td class="text-center">{{ $index + 1 }}</td>
                         <td>{{ strtoupper($passenger['name'] ?? '') }}</td>
                         <td>{{ $passenger['phone'] ?? '' }}</td>
-                        <td class="text-center">{{ $passenger['gender'] ? ucfirst($passenger['gender']) : '' }}</td>
+                        <td class="text-center">{{ !empty($passenger['gender']) ? ucfirst($passenger['gender']) : '' }}</td>
                         <td class="text-center">{{ !empty($passenger['is_infant']) ? __('system.pages.yes_label') : __('system.pages.no_label') }}</td>
                     </tr>
                 @endforeach

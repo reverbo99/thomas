@@ -48,9 +48,12 @@
         <div class="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-teal-100 text-sm font-medium">Paid earnings — {{ $periodLabel }}</p>
+                    <p class="text-teal-100 text-sm font-medium">Paid earnings — {{ $periodLabel }} (net)</p>
                     <p class="text-teal-100/80 text-xs mt-0.5">{{ $startDate->format('M d') }} – {{ $endDate->format('M d, Y') }}</p>
                     <h3 class="text-3xl font-bold mt-2">Tsh {{ number_format($totalEarnings) }}</h3>
+                    @if($totalCommission > 0)
+                        <p class="text-teal-100/90 text-xs mt-1">After Tsh {{ number_format($totalCommission, 0) }} platform commission</p>
+                    @endif
                 </div>
                 <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                     <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -94,7 +97,8 @@
         The teal card is only for the <strong>period you selected</strong> (e.g. this month). Withdrawals use your
         <strong>lifetime</strong> paid hires (all dates), minus anything already paid out or held for a pending request.
         Example: <span class="text-teal-800 font-medium">Tsh {{ number_format($totalEarnings, 0) }}</span> this period vs
-        <span class="text-teal-800 font-medium">Tsh {{ number_format($lifetimePaidEarnings, 0) }}</span> all-time paid.
+        <span class="text-teal-800 font-medium">Tsh {{ number_format($lifetimePaidEarnings, 0) }}</span> all-time net.
+        All figures are after the platform commission has been deducted.
     </p>
 
     <!-- Request withdrawal (payout to your account) -->
@@ -106,7 +110,9 @@
         <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div class="space-y-4">
                 <div class="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm space-y-2">
-                    <div class="flex justify-between"><span class="text-gray-600">Lifetime paid hire total</span><span class="font-semibold text-gray-900">Tsh {{ number_format($lifetimePaidEarnings, 0) }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-600">Lifetime paid hire total (gross)</span><span class="font-semibold text-gray-900">Tsh {{ number_format($lifetimeGrossEarnings, 0) }}</span></div>
+                    <div class="flex justify-between"><span class="text-gray-600">Platform commission deducted</span><span class="font-semibold text-red-600">− Tsh {{ number_format($lifetimeCommission, 0) }}</span></div>
+                    <div class="flex justify-between border-t border-gray-200 pt-2"><span class="text-gray-800 font-medium">Your net hire earnings</span><span class="font-semibold text-gray-900">Tsh {{ number_format($lifetimePaidEarnings, 0) }}</span></div>
                     <div class="flex justify-between"><span class="text-gray-600">Already paid out to you</span><span class="font-semibold text-teal-700">Tsh {{ number_format($withdrawalPaidOut, 0) }}</span></div>
                     <div class="flex justify-between"><span class="text-gray-600">In review (pending / approved)</span><span class="font-semibold text-amber-700">Tsh {{ number_format($withdrawalReserved, 0) }}</span></div>
                     <div class="flex justify-between pt-2 border-t border-gray-200"><span class="text-gray-800 font-medium">You can request now</span><span class="font-bold text-teal-600 text-lg">Tsh {{ number_format($withdrawableBalance, 0) }}</span></div>

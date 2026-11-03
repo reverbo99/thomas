@@ -256,9 +256,19 @@
                 @php
                     $canCancel = ! in_array($order->order_status, ['cancelled', 'completed'], true);
                     $canRefund = in_array($order->payment_status, ['paid', 'refund_pending'], true);
+                    $canRequestPayment = $order->payment_status !== 'paid' && $order->order_status !== 'cancelled';
                 @endphp
 
                 <div class="space-y-3">
+                    @if($canRequestPayment)
+                        <form action="{{ route('special_hire.orders.send_payment', $order->id) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="w-full py-3 px-4 rounded-xl text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 transition-colors">
+                                Send payment request to customer
+                            </button>
+                        </form>
+                        <p class="text-xs text-gray-500">Sends a ClickPesa prompt for the full hire amount to {{ $order->customer_phone ?: 'the customer' }}. The hire goes to the driver automatically once payment is confirmed.</p>
+                    @endif
                     @if($canCancel)
                         <form action="{{ route('special_hire.orders.cancel_hire', $order->id) }}" method="POST" onsubmit="return confirm('Cancel this booking?');">
                             @csrf

@@ -1,66 +1,237 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>{{ __('system.pages.customer_receipt') }} — {{ $hireOrder->order_code }}</title>
     <style>
-        @page { size: A4 portrait; margin: 14mm; }
-        body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 10px; color: #111; margin: 0; padding: 0; }
-        h1 { font-size: 16px; margin: 0 0 4px; color: #1d4ed8; text-transform: uppercase; }
-        .meta { font-size: 9px; color: #666; margin-bottom: 16px; }
-        h2 { font-size: 12px; margin: 16px 0 8px; color: #1e3a8a; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
-        th { background: #eff6ff; font-size: 9px; text-transform: uppercase; width: 45%; }
-        tfoot td { font-weight: bold; background: #f9fafb; }
-        .text-right { text-align: right; }
+        @page {
+            size: 80mm 200mm;
+            margin: 2mm;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9px;
+            line-height: 1.15;
+            margin: 0;
+            padding: 1mm;
+            width: 76mm;
+            color: #000;
+        }
+
+        .header,
+        .footer {
+            text-align: center;
+            margin-bottom: 1.5mm;
+        }
+
+        .header h2 {
+            margin: 0 0 1mm;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .header p {
+            margin: 0.3mm 0;
+        }
+
+        .details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .details table th,
+        .details table td {
+            padding: 0.3mm 0;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .details table td.value {
+            text-align: right;
+        }
+
+        .details h3 {
+            margin: 1mm 0;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .divider {
+            border-top: 1px dashed #000;
+            margin: 1mm 0;
+        }
+
+        .total-row td {
+            font-weight: bold;
+            border-top: 1px solid #000;
+            padding-top: 1mm;
+        }
+
+        .qr-cell {
+            width: 100%;
+            text-align: center;
+            vertical-align: top;
+            padding: 0.5mm;
+        }
+
+        .qr-label {
+            font-size: 8px;
+            font-weight: bold;
+            margin-bottom: 0.5mm;
+        }
+
+        .qr-cell img {
+            width: 24mm;
+            height: 24mm;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .footer h6 {
+            font-size: 7px;
+            margin: 0;
+            font-weight: normal;
+        }
     </style>
 </head>
+
 <body>
-    <h1>{{ __('system.pages.customer_receipt') }}</h1>
-    <p class="meta">
-        {{ __('all.highlink_isgc') }} · {{ __('system.pages.printed_on') }}: {{ now()->format('Y-m-d H:i:s') }}
-        · {{ __('system.pages.order') }} <strong>{{ $hireOrder->order_code }}</strong>
-    </p>
+    @php
+        $receiptQr = receipt_qr_png_image((string) $hireOrder->order_code, 'Receipt QR', 68, 4);
+        $hireDate = $hireOrder->hire_date ? $hireOrder->hire_date->format('d M Y') : 'N/A';
+        $returnDate = $hireOrder->return_date ? $hireOrder->return_date->format('d M Y') : null;
+    @endphp
 
-    <h2>{{ __('system.pages.customer') }}</h2>
+    <div class="header">
+        <h2>{{ __('system.pages.customer_receipt') }}</h2>
+        <p style="font-weight: bold; font-size: 12px;">{{ __('all.highlink_isgc') }}</p>
+        <p>Printed on: {{ now()->format('d M Y H:i') }}</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="details">
+        <table>
+            <tr>
+                <td>Order number:</td>
+                <td>{{ $hireOrder->order_code }}</td>
+            </tr>
+            <tr>
+                <td>Customer:</td>
+                <td>{{ $hireOrder->customer_name }}</td>
+            </tr>
+            <tr>
+                <td>Phone:</td>
+                <td>{{ $hireOrder->customer_phone }}</td>
+            </tr>
+            @if($hireOrder->customer_email)
+            <tr>
+                <td>Email:</td>
+                <td>{{ $hireOrder->customer_email }}</td>
+            </tr>
+            @endif
+        </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="details">
+        <h3>{{ __('system.pages.hire_summary') }}</h3>
+        <table>
+            <tr>
+                <td>Operator:</td>
+                <td>{{ $hireOrder->user->name ?? 'N/A' }}</td>
+            </tr>
+            <tr>
+                <td>Coaster:</td>
+                <td>{{ $hireOrder->coaster->name ?? 'N/A' }} ({{ $hireOrder->coaster->plate_number ?? 'N/A' }})</td>
+            </tr>
+            <tr>
+                <td>Route:</td>
+                <td>{{ $hireOrder->pickup_location }} - {{ $hireOrder->dropoff_location }}</td>
+            </tr>
+            <tr>
+                <td>Hire date:</td>
+                <td>{{ $hireDate }} {{ $hireOrder->hire_time }}</td>
+            </tr>
+            @if($returnDate)
+            <tr>
+                <td>Return date:</td>
+                <td>{{ $returnDate }} {{ $hireOrder->return_time }}</td>
+            </tr>
+            @endif
+            <tr>
+                <td>Seats:</td>
+                <td>{{ $hireOrder->passengers_count }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="details">
+        <h3>{{ __('system.common.amount') }}</h3>
+        <table>
+            <tr>
+                <td>Base fare:</td>
+                <td class="value">{{ number_format((float) $hireOrder->base_price, 2) }}</td>
+            </tr>
+            <tr>
+                <td>Distance ({{ $hireOrder->distance_km }} km):</td>
+                <td class="value">{{ number_format((float) $hireOrder->km_amount, 2) }}</td>
+            </tr>
+            @if((float) $hireOrder->surcharge_amount > 0)
+            <tr>
+                <td>Surcharge ({{ $hireOrder->surcharge_percent }}%):</td>
+                <td class="value">{{ number_format((float) $hireOrder->surcharge_amount, 2) }}</td>
+            </tr>
+            @endif
+            @if($hireOrder->deposit_amount !== null)
+            <tr>
+                <td>Paid:</td>
+                <td class="value">{{ number_format((float) $hireOrder->deposit_amount, 2) }}</td>
+            </tr>
+            @endif
+            @if((float) $hireOrder->balance_amount > 0)
+            <tr>
+                <td>Balance:</td>
+                <td class="value">{{ number_format((float) $hireOrder->balance_amount, 2) }}</td>
+            </tr>
+            @endif
+            <tr>
+                <td>Payment method:</td>
+                <td class="value">{{ $hireOrder->payment_method ?? 'N/A' }}</td>
+            </tr>
+            <tr class="total-row">
+                <td>Total paid:</td>
+                <td class="value">{{ number_format((float) $hireOrder->total_amount, 2) }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="divider"></div>
+
     <table>
-        <tr><th>{{ __('system.pages.customer') }}</th><td>{{ $hireOrder->customer_name }}</td></tr>
-        <tr><th>{{ __('system.pages.passenger_phone') }}</th><td>{{ $hireOrder->customer_phone }}</td></tr>
-        @if($hireOrder->customer_email)
-            <tr><th>Email</th><td>{{ $hireOrder->customer_email }}</td></tr>
-        @endif
+        <tr>
+            <td class="qr-cell">
+                <div class="qr-label">Receipt QR</div>
+                @if($receiptQr)
+                    {!! $receiptQr !!}
+                @endif
+            </td>
+        </tr>
     </table>
 
-    <h2>{{ __('system.pages.hire_summary') }}</h2>
-    <table>
-        <tr><th>{{ __('system.pages.operator') }}</th><td>{{ $hireOrder->user->name ?? 'N/A' }}</td></tr>
-        <tr><th>{{ __('system.pages.coaster') }}</th><td>{{ $hireOrder->coaster->name ?? 'N/A' }} ({{ $hireOrder->coaster->plate_number ?? 'N/A' }})</td></tr>
-        <tr><th>{{ __('system.pages.col_travel_details') }}</th><td>{{ $hireOrder->pickup_location }} → {{ $hireOrder->dropoff_location }}</td></tr>
-        <tr><th>{{ __('system.pages.hire_date') }}</th><td>{{ $hireOrder->hire_date?->format('Y-m-d') }} {{ $hireOrder->hire_time }}</td></tr>
-        @if($hireOrder->return_date)
-            <tr><th>{{ __('system.common.date') }} ({{ __('system.pages.col_travel_details') }})</th><td>{{ $hireOrder->return_date?->format('Y-m-d') }} {{ $hireOrder->return_time }}</td></tr>
-        @endif
-        <tr><th>{{ __('all.seats') }}</th><td>{{ $hireOrder->passengers_count }}</td></tr>
-    </table>
+    <div class="divider"></div>
 
-    <h2>{{ __('system.common.amount') }}</h2>
-    <table>
-        <tr><th>{{ __('system.pages.base_fare') }}</th><td class="text-right">{{ number_format((float) $hireOrder->base_price, 2) }}</td></tr>
-        <tr><th>{{ __('system.pages.distance_charge') }} ({{ $hireOrder->distance_km }} km)</th><td class="text-right">{{ number_format((float) $hireOrder->km_amount, 2) }}</td></tr>
-        @if((float) $hireOrder->surcharge_amount > 0)
-            <tr><th>{{ __('system.pages.surcharge') }} ({{ $hireOrder->surcharge_percent }}%)</th><td class="text-right">{{ number_format((float) $hireOrder->surcharge_amount, 2) }}</td></tr>
-        @endif
-        @if($hireOrder->deposit_amount !== null)
-            <tr><th>{{ __('system.pages.deposit_paid') }}</th><td class="text-right">{{ number_format((float) $hireOrder->deposit_amount, 2) }}</td></tr>
-        @endif
-        @if($hireOrder->balance_amount !== null)
-            <tr><th>{{ __('system.pages.balance_paid') }}</th><td class="text-right">{{ number_format((float) $hireOrder->balance_amount, 2) }}</td></tr>
-        @endif
-        <tr><th>{{ __('system.pages.payment_method') }}</th><td>{{ $hireOrder->payment_method ?? 'N/A' }}</td></tr>
-        <tfoot>
-            <tr><td>{{ __('system.pages.total_paid') }}</td><td class="text-right">{{ number_format((float) $hireOrder->total_amount, 2) }}</td></tr>
-        </tfoot>
-    </table>
+    <div class="footer">
+        <h6>
+            Asante kwa kuchagua {{ __('all.highlink_isgc') }}. Kwa msaada piga
+            +255 755 879 793 au tembelea www.hisgc.co.tz
+        </h6>
+    </div>
 </body>
+
 </html>
