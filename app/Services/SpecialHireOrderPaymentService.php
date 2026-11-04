@@ -169,7 +169,7 @@ class SpecialHireOrderPaymentService
             return ['ok' => false, 'error' => 'Invalid payment amount'];
         }
 
-        $minTzs = (float) env('CLICKPESA_MIN_AMOUNT_TZS', 908);
+        $minTzs = (float) config('clickpesa.min_amount_tzs', 908);
         if ($amount < $minTzs) {
             return ['ok' => false, 'error' => "Amount must be at least {$minTzs} TZS for ClickPesa mobile money."];
         }
@@ -225,7 +225,7 @@ class SpecialHireOrderPaymentService
             return ['ok' => false, 'error' => 'Invalid payment amount'];
         }
 
-        $minTzs = (float) env('CLICKPESA_MIN_AMOUNT_TZS', 908);
+        $minTzs = (float) config('clickpesa.min_amount_tzs', 908);
         if ($amount < $minTzs) {
             return ['ok' => false, 'error' => "Amount must be at least {$minTzs} TZS for ClickPesa mobile money."];
         }

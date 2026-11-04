@@ -31,13 +31,19 @@ class ClickPesaController extends Controller
     /** @var string Checksum key/secret for HMAC (from ClickPesa dashboard) */
     private $checksumKey;
     private $endpoint;
+    /** @var string|null Why the last getAccessToken() call failed */
+    private ?string $lastTokenError = null;
 
     public function __construct()
     {
-        $this->apiKey = env('CLICKPESA_API_KEY'); // Your ClickPesa API Key
-        $this->clientId = env('CLICKPESA_CLIENT_ID'); // Your ClickPesa Client ID
-        $this->checksumKey = env('CLICKPESA_CHECKSUM_KEY', $this->clientId ?? ''); // Checksum key from ClickPesa (for HMAC)
-        $this->endpoint = env('CLICKPESA_ENDPOINT', 'https://api.clickpesa.com/third-parties/payments/preview-ussd-push-request');
+        // Read through config() (not env()) so `php artisan config:cache` cannot
+        // blank these values out — a cached config makes env() return null.
+        $config = (array) config('clickpesa', []);
+
+        $this->apiKey = $config['api_key'] ?? null;
+        $this->clientId = $config['client_id'] ?? null;
+        $this->checksumKey = ($config['checksum_key'] ?? '') ?: ($this->clientId ?? '');
+        $this->endpoint = $config['endpoint'] ?? 'https://api.clickpesa.com/third-parties/payments/preview-ussd-push-request';
     }
 
     /**
@@ -990,19 +996,27 @@ class ClickPesaController extends Controller
      */
     private function getAccessToken()
     {
+        $this->lastTokenError = null;
+        $config = (array) config('clickpesa', []);
+
         // Check if credentials are set
         if (empty($this->apiKey) || empty($this->clientId)) {
+            $this->lastTokenError = 'ClickPesa credentials are not configured. '
+                . 'Set CLICKPESA_API_KEY and CLICKPESA_CLIENT_ID in the server .env, '
+                . 'then run "php artisan config:clear".';
+
             Log::error('ClickPesa Token Error - Missing Credentials', [
                 'api_key_set' => !empty($this->apiKey),
-                'client_id_set' => !empty($this->clientId)
+                'client_id_set' => !empty($this->clientId),
+                'config_cached' => app()->configurationIsCached(),
             ]);
             return null;
         }
 
-        $tokenEndpoint = 'https://api.clickpesa.com/third-parties/generate-token';
-        $timeout = (int) env('CLICKPESA_TIMEOUT', 45);       // total request timeout (seconds)
-        $connectTimeout = (int) env('CLICKPESA_CONNECT_TIMEOUT', 15); // connection timeout (seconds)
-        $maxAttempts = min(3, max(1, (int) env('CLICKPESA_TOKEN_RETRIES', 3)));
+        $tokenEndpoint = $config['token_url'] ?? 'https://api.clickpesa.com/third-parties/generate-token';
+        $timeout = (int) ($config['timeout'] ?? 45);       // total request timeout (seconds)
+        $connectTimeout = (int) ($config['connect_timeout'] ?? 15); // connection timeout (seconds)
+        $maxAttempts = min(3, max(1, (int) ($config['token_retries'] ?? 3)));
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             $ch = curl_init();
@@ -1031,12 +1045,15 @@ class ClickPesaController extends Controller
             }
 
             // Log and retry on failure (timeout, connection error, or non-200)
+            $responseSnippet = is_string($response) ? substr($response, 0, 300) : '';
+
             Log::warning('ClickPesa Token attempt failed', [
                 'attempt' => $attempt,
                 'max_attempts' => $maxAttempts,
                 'curl_error' => $curlError,
                 'http_code' => $httpCode,
-                'endpoint' => $tokenEndpoint
+                'endpoint' => $tokenEndpoint,
+                'response' => $responseSnippet,
             ]);
             if ($curlError) {
                 Log::error('ClickPesa Token CURL Error', [
@@ -1045,12 +1062,42 @@ class ClickPesaController extends Controller
                 ]);
             }
 
+            $this->lastTokenError = $curlError !== ''
+                ? 'network error while contacting ClickPesa (' . $curlError . ')'
+                : $this->describeTokenFailure($httpCode, $responseSnippet);
+
             if ($attempt < $maxAttempts) {
                 usleep(500000); // 0.5s delay before retry
             }
         }
 
         return null;
+    }
+
+    /**
+     * Turn a failed token response into a short, operator-readable reason.
+     */
+    private function describeTokenFailure(int $httpCode, string $responseSnippet): string
+    {
+        $reason = match (true) {
+            $httpCode === 401 || $httpCode === 403 => 'credentials were rejected (check CLICKPESA_API_KEY / CLICKPESA_CLIENT_ID)',
+            $httpCode === 0 => 'no response from ClickPesa (DNS, firewall or timeout)',
+            $httpCode >= 500 => 'ClickPesa server error (HTTP ' . $httpCode . ')',
+            $httpCode > 0 => 'ClickPesa returned HTTP ' . $httpCode,
+            default => 'unexpected token response',
+        };
+
+        if ($responseSnippet !== '') {
+            $decoded = json_decode($responseSnippet, true);
+            $message = is_array($decoded)
+                ? ($decoded['message'] ?? $decoded['error'] ?? null)
+                : null;
+            if (is_string($message) && trim($message) !== '') {
+                $reason .= ' — ' . mb_substr(trim($message), 0, 200);
+            }
+        }
+
+        return $reason;
     }
 
     /**
@@ -1152,7 +1199,7 @@ class ClickPesaController extends Controller
      */
     private function computeChecksum(array $payload): string
     {
-        $checksumKey = env('CLICKPESA_CHECKSUM_KEY', $this->clientId);
+        $checksumKey = $this->checksumKey;
         return $this->createPayloadChecksum($checksumKey ?? '', $payload);
     }
 
@@ -1164,7 +1211,8 @@ class ClickPesaController extends Controller
         // Get access token first
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
-            return "Failed to obtain access token from ClickPesa";
+            return 'Failed to obtain access token from ClickPesa'
+                . ($this->lastTokenError ? ': ' . $this->lastTokenError : '');
         }
 
         $rawPhone = isset($orderDetails['phone']) ? (string) $orderDetails['phone'] : '';
@@ -1176,8 +1224,8 @@ class ClickPesaController extends Controller
 
         // ClickPesa USSD minimum/maximum (API returns 400 outside this range, e.g. "Amount must be between 908 and 3000000")
         $amountNum = (float) ($orderDetails['amount'] ?? 0);
-        $minTzs = (float) env('CLICKPESA_MIN_AMOUNT_TZS', 908);
-        $maxTzs = (float) env('CLICKPESA_MAX_AMOUNT_TZS', 3000000);
+        $minTzs = (float) config('clickpesa.min_amount_tzs', 908);
+        $maxTzs = (float) config('clickpesa.max_amount_tzs', 3000000);
         if ($amountNum < $minTzs) {
             return "Amount must be at least {$minTzs} TZS for mobile money (ClickPesa minimum). "
                 . 'Increase the ticket total (e.g. minimum fare) or use another payment method.';
@@ -1234,12 +1282,12 @@ class ClickPesaController extends Controller
             return "Failed to create checksum: " . $e->getMessage();
         }
 
-        $checksumKey = env('CLICKPESA_CHECKSUM_KEY', $this->clientId);
+        $checksumKey = $this->checksumKey;
         $canonicalForLogging = $this->canonicalize(array_diff_key($payload, ['checksum' => 1]));
         Log::debug('ClickPesa Checksum Computed', [
             'checksum' => $computedChecksum,
             'canonical_json' => json_encode($canonicalForLogging, JSON_UNESCAPED_SLASHES),
-            'checksum_key_source' => env('CLICKPESA_CHECKSUM_KEY') ? 'CLICKPESA_CHECKSUM_KEY' : 'CLICKPESA_CLIENT_ID',
+            'checksum_key_source' => config('clickpesa.checksum_key') ? 'CLICKPESA_CHECKSUM_KEY' : 'CLICKPESA_CLIENT_ID',
         ]);
 
         $jsonPayload = json_encode($payload);
@@ -1483,7 +1531,7 @@ class ClickPesaController extends Controller
         }
 
         // Call ClickPesa API to check payment status (use sanitized ref to match create payload)
-        $checkUrl = 'https://api.clickpesa.com/third-parties/payments/' . $orderRefForApi;
+        $checkUrl = rtrim((string) config('clickpesa.base_url', 'https://api.clickpesa.com/third-parties'), '/') . '/payments/' . $orderRefForApi;
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $checkUrl);
@@ -1650,21 +1698,23 @@ class ClickPesaController extends Controller
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
             Log::error('ClickPesa Verify Transaction - Failed to get access token', [
-                'reference' => $reference
+                'reference' => $reference,
+                'reason' => $this->lastTokenError,
             ]);
             // Return error object instead of string for consistent handling
             return (object) [
                 'status' => 'api_error',
                 'reference' => $reference,
                 'amount' => 0,
-                'message' => 'Failed to obtain access token',
+                'message' => 'Failed to obtain access token'
+                    . ($this->lastTokenError ? ': ' . $this->lastTokenError : ''),
                 'error_type' => 'token_error'
             ];
         }
 
         // ClickPesa API expects alphanumeric reference (same as when creating)
         $refForApi = preg_replace('/[^a-zA-Z0-9]/', '', $reference);
-        $checkUrl = 'https://api.clickpesa.com/third-parties/payments/' . $refForApi;
+        $checkUrl = rtrim((string) config('clickpesa.base_url', 'https://api.clickpesa.com/third-parties'), '/') . '/payments/' . $refForApi;
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $checkUrl);

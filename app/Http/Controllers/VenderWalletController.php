@@ -75,7 +75,7 @@ class VenderWalletController extends Controller
 
         if ($request->payment_method === 'clickpesa') {
             $amount = (float) $request->amount;
-            $minTzs = (float) env('CLICKPESA_MIN_AMOUNT_TZS', 908);
+            $minTzs = (float) config('clickpesa.min_amount_tzs', 908);
             if ($amount < $minTzs) {
                 return back()->withInput()->with('error', __('assistance/transaction.clickpesa_min_amount', ['min' => $minTzs]));
             }
