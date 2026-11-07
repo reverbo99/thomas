@@ -15,6 +15,7 @@ use App\Models\Setting;
 use App\Models\SystemBalance;
 use App\Services\BookingSettlementService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
@@ -25,6 +26,14 @@ use App\Http\Controllers\VenderWalletController;
 
 class ClickPesaController extends Controller
 {
+    /**
+     * Shared JWT cache key. ClickPesa allows only ONE successful generate-token
+     * per Client ID per IP every 3 minutes, so every payment must reuse the same
+     * token (a JWT is valid for 60 minutes). ClickPesaPayoutService caches under
+     * this exact key too, so collection and payouts never fight over the limit.
+     */
+    private const TOKEN_CACHE_KEY = 'clickpesa:payout:token';
+
     // ClickPesa API Configuration
     private $apiKey;
     private $clientId;
@@ -997,6 +1006,15 @@ class ClickPesaController extends Controller
     private function getAccessToken()
     {
         $this->lastTokenError = null;
+
+        // Reuse the cached JWT: ClickPesa mints at most one token per Client ID
+        // per IP every 3 minutes, so minting per payment fails with 429 as soon
+        // as a second customer pays inside that window.
+        $cachedToken = Cache::get(self::TOKEN_CACHE_KEY);
+        if (is_string($cachedToken) && trim($cachedToken) !== '') {
+            return trim($cachedToken);
+        }
+
         $config = (array) config('clickpesa', []);
 
         // Check if credentials are set
@@ -1040,6 +1058,7 @@ class ClickPesaController extends Controller
             if (!$curlError && $httpCode === 200 && !empty($response)) {
                 $token = $this->parseTokenFromResponse($response);
                 if ($token !== null) {
+                    Cache::put(self::TOKEN_CACHE_KEY, $token, now()->addMinutes(50));
                     return $token;
                 }
             }
@@ -1308,22 +1327,41 @@ class ClickPesaController extends Controller
             'currency' => $payload['currency'] ?? 'TZS',
         ]);
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $this->endpoint);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $accessToken
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        $curlInfo = curl_getinfo($ch);
-        curl_close($ch);
+        // A cached JWT can be revoked/expired early. On 401 discard it, mint a
+        // fresh one and retry the push once so the customer is not blocked.
+        $response = null;
+        $httpCode = 0;
+        $curlError = '';
+        $curlInfo = [];
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $this->endpoint);
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $accessToken
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            $curlInfo = curl_getinfo($ch);
+            curl_close($ch);
+
+            if ($httpCode !== 401 || $attempt === 2) {
+                break;
+            }
+
+            Cache::forget(self::TOKEN_CACHE_KEY);
+            $freshToken = $this->getAccessToken();
+            if (!$freshToken) {
+                break;
+            }
+            $accessToken = $freshToken;
+        }
 
         // Log the raw response for debugging
         Log::debug('ClickPesa Raw API Response', [
